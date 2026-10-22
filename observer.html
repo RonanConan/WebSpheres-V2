@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSpheres Observer</title>
+    <meta charset="utf-8">
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+        AFRAME.registerComponent('observer-receiver', {
+            init: function () {
+                this.HOST_ID = 'webspheres-host';
+                this.RETRY_DELAY = 3000;
+                this.DATA_TIMEOUT = 5000;
+                this.CONNECT_TIMEOUT = 10000;
+                this.PING_INTERVAL = 2000;
+                this.RECENTRE_TIMEOUT = 3000;
+
+                this.currentMode = 'pov';
+                this.cameraEl = null;
+                this.cameraPresets = null;
+                this.peer = null;
+                this.conn = null;
+                this.retryTimer = null;
+                this.lastData = 0;
+                this.attemptStarted = 0;
+                this.recentreRequestedAt = 0;
+                this.lastActiveSphere = -2;
+                this.lastRadius = -1;
+                this.lastHeight = -1;
+
+                this.BONE_PAIRS = [
+                    [0,1],[1,2],[2,3],[3,4],
+                    [0,5],[5,6],[6,7],[7,8],[8,9],
+                    [0,10],[10,11],[11,12],[12,13],[13,14],
+                    [0,15],[15,16],[16,17],[17,18],[18,19],
+                    [0,20],[20,21],[21,22],[22,23],[23,24],
+                    [1,5],[5,10],[10,15],[15,20]
+                ];
+
+                this.leftHand = this.createHandViz(0x4488ff);
+                this.rightHand = this.createHandViz(0xff8844);
+                this.sphereEls = this.createSphereArc();
+                this.createHomeBox();
+                this.setupOverlay();
+                this.setupKeyboard();
+
+                this.el.addEventListener('loaded', () => {
+                    this.cameraEl = document.getElementById('observer-cam');
+                    this.cameraPresets = {
+                        topdown: {
+                            pos: new THREE.Vector3(0, 3, 0.5),
+                            quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+                        },
+                        side: {
+                            pos: new THREE.Vector3(1.5, 1.2, -0.45),
+                            quat: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2)
+                        }
+                    };
+                    this.setupPeer();
+                    this.watchdogInterval = setInterval(() => this.watchdog(), 1000);
+                    this.pingInterval = setInterval(() => this.sendPing(), this.PING_INTERVAL);
+                    document.addEventListener('visibilitychange', () => {
+                        if (!document.hidden && !this.isLive()) this.retryNow();
+                    });
+                    window.addEventListener('online', () => {
+                        if (!this.isLive()) this.retryNow();
+                    });
+                });
+            },
+
+            createHandViz: function (color) {
+                const jointGeo = new THREE.SphereGeometry(0.008, 6, 6);
+                const jointMat = new THREE.MeshBasicMaterial({ color });
+                const joints = [];
+                for (let i = 0; i < 25; i++) {
+                    const mesh = new THREE.Mesh(jointGeo, jointMat);
+                    mesh.visible = false;
+                    this.el.object3D.add(mesh);
+                    joints.push(mesh);
+                }
+                const boneArr = new Float32Array(this.BONE_PAIRS.length * 6);
+                const boneGeo = new THREE.BufferGeometry();
+                boneGeo.setAttribute('position', new THREE.BufferAttribute(boneArr, 3));
+                const boneLines = new THREE.LineSegments(
+                    boneGeo,
+                    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7 })
+                );
+                boneLines.visible = false;
+                this.el.object3D.add(boneLines);
+                return { joints, boneLines, boneGeo };
+            },
+
+            createSphereArc: function () {
+                const spheres = [];
+                for (let i = 0; i < 11; i++) {
+                    const angle = (-40 + i * 8) * Math.PI / 180;
+                    const el = document.createElement('a-octahedron');
+                    el.setAttribute('position', `${0.45 * Math.sin(angle)} 1.2 ${-0.45 * Math.cos(angle)}`);
+                    el.setAttribute('radius', '0.06');
+                    el.setAttribute('material', 'color: #004444; opacity: 0.2; transparent: true; metalness: 0.8; roughness: 0.2');
+                    el.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 5000; easing: linear');
+                    this.el.appendChild(el);
+                    spheres.push(el);
+                }
+                return spheres;
+            },
+
+            createHomeBox: function () {
+                this.homeBoxEl = document.createElement('a-box');
+                this.homeBoxEl.setAttribute('position', '0 0.9 -0.4');
+                this.homeBoxEl.setAttribute('width', '0.8');
+                this.homeBoxEl.setAttribute('height', '0.12');
+                this.homeBoxEl.setAttribute('depth', '0.22');
+                this.homeBoxEl.setAttribute('material', 'color: #00ff00; transparent: true; opacity: 0.3; shader: flat');
+                this.el.appendChild(this.homeBoxEl);
+            },
+
+            isLive: function () {
+                return !!(this.conn && this.conn.open && Date.now() - this.lastData < this.DATA_TIMEOUT);
+            },
+
+            setupPeer: function () {
+                this.closeConn();
+                const oldPeer = this.peer;
+                this.peer = null;
+                if (oldPeer && !oldPeer.destroyed) {
+                    try { oldPeer.destroy(); } catch (e) {}
+                }
+
+                if (typeof Peer === 'undefined') {
+                    this.setStatus('PeerJS failed to load — check internet, then reload', '#ff4444');
+                    return;
+                }
+
+                let peer;
+                try {
+                    peer = new Peer({ debug: 0 });
+                } catch (e) {
+                    this.setStatus('Could not start connection — retrying...', '#ffaa00');
+                    this.scheduleRetry();
+                    return;
+                }
+                this.peer = peer;
+                this.attemptStarted = Date.now();
+
+                peer.on('open', () => {
+                    if (this.peer === peer) this.tryConnect();
+                });
+                peer.on('error', (err) => {
+                    if (this.peer !== peer || this.isLive()) return;
+                    if (err?.type === 'peer-unavailable') {
+                        this.setStatus('VR not found — retrying...', '#ffaa00');
+                    } else {
+                        this.setStatus('Network issue (' + (err?.type || 'unknown') + ') — retrying...', '#ffaa00');
+                    }
+                    this.scheduleRetry();
+                });
+                peer.on('disconnected', () => {
+                    if (this.peer === peer && !this.isLive()) this.scheduleRetry();
+                });
+                peer.on('close', () => {
+                    if (this.peer === peer) this.scheduleRetry();
+                });
+            },
+
+            tryConnect: function () {
+                this.closeConn();
+                const peer = this.peer;
+                if (!peer || peer.destroyed || peer.disconnected || !peer.open) {
+                    this.setupPeer();
+                    return;
+                }
+
+                const conn = peer.connect(this.HOST_ID);
+                if (!conn) {
+                    this.scheduleRetry();
+                    return;
+                }
+                this.conn = conn;
+                this.attemptStarted = Date.now();
+
+                conn.on('open', () => {
+                    if (this.conn !== conn) return;
+                    this.lastData = Date.now();
+                    this.setStatus('● Connected', '#00ff44');
+                    this.updateRecentreButton();
+                });
+                conn.on('data', (rawData) => {
+                    if (this.conn !== conn) return;
+                    this.lastData = Date.now();
+                    let data;
+                    try { data = JSON.parse(rawData); } catch (e) { return; }
+                    try { this.handleData(data); } catch (e) {}
+                });
+                conn.on('close', () => {
+                    if (this.conn !== conn) return;
+                    this.conn = null;
+                    this.setStatus('Disconnected — reconnecting...', '#ffaa00');
+                    this.updateRecentreButton();
+                    this.scheduleRetry();
+                });
+                conn.on('error', () => {
+                    if (this.conn !== conn) return;
+                    this.conn = null;
+                    this.setStatus('Connection error — reconnecting...', '#ffaa00');
+                    this.updateRecentreButton();
+                    this.scheduleRetry();
+                });
+            },
+
+            closeConn: function () {
+                const conn = this.conn;
+                this.conn = null;
+                if (conn) {
+                    try { conn.close(); } catch (e) {}
+                }
+            },
+
+            scheduleRetry: function () {
+                if (this.retryTimer) return;
+                this.retryTimer = setTimeout(() => {
+                    this.retryTimer = null;
+                    this.retry();
+                }, this.RETRY_DELAY);
+            },
+
+            retryNow: function () {
+                if (this.retryTimer) {
+                    clearTimeout(this.retryTimer);
+                    this.retryTimer = null;
+                }
+                this.retry();
+            },
+
+            retry: function () {
+                if (this.isLive()) return;
+                const peer = this.peer;
+                if (peer && peer.open && !peer.disconnected && !peer.destroyed) {
+                    this.tryConnect();
+                } else {
+                    this.setupPeer();
+                }
+            },
+
+            watchdog: function () {
+                const now = Date.now();
+                if (this.conn && this.conn.open) {
+                    if (now - this.lastData > this.DATA_TIMEOUT) {
+                        this.setStatus('No data from VR — reconnecting...', '#ffaa00');
+                        this.retryNow();
+                    }
+                } else if (!this.retryTimer && now - this.attemptStarted > this.CONNECT_TIMEOUT) {
+                    this.setStatus('Connection timed out — retrying...', '#ffaa00');
+                    this.retryNow();
+                }
+
+                if (this.recentreRequestedAt && now - this.recentreRequestedAt > this.RECENTRE_TIMEOUT) {
+                    this.recentreRequestedAt = 0;
+                    this.setRecentreNote('✗ No response from headset', '#ff4444');
+                }
+
+                this.updateRecentreButton();
+            },
+
+            sendPing: function () {
+                if (this.conn && this.conn.open) {
+                    try { this.conn.send(JSON.stringify({ type: 'ping' })); } catch (e) {}
+                }
+            },
+
+            sendToHost: function (obj) {
+                if (!this.conn || !this.conn.open) return false;
+                try {
+                    this.conn.send(JSON.stringify(obj));
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            },
+
+            requestRecentre: function () {
+                if (!this.isLive() || !this.sendToHost({ code: 'KeyR' })) {
+                    this.setRecentreNote('✗ Not connected', '#ff4444');
+                    return;
+                }
+                this.recentreRequestedAt = Date.now();
+                this.setRecentreNote('Recentring...', '#ffaa00');
+            },
+
+            handleRecentreAck: function (data) {
+                this.recentreRequestedAt = 0;
+                if (data.ok) {
+                    this.setRecentreNote('✓ Recentred ' + new Date().toLocaleTimeString(), '#00ff44');
+                } else {
+                    this.setRecentreNote('✗ Recentre failed: ' + (data.reason || 'unknown'), '#ff4444');
+                }
+            },
+
+            handleData: function (data) {
+                if (!data) return;
+                if (data.type === 'recentre') {
+                    this.handleRecentreAck(data);
+                    return;
+                }
+
+                if (this.statusEl && this.statusEl.textContent !== '● Connected') {
+                    this.setStatus('● Connected', '#00ff44');
+                }
+
+                if (data.radius !== undefined && (
+                    data.activeSphere !== this.lastActiveSphere ||
+                    data.radius !== this.lastRadius ||
+                    data.height !== this.lastHeight
+                )) {
+                    this.lastActiveSphere = data.activeSphere;
+                    this.lastRadius = data.radius;
+                    this.lastHeight = data.height;
+                    this.sphereEls.forEach((el, i) => {
+                        const angle = (-40 + i * 8) * Math.PI / 180;
+                        el.setAttribute('position', `${data.radius * Math.sin(angle)} ${data.height} ${-data.radius * Math.cos(angle)}`);
+                        el.setAttribute('material', i === data.activeSphere
+                            ? 'color: #00FFFF; opacity: 0.9; transparent: true; metalness: 0.8; roughness: 0.2'
+                            : 'color: #004444; opacity: 0.2; transparent: true; metalness: 0.8; roughness: 0.2'
+                        );
+                    });
+                }
+
+                if (data.homePos && this.homeBoxEl) {
+                    this.homeBoxEl.setAttribute('position', `${data.homePos.x} ${data.homePos.y} ${data.homePos.z}`);
+                }
+
+                this.updateHand(this.leftHand, data.left, data.leftValid);
+                this.updateHand(this.rightHand, data.right, data.rightValid);
+
+                if (this.currentMode === 'pov' && data.head && this.cameraEl) {
+                    this.cameraEl.object3D.position.set(data.head.px, data.head.py, data.head.pz);
+                    this.cameraEl.object3D.quaternion.set(data.head.qx, data.head.qy, data.head.qz, data.head.qw);
+                }
+
+                this.updateOverlay(data);
+            },
+
+            updateHand: function (hand, positions, valid) {
+                if (!valid || !positions) {
+                    hand.joints.forEach(m => { m.visible = false; });
+                    hand.boneLines.visible = false;
+                    return;
+                }
+                for (let i = 0; i < 25; i++) {
+                    hand.joints[i].position.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+                    hand.joints[i].visible = true;
+                }
+                const arr = hand.boneGeo.attributes.position.array;
+                this.BONE_PAIRS.forEach(([a, b], idx) => {
+                    arr[idx * 6]     = positions[a * 3];
+                    arr[idx * 6 + 1] = positions[a * 3 + 1];
+                    arr[idx * 6 + 2] = positions[a * 3 + 2];
+                    arr[idx * 6 + 3] = positions[b * 3];
+                    arr[idx * 6 + 4] = positions[b * 3 + 1];
+                    arr[idx * 6 + 5] = positions[b * 3 + 2];
+                });
+                hand.boneGeo.attributes.position.needsUpdate = true;
+                hand.boneLines.visible = true;
+            },
+
+            switchMode: function (mode) {
+                this.currentMode = mode;
+                if (this.cameraEl && this.cameraPresets && this.cameraPresets[mode]) {
+                    this.cameraEl.object3D.position.copy(this.cameraPresets[mode].pos);
+                    this.cameraEl.object3D.quaternion.copy(this.cameraPresets[mode].quat);
+                }
+                document.querySelectorAll('.ws-cam-btn').forEach(btn => {
+                    btn.style.background = btn.dataset.mode === mode ? '#007acc' : '#222';
+                });
+            },
+
+            setupKeyboard: function () {
+                document.addEventListener('keydown', (e) => {
+                    if (e.code === 'KeyR') {
+                        this.requestRecentre();
+                        return;
+                    }
+                    this.sendToHost({ code: e.code });
+                });
+            },
+
+            setupOverlay: function () {
+                const style = document.createElement('style');
+                style.textContent = `
+                    #ws-overlay {
+                        position: fixed; top: 12px; right: 12px; z-index: 9999;
+                        background: rgba(0,0,0,0.82); border: 1px solid #00ffff;
+                        border-radius: 8px; padding: 12px 16px; color: #fff;
+                        font-family: monospace; font-size: 13px; min-width: 230px;
+                        user-select: none;
+                    }
+                    #ws-status { margin-bottom: 10px; font-size: 12px; }
+                    .ws-row { margin: 4px 0; color: #888; }
+                    .ws-row span { color: #fff; }
+                    .fire-active { color: #ff4500 !important; }
+                    #ws-cams { display: flex; gap: 6px; margin-top: 10px; }
+                    .ws-cam-btn {
+                        flex: 1; padding: 5px 4px; border: 1px solid #00ffff;
+                        background: #222; color: #fff; cursor: pointer;
+                        border-radius: 4px; font-size: 11px; font-family: monospace;
+                    }
+                    .ws-cam-btn:hover { background: #444; }
+                    #ws-recentre {
+                        width: 100%; margin-top: 6px; padding: 6px;
+                        border: 1px solid #ffaa00; background: #1a1100;
+                        color: #ffaa00; cursor: pointer; border-radius: 4px;
+                        font-size: 12px; font-family: monospace; box-sizing: border-box;
+                    }
+                    #ws-recentre:hover:not(:disabled) { background: #2a1a00; }
+                    #ws-recentre:disabled { border-color: #333; color: #444; background: #111; cursor: not-allowed; }
+                    #ws-recentre-note { margin-top: 4px; font-size: 11px; min-height: 14px; }
+                    #ws-hint {
+                        margin-top: 8px; font-size: 10px; color: #555;
+                        border-top: 1px solid #1a1a1a; padding-top: 6px;
+                    }
+                    #ws-hint-title { color: #555; margin-bottom: 5px; }
+                    #ws-keys {
+                        display: grid; grid-template-columns: auto 1fr;
+                        gap: 3px 10px;
+                    }
+                    .ws-k { color: #00cccc; }
+                    .ws-d { color: #666; }
+                `;
+                document.head.appendChild(style);
+
+                const overlay = document.createElement('div');
+                overlay.id = 'ws-overlay';
+                overlay.innerHTML = `
+                    <div id="ws-status" style="color:#ffaa00">⏳ Connecting...</div>
+                    <div class="ws-row">Score: <span id="ws-score">—</span></div>
+                    <div class="ws-row">Trial: <span id="ws-trial">—</span></div>
+                    <div class="ws-row">Condition: <span id="ws-cond">—</span></div>
+                    <div class="ws-row">Dominant: <span id="ws-dom">—</span></div>
+                    <div class="ws-row">Fire Mode: <span id="ws-fire">—</span></div>
+                    <div id="ws-cams">
+                        <div class="ws-cam-btn" data-mode="pov">POV</div>
+                        <div class="ws-cam-btn" data-mode="topdown">Top-Down</div>
+                        <div class="ws-cam-btn" data-mode="side">Side</div>
+                    </div>
+                    <button id="ws-recentre" tabindex="-1" disabled>⊕ Recentre View</button>
+                    <div id="ws-recentre-note"></div>
+                    <div id="ws-hint">
+                        <div id="ws-hint-title">Keys → VR headset</div>
+                        <div id="ws-keys">
+                            <span class="ws-k">Space</span><span class="ws-d">Calibrate reach</span>
+                            <span class="ws-k">H</span><span class="ws-d">Calibrate height</span>
+                            <span class="ws-k">L</span><span class="ws-d">Calibrate lap</span>
+                            <span class="ws-k">S</span><span class="ws-d">Save data</span>
+                            <span class="ws-k">P</span><span class="ws-d">Start / Resume</span>
+                            <span class="ws-k">C</span><span class="ws-d">Toggle condition</span>
+                            <span class="ws-k">1</span><span class="ws-d">Dominant: Left</span>
+                            <span class="ws-k">2</span><span class="ws-d">Dominant: Right</span>
+                            <span class="ws-k">N</span><span class="ws-d">Short session</span>
+                            <span class="ws-k">F</span><span class="ws-d">F-Mode</span>
+                            <span class="ws-k">B</span><span class="ws-d">Block mode</span>
+                            <span class="ws-k">Z</span><span class="ws-d">Skip target</span>
+                            <span class="ws-k">R</span><span class="ws-d">Recentre view</span>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+
+                document.querySelectorAll('.ws-cam-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.switchMode(btn.dataset.mode));
+                });
+
+                this.statusEl = document.getElementById('ws-status');
+                this.scoreEl  = document.getElementById('ws-score');
+                this.trialEl  = document.getElementById('ws-trial');
+                this.condEl   = document.getElementById('ws-cond');
+                this.domEl    = document.getElementById('ws-dom');
+                this.fireEl   = document.getElementById('ws-fire');
+                this.recentreNoteEl = document.getElementById('ws-recentre-note');
+
+                this.recentreBtn = document.getElementById('ws-recentre');
+                this.recentreBtn.addEventListener('mousedown', (e) => e.preventDefault());
+                this.recentreBtn.addEventListener('click', () => {
+                    this.recentreBtn.blur();
+                    this.requestRecentre();
+                });
+
+                this.switchMode('pov');
+            },
+
+            updateRecentreButton: function () {
+                if (!this.recentreBtn) return;
+                const disabled = !this.isLive();
+                if (this.recentreBtn.disabled !== disabled) this.recentreBtn.disabled = disabled;
+            },
+
+            setRecentreNote: function (msg, color) {
+                if (this.recentreNoteEl) {
+                    this.recentreNoteEl.textContent = msg;
+                    this.recentreNoteEl.style.color = color || '#fff';
+                }
+            },
+
+            setStatus: function (msg, color) {
+                if (this.statusEl) {
+                    this.statusEl.textContent = msg;
+                    this.statusEl.style.color = color || '#fff';
+                }
+            },
+
+            updateOverlay: function (data) {
+                if (this.scoreEl) this.scoreEl.textContent = data.score ?? '—';
+                if (this.trialEl) this.trialEl.textContent = `${data.trialCount ?? '—'} / ${data.totalTrials ?? '—'}`;
+                if (this.condEl)  this.condEl.textContent  = data.condition === 1 ? 'No-Manip' : 'Boost-Tax';
+                if (this.domEl)   this.domEl.textContent   = data.dominantHand ?? '—';
+                if (this.fireEl) {
+                    this.fireEl.textContent = data.fireMode ? '🔥 ACTIVE' : 'Off';
+                    this.fireEl.className   = data.fireMode ? 'fire-active' : '';
+                }
+                this.updateRecentreButton();
+            }
+        });
+    </script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <a-scene vr-mode-ui="enabled: false" observer-receiver>
+        <a-entity id="observer-cam" camera="active: true; fov: 70" look-controls="enabled: false" wasd-controls="enabled: false" position="0 1.6 0.5"></a-entity>
+        <a-sky color="#0a0a1a"></a-sky>
+        <a-plane position="0 0 -0.2" rotation="-90 0 0" width="5" height="5" material="color: #080818; shader: flat"></a-plane>
+        <a-entity light="type: ambient; color: #aaaaff; intensity: 0.4"></a-entity>
+        <a-entity light="type: directional; color: #ffffff; intensity: 0.6" position="1 3 1"></a-entity>
+    </a-scene>
+</body>
+</html>

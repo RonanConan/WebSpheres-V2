@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script>
+        // Polyfill for THREE.Math compatibility with A-Frame 1.7.0
+        if (typeof THREE !== 'undefined' && !THREE.Math) {
+            THREE.Math = THREE.MathUtils;
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <!-- Custom Components -->
+    <script src="sparkle-system.js"></script>
+    <script src="hand-tracking-extras-debug.js"></script>
+    <script src="audio-manager.js"></script>
+    <script src="data-manager.js"></script>
+    <script src="score-manager.js"></script>
+    <script src="sphere-manager.js"></script>
+    <script src="floating-number.js"></script>
+    <script src="kinematics-manager.js"></script>
+    <script src="haze-manager.js"></script>
+    <script src="spectator-manager.js"></script>
+</head>
+
+<body>
+    <a-scene xr-mode-ui="XRMode: xr">
+
+        <!-- === REACTIVE HOLO-DASHBOARD === -->
+        <!-- ID 'holo-dashboard' allows the whole thing to pulse -->
+        <a-entity id="holo-dashboard" position="0 1.5 -1.2" rotation="15 0 0">
+
+            <!-- Glass Background -->
+            <!-- ADDED ID: dashboard-bg -->
+            <a-entity id="dashboard-bg" geometry="primitive: plane; width: 1.4; height: 0.6"
+                material="color: #000000; opacity: 0.6; transparent: true; shader: flat" position="0 0 0"></a-entity>
+
+            <!-- Borders -->
+            <!-- ADDED CLASS: dashboard-border -->
+            <a-entity class="dashboard-border" geometry="primitive: plane; width: 1.4; height: 0.01"
+                material="color: #00ffff; shader: flat" position="0 0.29 0.01"></a-entity>
+            <a-entity class="dashboard-border" geometry="primitive: plane; width: 1.4; height: 0.01"
+                material="color: #00ffff; shader: flat" position="0 -0.29 0.01"></a-entity>
+
+            <!-- SCORE SECTION -->
+            <a-text value="SCORE" position="0 0.22 0.02" align="center" width="1.5" color="#888888"
+                font="exo2bold"></a-text>
+
+            <a-text id="score-display" value="0" position="0 0.12 0.02" align="center" width="4" color="#FFFFFF"
+                font="exo2bold" score-manager></a-text>
+
+            <!-- PROGRESS SECTION -->
+            <a-entity position="0 -0.12 0.02" geometry="primitive: plane; width: 1.2; height: 0.05"
+                material="color: #333333"></a-entity>
+
+            <a-entity id="progress-bar-container" position="-0.6 -0.12 0.03">
+                <a-entity id="progress-fill" geometry="primitive: plane; width: 1.2; height: 0.04"
+                    material="color: #00ffff; shader: flat" position="0.6 0 0" scale="0 1 1">
+                </a-entity>
+            </a-entity>
+
+            <a-text id="progress-display" value="0%" position="0 -0.22 0.02" align="center" width="2" color="#CCCCCC"
+                font="exo2bold"></a-text>
+        </a-entity>
+
+        <!-- MANAGERS -->
+        <a-entity id="audio-manager" audio-manager></a-entity>
+        <a-entity id="data-manager" data-manager></a-entity>
+        <a-entity id="kinematics-manager" kinematics-manager></a-entity>
+        <a-entity id="sphere-manager" sphere-manager></a-entity>
+        <a-entity id="haze-manager" haze-manager></a-entity>
+        <a-entity id="spectator-manager" spectator-manager></a-entity>
+
+        <a-entity id="sparkle-burst" sparkle-system="count: 40; color: #FFD700; lifetime: 800"></a-entity>
+
+        <!-- Single Home Position Box (centered, larger for patient tolerance) -->
+        <a-box id="home-rectangle" position="0 0.9 -0.4" geometry="width: 0.8; height: 0.12; depth: 0.22"
+            material="color: #00ff00; transparent: true; opacity: 0.3">
+        </a-box>
+
+        <!-- Controllers -->
+        <a-entity hand-tracking-controls="hand: left" hand-tracking-extras></a-entity>
+        <a-entity hand-tracking-controls="hand: right" hand-tracking-extras></a-entity>
+        <a-entity meta-touch-controls="hand: right; model: false"></a-entity>
+    </a-scene>
+</body>
+
+</html>
