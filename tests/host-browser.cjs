@@ -1,0 +1,31 @@
+const { serve, launch, counter } = require('./harness.cjs');
+const { ok, done } = counter('HOST BROWSER');
+(async () => {
+  const b = await launch(['--autoplay-policy=no-user-gesture-required']);
+  const p = await b.newPage(); const errs = [];
+  p.on('pageerror', e => errs.push(e.message));
+  p.on('requestfailed', q => console.log('    request failed:', q.url()));
+  p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+  await serve(p);
+  console.log('INDEX.HTML host (Chromium, no XR)');
+  await p.goto('https://test.local/index.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await p.waitForFunction(() => window.__peers && window.__peers.length > 0 && document.querySelector('a-scene').hasLoaded, null, { timeout: 20000 });
+  const r = await p.evaluate(async () => {
+    const P = window.__peers[0]; P.serverOpen(); const c = P.incoming(); c.open = true; c.emit('open');
+    await new Promise(res => setTimeout(res, 600)); c.emit('data', JSON.stringify({ code: 'KeyR' })); await new Promise(res => setTimeout(res, 300));
+    c.emit('data', JSON.stringify({ code: 'KeyC' })); await new Promise(res => setTimeout(res, 200));
+    const m = c.sent.map(s => JSON.parse(s));
+    const fr = m.filter(x => !x.type);
+    return { id: P.reqId, frames: fr.length, ack: m.find(x => x.type === 'recentre'), last: fr.at(-1), seqs: fr.map(x => x.seq) };
+  });
+  ok(r.seqs.every((s, i) => Number.isInteger(s) && (i === 0 || s === r.seqs[i - 1] + 1)), 'frames carry seq, increasing by 1 (' + r.seqs[0] + '…' + r.seqs.at(-1) + ')');
+  ok(r.last.head && Object.values(r.last.head).every(v => Math.abs(v * 1e4 - Math.round(v * 1e4)) < 1e-6), 'head values rounded to 4 decimals in index.html');
+  ok(r.id === 'webspheres-host', 'host peer ID webspheres-host');
+  ok(r.frames >= 5, 'streams frames (' + r.frames + ' in ~1.1 s)');
+  ok(r.ack && r.ack.ok === false && r.ack.reason === 'Not in VR', 'recentre outside VR → "Not in VR" ack');
+  ok(r.last && r.last.condition === 2, 'relayed key (C) reaches sphere-manager (condition toggled → 2)');
+  const real = errs.filter(e => !e.includes('ERR_FAILED'));
+  ok(real.length === 0, 'no page errors (only blocked-CDN font load in sandbox) (' + real.join(' | ') + ')');
+  await b.close();
+  done();
+})().catch(e => { console.error(e); process.exit(2); });

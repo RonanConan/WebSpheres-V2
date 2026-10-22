@@ -12,6 +12,7 @@ AFRAME.registerComponent('spectator-manager', {
         this.healTimer = null;
         this.peerStartedAt = 0;
         this.lastSendTime = 0;
+        this.frameSeq = 0;
 
         this.recentrePending = false;
         this.baseRefSpace = null;
@@ -216,12 +217,16 @@ AFRAME.registerComponent('spectator-manager', {
         });
     },
 
+    round4: function (v) {
+        return Math.round(v * 10000) / 10000;
+    },
+
     getJointPositions: function (handData) {
         if (!handData || !handData.getValidity()) return null;
         const positions = [];
         for (let i = 0; i < 25; i++) {
             handData.getPosition(i, this.vec);
-            positions.push(this.vec.x, this.vec.y, this.vec.z);
+            positions.push(this.round4(this.vec.x), this.round4(this.vec.y), this.round4(this.vec.z));
         }
         return positions;
     },
@@ -295,9 +300,10 @@ AFRAME.registerComponent('spectator-manager', {
         if (cameraEl) {
             cameraEl.object3D.getWorldPosition(this.pos);
             cameraEl.object3D.getWorldQuaternion(this.quat);
+            const r = this.round4;
             head = {
-                px: this.pos.x, py: this.pos.y, pz: this.pos.z,
-                qx: this.quat.x, qy: this.quat.y, qz: this.quat.z, qw: this.quat.w
+                px: r(this.pos.x), py: r(this.pos.y), pz: r(this.pos.z),
+                qx: r(this.quat.x), qy: r(this.quat.y), qz: r(this.quat.z), qw: r(this.quat.w)
             };
         }
 
@@ -316,6 +322,7 @@ AFRAME.registerComponent('spectator-manager', {
         }
 
         this.broadcast(JSON.stringify({
+            seq: ++this.frameSeq,
             head,
             left: leftPos,
             right: rightPos,

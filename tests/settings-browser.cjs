@@ -1,0 +1,144 @@
+const { serve, launch, counter } = require('./harness.cjs');
+const { ok, done } = counter('SETTINGS & READOUTS BROWSER');
+const KEY = 'webspheres-observer-settings';
+const DEFAULTS = { hands: 'mesh', trails: true, trailSeconds: 1, head: true, gaze: true, arc: 'all', homeBox: true, textSize: 1, keyRelay: true };
+const joints = (side) => { const a = []; for (let i = 0; i < 25; i++) a.push(side * 0.2 + i * 0.003, 0.95 + (i % 5) * 0.004, -0.3 - i * 0.004); return a; };
+const FRAME = { head: { px: 0, py: 1.23, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, left: joints(-1), right: null, leftValid: true, rightValid: false, activeSphere: 4, radius: 0.45, height: 1.2, score: 7, condition: 2, dominantHand: 'RIGHT', fireMode: true, isPaused: false, trialCount: 9, totalTrials: 110, homePos: { x: 0, y: 0.9, z: -0.4 } };
+
+async function open(b, opts) {
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  if (opts && opts.brokenStorage) await ctx.addInitScript(() => { const boom = () => { throw new Error('storage blocked'); }; Storage.prototype.getItem = boom; Storage.prototype.setItem = boom; });
+  const p = await ctx.newPage();
+  p.errs = [];
+  p.on('pageerror', e => p.errs.push(e.message));
+  await serve(p);
+  if (opts && opts.clock) await p.clock.install();
+  await p.goto('https://test.local/observer.html');
+  if (opts && opts.clock) await p.clock.runFor(500); else await p.waitForFunction(() => window.__obs && window.__obs.frames > 2);
+  return { ctx, p };
+}
+const connect = (p) => p.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); c.open = true; c.emit('open'); });
+const send = (p, x) => p.evaluate((f) => window.__peers.at(-1).conns.at(-1).emit('data', JSON.stringify(f)), Object.assign({}, FRAME, x || {}));
+const set = (p, key, val) => p.evaluate(([k, v]) => document.querySelector(`[data-set="${k}"][data-val="${v}"]`).click(), [key, String(val)]);
+const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-set].on')].map(b => [b.dataset.set, b.dataset.val])));
+
+(async () => {
+  const b = await launch();
+
+  console.log('SETTINGS (Chromium)');
+  let { ctx, p } = await open(b);
+  await connect(p); await send(p); await p.waitForTimeout(100);
+  const rows = await p.evaluate(() => [...document.querySelectorAll('#setting-rows .set-row .label')].map(l => l.textContent));
+  ok(rows.join('|') === 'Hands|Fingertip trails|Trail length|Head|Gaze cone|Target arc|Home box|Text size|Keyboard relay', 'all nine settings listed in order');
+  const on0 = await onVals(p);
+  ok(Object.entries(DEFAULTS).every(([k, v]) => on0[k] === String(v)), 'defaults selected on first visit');
+  ok(await p.evaluate(() => !!document.getElementById('settings-reset')), 'Reset to defaults button present');
+
+  await set(p, 'head', false); await p.waitForTimeout(80);
+  let s = await p.evaluate(() => { const o = window.__obs; return { head: o.head.visible, skull: o.head.children[0].visible, gaze: o.gaze.visible }; });
+  ok(s.head && !s.skull && s.gaze, 'Head: Hide hides the head, gaze cone stays');
+  await set(p, 'gaze', false); await p.waitForTimeout(80);
+  ok(await p.evaluate(() => !window.__obs.gaze.visible && !window.__obs.head.visible), 'Gaze cone: Hide hides the cone (nothing left of the head)');
+  await set(p, 'arc', 'active');
+  ok(await p.evaluate(() => window.__obs.targets.filter(m => m.visible).length === 1 && window.__obs.targets[4].visible), 'Target arc: Active only shows only the active target');
+  await send(p, { activeSphere: -1 });
+  ok(await p.evaluate(() => window.__obs.targets.every(m => !m.visible)), 'Active only with no active target shows none');
+  await set(p, 'homeBox', false);
+  ok(await p.evaluate(() => !window.__obs.homeBox.visible), 'Home box: Hide');
+  const h0 = await p.evaluate(() => document.getElementById('topbar').offsetHeight);
+  await set(p, 'textSize', 1.4); await p.waitForTimeout(100);
+  const ts = await p.evaluate(() => ({ fs: parseFloat(getComputedStyle(document.documentElement).fontSize), h: document.getElementById('topbar').offsetHeight, a: window.__obs.camera.aspect, sa: document.getElementById('stage').clientWidth / document.getElementById('stage').clientHeight, sw: document.documentElement.scrollWidth }));
+  ok(Math.abs(ts.fs - 25.2) < 0.01 && ts.h > h0, 'Text size: Extra large scales the root by 1.4 (bars grow)');
+  ok(Math.abs(ts.a - ts.sa) < 1e-6 && ts.sw <= 1440, '3D view refits after the text-size change, no horizontal scroll');
+  await set(p, 'hands', 'keys');
+  ok(await p.evaluate(() => window.__obs.hands.L.keys.visible && !window.__obs.hands.L.mesh.visible), 'Hands: Key points applied');
+  await set(p, 'trails', false); await p.waitForTimeout(80);
+  ok(await p.evaluate(() => !window.__obs.hands.L.trail.visible), 'Fingertip trails: Off');
+  await set(p, 'trailSeconds', 2);
+  await set(p, 'keyRelay', false);
+  const b0 = await p.evaluate(() => window.__peers.at(-1).conns.at(-1).sent.length);
+  await send(p); await p.keyboard.press('KeyH'); await p.keyboard.press('KeyR');
+  ok(await p.evaluate((n) => window.__peers.at(-1).conns.at(-1).sent.slice(n).map(x => JSON.parse(x).code).filter(Boolean).join(), b0) === 'KeyR', 'Keyboard relay: Off blocks keys, Recentre still sent');
+  const stored = await p.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+  ok(stored && stored.head === false && stored.arc === 'active' && stored.textSize === 1.4 && stored.trailSeconds === 2 && stored.keyRelay === false, 'saved under one localStorage key');
+
+  await p.reload(); await p.waitForFunction(() => window.__obs && window.__obs.frames > 2);
+  const after = await p.evaluate(() => { const o = window.__obs; return { s: Object.assign({}, o.settings), skull: o.head.children[0].visible, home: o.homeBox.visible, fs: parseFloat(getComputedStyle(document.documentElement).fontSize), keys: o.hands.L.keys.visible }; });
+  const on1 = await onVals(p);
+  ok(after.s.head === false && after.s.gaze === false && after.s.arc === 'active' && after.s.homeBox === false && after.s.textSize === 1.4 && after.s.hands === 'keys' && after.s.trails === false && after.s.trailSeconds === 2 && after.s.keyRelay === false, 'every setting survives a reload');
+  ok(!after.skull && !after.home && Math.abs(after.fs - 25.2) < 0.01 && after.keys && on1.arc === 'active' && on1.textSize === '1.4', 'reloaded settings are applied to the scene and buttons');
+  await p.evaluate(() => document.getElementById('settings-reset').click());
+  const reset = await p.evaluate((k) => ({ s: Object.assign({}, window.__obs.settings), stored: JSON.parse(localStorage.getItem(k)) }), KEY);
+  ok(Object.entries(DEFAULTS).every(([k, v]) => reset.s[k] === v && reset.stored[k] === v), 'Reset to defaults restores and saves the defaults');
+  await p.evaluate((k) => localStorage.setItem(k, JSON.stringify({ hands: 'banana', textSize: 9, head: false })), KEY);
+  await p.reload(); await p.waitForFunction(() => window.__obs && window.__obs.frames > 2);
+  ok(await p.evaluate(() => window.__obs.settings.hands === 'mesh' && window.__obs.settings.textSize === 1 && window.__obs.settings.head === false), 'invalid stored values fall back to defaults, valid ones kept');
+  await p.evaluate((k) => localStorage.setItem(k, '{not json'), KEY);
+  await p.reload(); await p.waitForFunction(() => window.__obs && window.__obs.frames > 2);
+  ok(await p.evaluate(() => window.__obs.settings.hands === 'mesh' && window.__obs.settings.head === true), 'corrupt stored JSON → defaults');
+  ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+  await ctx.close();
+
+  console.log(' storage unavailable');
+  ({ ctx, p } = await open(b, { brokenStorage: true }));
+  ok(await p.evaluate(() => { try { localStorage.getItem('x'); return false; } catch (e) { return true; } }), 'localStorage throws in this page');
+  const d = await p.evaluate(() => Object.assign({}, window.__obs.settings));
+  ok(Object.entries(DEFAULTS).every(([k, v]) => d[k] === v), 'page runs on defaults');
+  await set(p, 'hands', 'skeleton');
+  ok(await p.evaluate(() => window.__obs.settings.hands === 'skeleton' && window.__obs.hands.L.skeleton.visible), 'settings still change the scene without storage');
+  await connect(p); await send(p);
+  ok(await p.evaluate(() => document.getElementById('conn-state').textContent === 'Connected' && window.__obs.frames > 0), 'connection and rendering unaffected');
+  ok(p.errs.length === 0, 'no page errors with storage blocked (' + p.errs.join(' | ') + ')');
+  await ctx.close();
+
+  console.log('READOUTS (Chromium, fake clock)');
+  ({ ctx, p } = await open(b, { clock: true }));
+  const r = (id) => p.evaluate((i) => document.getElementById('r-' + i).textContent, id);
+  const rc = (id) => p.evaluate((i) => document.getElementById('r-' + i).className, id);
+  await p.evaluate(() => window.__peers[0].emit('error', { type: 'peer-unavailable' }));
+  await p.click('#btn-readouts'); await p.clock.runFor(300);
+  const groups = await p.evaluate(() => [...document.querySelectorAll('#readout-rows h3')].map(h => h.textContent).join('|'));
+  ok(groups === 'Session|Tracking|Connection', 'Session, Tracking and Connection groups');
+  ok((await r('trial')) === '–' && (await r('left')) === 'no data' && (await r('reconnects')) === '0', 'empty values before any data');
+  ok((await r('error')).startsWith('peer-unavailable at '), 'last error type shown (' + (await r('error')) + ')');
+  await p.evaluate(() => window.__peers[0].serverOpen());
+  await p.evaluate(() => { const c = window.__peers[0].conns.at(-1); c.open = true; c.emit('open'); });
+  for (let i = 0; i < 90; i++) { await send(p); await p.clock.runFor(33); }
+  await p.clock.runFor(260);
+  ok((await r('trial')) === '9 / 110' && (await r('score')) === '7' && (await r('cond')) === 'Boost-and-tax' && (await r('dom')) === 'Right' && (await r('fire')) === 'On' && (await r('run')) === 'Running', 'session values');
+  ok((await r('target')) === '5', 'active target shown 1–11 (activeSphere 4 → 5)');
+  ok((await r('left')) === 'tracked' && (await rc('left')) === 'good' && (await r('right')) === 'no data', 'left tracked, right never seen');
+  ok((await r('headh')) === '1.23 m', 'head height in metres');
+  ok((await r('status')) === 'Connected' && /^0:0[2-4]$/.test(await r('uptime')), 'status and time connected (' + (await r('uptime')) + ')');
+  const rate = parseFloat(await r('rate'));
+  ok(rate >= 25 && rate <= 31, `messages per second over 2 s (${rate})`);
+  ok(/^\d+ ms$/.test(await r('age')) && parseInt(await r('age')) < 400, 'data age in ms (' + (await r('age')) + ')');
+  ok(parseInt(await r('gap')) <= 150,'worst gap at a steady 30 Hz (' + (await r('gap')) + ')');
+  ok((await r('stale')) === '0', 'stale frames dropped counter (0 until Phase 6)');
+  ok(/^\d+ fps$/.test(await r('fps')) && parseInt(await r('fps')) > 0, 'render frame rate (' + (await r('fps')) + ')');
+  await send(p, { isPaused: true, activeSphere: -1, rightValid: false, leftValid: false, left: null });
+  await p.clock.runFor(450);
+  for (let i = 0; i < 5; i++) { await send(p, { isPaused: true, activeSphere: -1, leftValid: false, left: null }); await p.clock.runFor(33); }
+  await p.clock.runFor(260);
+  ok((await r('run')) === 'Paused' && (await r('target')) === 'none', 'paused, no active target');
+  ok((await r('left')) === 'lost' && (await rc('left')) === 'bad', 'untracked hand shows "lost"');
+  const gap = parseInt(await r('gap'));
+  ok(gap >= 440 && gap <= 520, `a 0.45 s pause shows as the worst gap (${gap} ms)`);
+  await p.click('#recentre');
+  await p.evaluate(() => window.__peers.at(-1).conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: false, reason: 'Not in VR' })));
+  await p.clock.runFor(260);
+  ok((await r('recentre')).startsWith('Failed (Not in VR) at '), 'last recentre result and time');
+  await p.evaluate(() => window.__peers.at(-1).conns.at(-1).close());
+  await p.clock.runFor(3200);
+  await p.evaluate(() => window.__peers.at(-1).serverOpen());
+  await p.evaluate(() => { const c = window.__peers.at(-1).conns.at(-1); c.open = true; c.emit('open'); });
+  await send(p); await p.clock.runFor(260);
+  ok((await r('reconnects')) === '1', 'reconnect counted');
+  await p.clock.runFor(1500);
+  ok((await rc('age')) === 'warn' && parseInt(await r('age')) > 1000, 'data age turns amber after 1 s');
+  ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+  await ctx.close();
+
+  await b.close();
+  done();
+})().catch(e => { console.error(e); process.exit(2); });
