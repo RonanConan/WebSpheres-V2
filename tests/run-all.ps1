@@ -12,7 +12,7 @@ if (-not (Test-Path $base)) {
 }
 $env:WS_BASELINE = $base
 $env:WS_TOOLS = $tools
-$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs'
+$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'keyboard-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs'
 $failed = @()
 foreach ($s in $suites) {
     Write-Output "===== $s"
