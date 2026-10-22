@@ -22,6 +22,10 @@ AFRAME.registerComponent('kinematics-manager', {
         this.sessionStartTime = startTime || Date.now();
     },
 
+    stopTracking: function() {
+        this.isTracking = false;
+    },
+
     tick: function() {
         if (!this.isTracking) return;
 
@@ -128,26 +132,29 @@ AFRAME.registerComponent('kinematics-manager', {
         return handController.components['hand-tracking-controls'].indexTipPosition;
     },
 
-    exportCSV: function() {
+    HEADER: 'Timestamp,HandX,HandY,HandZ,HomeX,HomeY,HomeZ,TargetX,TargetY,TargetZ,' +
+        'Valid,WristX,WristY,WristZ,WristQX,WristQY,WristQZ,WristQW,' +
+        'HeadX,HeadY,HeadZ,HeadQX,HeadQY,HeadQZ,HeadQW,RecentreCount\n',
+
+    exportCSV: function(timestamp) {
+        const ts = timestamp || new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const dataManager = document.querySelector('#data-manager')?.components?.['data-manager'];
+        const prefix = dataManager?.participantId ? dataManager.participantId + '_' : '';
+
         if (this.leftHandData.length > 0) {
-            this.exportHandData(this.leftHandData, 'LEFT');
+            this.exportHandData(this.leftHandData, 'LEFT', ts, prefix);
         }
 
         if (this.rightHandData.length > 0) {
-            this.exportHandData(this.rightHandData, 'RIGHT');
+            this.exportHandData(this.rightHandData, 'RIGHT', ts, prefix);
         }
     },
 
-    exportHandData: function(rows, hand) {
-        const header = 'Timestamp,HandX,HandY,HandZ,HomeX,HomeY,HomeZ,TargetX,TargetY,TargetZ,' +
-            'Valid,WristX,WristY,WristZ,WristQX,WristQY,WristQZ,WristQW,' +
-            'HeadX,HeadY,HeadZ,HeadQX,HeadQY,HeadQZ,HeadQW,RecentreCount\n';
-
-        const blob = new Blob([header].concat(rows), { type: 'text/csv' });
+    exportHandData: function(rows, hand, timestamp, prefix) {
+        const blob = new Blob([this.HEADER].concat(rows), { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
 
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `kinematics-${hand}-${timestamp}.csv`;
+        const filename = `${prefix}kinematics-${hand}-${timestamp}.csv`;
 
         const link = document.createElement('a');
         link.href = url;

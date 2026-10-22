@@ -98,7 +98,7 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   await p.evaluate(() => window.__peers[0].emit('error', { type: 'peer-unavailable' }));
   await p.click('#btn-readouts'); await p.clock.runFor(300);
   const groups = await p.evaluate(() => [...document.querySelectorAll('#readout-rows h3')].map(h => h.textContent).join('|'));
-  ok(groups === 'Session|Tracking|Connection', 'Session, Tracking and Connection groups');
+  ok(groups === 'Session|Tracking|Backup on this laptop|Connection', 'Session, Tracking, Backup and Connection groups');
   ok((await r('trial')) === '–' && (await r('left')) === 'no data' && (await r('reconnects')) === '0', 'empty values before any data');
   ok((await r('error')).startsWith('peer-unavailable at '), 'last error type shown (' + (await r('error')) + ')');
   await p.evaluate(() => window.__peers[0].serverOpen());

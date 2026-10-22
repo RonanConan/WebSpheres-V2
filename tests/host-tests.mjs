@@ -56,11 +56,13 @@ const dispatched = [];
 const ctrl = (htc) => ({ components: { 'hand-tracking-controls': htc }, addEventListener() {}, removeEventListener() {}, getAttribute() { return {}; } });
 const leftCtrl = ctrl(htcL), rightCtrl = ctrl(htcR);
 let dm;
+const cueBox = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }, cueText = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+let smMock = null;
 globalThis.document = {
   hidden: false, _l: {},
   addEventListener(e, f) { (this._l[e] = this._l[e] || []).push(f); }, removeEventListener() {},
   dispatchEvent: e => dispatched.push(e.code),
-  querySelector: (s) => s === '[hand-tracking-controls="hand: left"]' ? leftCtrl : s === '[hand-tracking-controls="hand: right"]' ? rightCtrl : s === '#data-manager' ? { components: { 'data-manager': dm } } : null,
+  querySelector: (s) => s === '[hand-tracking-controls="hand: left"]' ? leftCtrl : s === '[hand-tracking-controls="hand: right"]' ? rightCtrl : s === '#data-manager' ? { components: { 'data-manager': dm } } : s === '#participant-cue' ? cueBox : s === '#participant-cue-text' ? cueText : s === '#sphere-manager' && smMock ? { components: { 'sphere-manager': smMock } } : null,
   createElement: () => ({ style: {}, click() {} }), body: { appendChild() {}, removeChild() {} }
 };
 globalThis.window = { _l: {}, addEventListener(e, f) { (this._l[e] = this._l[e] || []).push(f); }, removeEventListener() {} };
@@ -72,6 +74,8 @@ dm = Object.create(defs['data-manager']); dm.el = {}; dm.init(); intervals = int
 const sm = Object.create(defs['spectator-manager']); sm.el = { sceneEl }; sm.init();
 let t = 0; const tick = () => { t += 14; sm.tick(t); };
 const acks = c => c.sent.map(s => JSON.parse(s)).filter(d => d.type === 'recentre');
+let lastRecentreTicks = 0;
+const recentreNow = (c, each) => { const n = acks(c).length; c.emit('data', JSON.stringify({ code: 'KeyR' })); let i = 0; for (; i < 300 && acks(c).length === n; i++) { if (each) each(i); tick(); } lastRecentreTicks = i; };
 
 console.log('HOST — networking');
 let p0 = peers.at(-1); p0.serverOpen();
@@ -125,8 +129,9 @@ ok(sm.baseRefSpace === refSpace && sm.baseSession === session, 'enter-vr capture
 const headW = M4(new THREE.Vector3(0.3, 1.2, 0.1), new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(15), THREE.MathUtils.degToRad(25), THREE.MathUtils.degToRad(4), 'YXZ')));
 sceneEl.frame = new Frame(session, headW);
 htcL.referenceSpace = refSpace; htcR.referenceSpace = refSpace; tcSystem.referenceSpace = refSpace;
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
+recentreNow(c3);
 a = acks(c3).at(-1); ok(a.ok === true, 'recentre in VR → ack ok');
+ok(lastRecentreTicks * 14 >= 1500 && lastRecentreTicks * 14 < 1600, 'look-ahead: ack arrives after ~1.5 s (' + lastRecentreTicks * 14 + ' ms)');
 const active = xr.getReferenceSpace();
 ok(active !== refSpace && active === sm.activeSpace, 'renderer now uses offset space');
 ok(htcL.referenceSpace === active && htcR.referenceSpace === active && tcSystem.referenceSpace === active, 'hand-tracking-controls (both) + tracked-controls share the recentred space');
@@ -138,27 +143,27 @@ const viaHTC = poseIn(htcL.referenceSpace, handW).p, viaExtras = poseIn(xr.getRe
 ok(viaHTC.distanceTo(viaExtras) < 1e-9, 'indexTip/kinematics frame == collision/camera frame (was ~12 cm apart)');
 htcL.referenceSpace = refSpace; tcSystem.referenceSpace = refSpace; tick();
 ok(htcL.referenceSpace === active && tcSystem.referenceSpace === active, 'late async refspace overwrite (A-Frame inputsourceschange) re-synced next tick');
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
+recentreNow(c3);
 const again = xr.getReferenceSpace(); const hp2 = poseIn(again, headW);
 ok(again.origin.equals(active.origin) && Math.abs(hp2.p.x) < 1e-9, 'second recentre with no movement identical (offset from base, no drift)');
 ok(dm.recentreCount === 0, 'recentres before session start not counted');
 
 dm.startSession(now);
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
+recentreNow(c3);
 dm.recordTrial(3, 'LEFT', 10, 'normal', 300);
 ok(dm.recentreCount === 1 && dm.trialData.at(-1).recentreCount === 1, 'mid-session recentre counted and stamped on trial row');
 let csv = ''; globalThis.Blob = function (parts) { csv = parts.join(''); }; globalThis.URL = { createObjectURL: () => 'u', revokeObjectURL() {} }; dm.exportCSV();
-ok(csv.split('\n')[0].endsWith(',RecentreCount') && csv.split('\n')[1].endsWith(',1'), 'trial CSV has RecentreCount as last column');
+ok(csv.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID' && csv.split('\n')[1].split(',')[8] === '1' && csv.split('\n')[1].endsWith(',1,'), 'trial CSV: original 9 columns in order (RecentreCount 9th), ParticipantID appended last (empty without ID)');
 ok(csv.split('\n')[0].split(',').length === csv.split('\n')[1].split(',').length, 'header/row column counts match');
 
-let cur = xr.getReferenceSpace(); sceneEl.frame.nullPose = true; c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
+let cur = xr.getReferenceSpace(); sceneEl.frame.nullPose = true; recentreNow(c3);
 ok(acks(c3).at(-1).reason === 'Head not tracked' && xr.getReferenceSpace() === cur, 'lost head tracking → fail ack, previous recentre kept');
 sceneEl.frame.nullPose = false;
 const bad = sceneEl.frame.getViewerPose; sceneEl.frame.getViewerPose = () => ({ transform: { position: { x: NaN, y: 1, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 } } });
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
-ok(acks(c3).at(-1).ok === false && xr.getReferenceSpace() === cur, 'NaN pose rejected, nothing applied');
+recentreNow(c3);
+ok(acks(c3).at(-1).ok === false && acks(c3).at(-1).reason === 'Invalid head pose' && xr.getReferenceSpace() === cur, 'NaN pose rejected, nothing applied');
 sceneEl.frame.getViewerPose = () => { throw new Error('driver'); };
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); let threw = false; try { tick(); } catch (e) { threw = true; }
+let threw = false; try { recentreNow(c3); } catch (e) { threw = true; }
 ok(!threw && acks(c3).at(-1).reason.startsWith('Error'), 'exception inside recentre caught → render loop survives');
 sceneEl.frame.getViewerPose = bad;
 
@@ -169,12 +174,46 @@ const oldSession = session;
 enterVR();
 const fr = new Frame(session, headW); sceneEl.frame = fr;
 htcL.referenceSpace = refSpace;
-c3.emit('data', JSON.stringify({ code: 'KeyR' })); threw = false; try { tick(); } catch (e) { threw = true; }
+threw = false; try { recentreNow(c3); } catch (e) { threw = true; }
 ok(!threw && acks(c3).at(-1).ok === true, 'recentre after re-entering VR works (no cross-session throw)');
 ok(xr.getReferenceSpace().session === session && htcL.referenceSpace.session === session, 'all spaces belong to the new session');
 sm.baseSession = { stale: true }; c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
 ok(acks(c3).at(-1).reason === 'Tracking not ready', 'session mismatch guard refuses instead of throwing');
 sm.onEnterVR();
+
+console.log('HOST — look-ahead recentre (Plan B §5.2)');
+const yawM = (deg, x, z) => M4(new THREE.Vector3(x, 1.25, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(deg), 0, 'YXZ')));
+sceneEl.frame = new Frame(session, yawM(90, -0.5, 0.4));
+cueBox.attrs = {}; cueText.attrs = {};
+let cueSeen = false, nAck = acks(c3).length;
+recentreNow(c3, (i) => {
+  sceneEl.frame.head = i * 14 < 1000 ? yawM(90, -0.5, 0.4) : (i % 2 ? yawM(179, 0.1, -0.1) : yawM(-179, 0.3, 0.1));
+  if (cueBox.attrs.visible === true && cueText.attrs.value === 'Please look straight ahead') cueSeen = true;
+});
+a = acks(c3).at(-1);
+ok(a.ok === true && acks(c3).length === nAck + 1, 'look-ahead recentre ok');
+ok(cueSeen && cueBox.attrs.visible === false && cueText.attrs.value === '', 'headset shows "Please look straight ahead" during the wait, then clears it');
+const la = poseIn(xr.getReferenceSpace(), yawM(180, 0.2, 0));
+ok(Math.abs(la.p.x) < 0.02 && Math.abs(la.p.z) < 0.02, `mean head x/z over the last 0.5 s → (0.2, 0) becomes the origin (x ${la.p.x.toFixed(4)}, z ${la.p.z.toFixed(4)})`);
+ok(Math.abs(THREE.MathUtils.radToDeg(la.e.y)) < 0.2, `yaw samples at +179° / −179° average to 180° (circular mean), not 0° (residual ${THREE.MathUtils.radToDeg(la.e.y).toFixed(3)}°)`);
+const early = poseIn(xr.getReferenceSpace(), yawM(90, -0.5, 0.4));
+ok(Math.abs(THREE.MathUtils.radToDeg(early.e.y) + 90) < 0.5, 'samples older than 0.5 s (looking 90° aside) are ignored');
+smMock = { phase: 'running', currentState: 'visible' }; cueBox.attrs = {};
+let cueDuringTrial = false;
+recentreNow(c3, () => { if (cueBox.attrs.visible === true) cueDuringTrial = true; });
+ok(!cueDuringTrial && acks(c3).at(-1).ok === true, 'no cue while a trial is in progress; recentre still happens');
+smMock = null;
+nAck = acks(c3).length;
+c3.emit('data', JSON.stringify({ code: 'KeyR' })); for (let i = 0; i < 20; i++) tick();
+c3.emit('data', JSON.stringify({ code: 'KeyR' })); for (let i = 0; i < 300; i++) tick();
+ok(acks(c3).length === nAck + 1, 'a second request during the countdown does not start another one');
+nAck = acks(c3).length; cueBox.attrs = {};
+c3.emit('data', JSON.stringify({ code: 'KeyR' })); for (let i = 0; i < 20; i++) tick();
+const cueMid = cueBox.attrs.visible;
+exitVR(); tick();
+ok(cueMid === true && acks(c3).length === nAck + 1 && acks(c3).at(-1).reason === 'Not in VR' && cueBox.attrs.visible === false, 'leaving VR mid-countdown → "Not in VR" ack, cue cleared');
+nAck = acks(c3).length; for (let i = 0; i < 200; i++) tick();
+ok(acks(c3).length === nAck, 'no late ack after the cancelled countdown');
 
 console.log('HOST — stream');
 tick(); tick(); tick();

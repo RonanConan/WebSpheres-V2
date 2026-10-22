@@ -1,6 +1,15 @@
+const APP_VERSION = '2.0.0';
+
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
         this.HOST_ID = 'webspheres-host';
+        this.STATE_INTERVAL = 1000;
+        this.SYNC_INTERVAL = 250;
+        this.SYNC_BATCH = 1500;
+        this.lastSyncReply = 0;
+        this.pendingSync = new Map();
+        this.stateDirty = true;
+        this.lastStateTime = 0;
         this.HEAL_DELAY = 3000;
         this.HEALTH_INTERVAL = 5000;
         this.STUCK_TIMEOUT = 15000;
@@ -13,6 +22,20 @@ AFRAME.registerComponent('spectator-manager', {
         this.peerStartedAt = 0;
         this.lastSendTime = 0;
         this.frameSeq = 0;
+
+        this.RECENTRE_DELAY = 1500;
+        this.RECENTRE_WINDOW = 500;
+        this.CUES = {
+            lookAhead: 'Please look straight ahead',
+            reach: 'Stretch one arm straight out',
+            lap: 'Rest both hands in the green box',
+            ready: 'Get ready...',
+            paused: 'Short break',
+            done: 'All done - thank you!'
+        };
+        this.recentre = null;
+        this.cue = null;
+        this.cueBeforeRecentre = null;
 
         this.recentrePending = false;
         this.baseRefSpace = null;
@@ -68,6 +91,7 @@ AFRAME.registerComponent('spectator-manager', {
     onEnterVR: function () {
         const sceneEl = this.el.sceneEl;
         this.recentrePending = false;
+        this.recentre = null;
         this.activeSpace = null;
         this.baseSession = sceneEl.xrSession || sceneEl.renderer?.xr?.getSession?.() || null;
         this.baseRefSpace = this.baseSession ? sceneEl.renderer.xr.getReferenceSpace() : null;
@@ -75,6 +99,11 @@ AFRAME.registerComponent('spectator-manager', {
 
     onExitVR: function () {
         this.recentrePending = false;
+        if (this.recentre) {
+            this.recentre = null;
+            if (this.cue === 'lookAhead') this.setCue(this.cueBeforeRecentre || null);
+            this.broadcast(JSON.stringify({ type: 'recentre', ok: false, reason: 'Not in VR' }));
+        }
         this.activeSpace = null;
         this.baseSession = null;
         this.baseRefSpace = null;
@@ -175,10 +204,11 @@ AFRAME.registerComponent('spectator-manager', {
         conn.on('open', () => {
             this.lastSeen.set(conn, Date.now());
             if (!this.connections.includes(conn)) this.connections.push(conn);
+            this.sendTo(conn, this.buildState());
         });
         conn.on('data', (rawData) => {
             this.lastSeen.set(conn, Date.now());
-            this.handleMessage(rawData);
+            this.handleMessage(rawData, conn);
         });
         conn.on('close', () => this.dropConnection(conn));
         conn.on('error', () => this.dropConnection(conn));
@@ -187,6 +217,7 @@ AFRAME.registerComponent('spectator-manager', {
     dropConnection: function (conn) {
         this.connections = this.connections.filter(c => c !== conn);
         this.lastSeen.delete(conn);
+        this.pendingSync.delete(conn);
         try { conn.close(); } catch (e) {}
     },
 
@@ -198,14 +229,109 @@ AFRAME.registerComponent('spectator-manager', {
         });
     },
 
-    handleMessage: function (rawData) {
+    handleMessage: function (rawData, conn) {
         let data;
         try { data = JSON.parse(rawData); } catch (e) { return; }
         if (!data || data.type === 'ping') return;
+        if (data.type === 'cmd') {
+            this.handleCommand(data, conn);
+            return;
+        }
+        if (data.type === 'sync') {
+            if (conn) this.pendingSync.set(conn, data.have || {});
+            return;
+        }
         if (data.code === 'KeyR') {
             this.recentrePending = true;
         } else if (data.code) {
             document.dispatchEvent(new KeyboardEvent('keydown', { code: data.code, bubbles: true }));
+        }
+    },
+
+    handleCommand: function (data, conn) {
+        let result;
+        if (data.name === 'recentre') {
+            this.recentrePending = true;
+            result = { ok: true };
+        } else if (data.name === 'cue') {
+            result = this.requestCue(data.value);
+        } else {
+            const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+            result = sm?.runCommand ? sm.runCommand(data.name, data.value) : { ok: false, reason: 'Experiment not ready' };
+        }
+        if (conn) this.sendTo(conn, JSON.stringify({ type: 'cmdResult', id: data.id, ok: !!result.ok, reason: result.reason || '' }));
+        this.sendState();
+    },
+
+    buildState: function () {
+        const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        const scoreM = document.querySelector('#score-display')?.components?.['score-manager'];
+        const dataM = document.querySelector('#data-manager')?.components?.['data-manager'];
+        const km = document.querySelector('#kinematics-manager')?.components?.['kinematics-manager'];
+        return JSON.stringify({
+            type: 'state',
+            version: APP_VERSION,
+            phase: sm?.phase ?? 'setup',
+            endReason: sm?.endReason ?? '',
+            participantId: dataM?.participantId ?? '',
+            dominantHand: scoreM?.dominantHand ?? 'LEFT',
+            condition: scoreM?.currentCondition ?? 1,
+            mode: sm?.mode ?? 'standard',
+            totalTrials: sm?.totalTrials ?? 352,
+            setupLocked: sm?.setupLocked ?? false,
+            calib: sm?.calib ?? null,
+            recentred: !!this.activeSpace,
+            cue: this.cue,
+            sessionMs: dataM?.sessionStartTime > 0 ? (dataM.sessionEndTime || Date.now()) - dataM.sessionStartTime : 0,
+            trialCount: dataM?.trialNumber ?? 0,
+            recentreCount: dataM?.recentreCount ?? 0,
+            pauses: dataM?.pauses?.length ?? 0,
+            backup: {
+                trials: dataM?.trialData?.length ?? 0,
+                kinL: km?.leftHandData?.length ?? 0,
+                kinR: km?.rightHandData?.length ?? 0,
+                final: sm?.phase === 'complete' && km?.isTracking === false,
+                exportTs: dataM?.lastExportTimestamp ?? ''
+            },
+            info: dataM?.buildSessionInfo ? dataM.buildSessionInfo() : ''
+        });
+    },
+
+    replySync: function () {
+        this.lastSyncReply = Date.now();
+        const pending = this.pendingSync;
+        this.pendingSync = new Map();
+        const dataM = document.querySelector('#data-manager')?.components?.['data-manager'];
+        const km = document.querySelector('#kinematics-manager')?.components?.['kinematics-manager'];
+        if (!dataM || !km) return;
+        const sources = [
+            ['trials', dataM.trialData, dataM.TRIAL_HEADER, (t) => dataM.formatTrialRow(t), true],
+            ['kinL', km.leftHandData, km.HEADER, null, false],
+            ['kinR', km.rightHandData, km.HEADER, null, false]
+        ];
+        pending.forEach((have, conn) => {
+            sources.forEach(([file, rows, header, format, all]) => {
+                const from = Math.max(0, Math.floor(Number(have[file]) || 0));
+                if (from >= rows.length) return;
+                const end = all ? rows.length : Math.min(rows.length, from + this.SYNC_BATCH);
+                const slice = rows.slice(from, end);
+                this.sendTo(conn, JSON.stringify({ type: 'rows', file, from, header, lines: format ? slice.map(format) : slice }));
+            });
+        });
+    },
+
+    sendState: function () {
+        this.stateDirty = false;
+        this.lastStateTime = Date.now();
+        if (this.connections.length === 0) return;
+        let payload;
+        try { payload = this.buildState(); } catch (e) { return; }
+        this.broadcast(payload);
+    },
+
+    sendTo: function (conn, payload) {
+        if (conn && conn.open) {
+            try { conn.send(payload); } catch (e) {}
         }
     },
 
@@ -242,35 +368,102 @@ AFRAME.registerComponent('spectator-manager', {
         if (tcSystem && tcSystem.referenceSpace !== space) tcSystem.referenceSpace = space;
     },
 
-    doRecentre: function () {
+    recentreReady: function () {
         const sceneEl = this.el.sceneEl;
-        const renderer = sceneEl.renderer;
-        const session = renderer?.xr?.getSession?.();
-        const frame = sceneEl.frame;
-        if (!session || !frame) return { ok: false, reason: 'Not in VR' };
+        const session = sceneEl.renderer?.xr?.getSession?.();
+        if (!session || !sceneEl.frame) return { ok: false, reason: 'Not in VR' };
         if (!this.baseRefSpace || this.baseSession !== session) return { ok: false, reason: 'Tracking not ready' };
+        return { ok: true };
+    },
 
+    setCue: function (id) {
+        const text = id ? this.CUES[id] : '';
+        if (id && !text) return;
+        this.cue = id || null;
+        const box = document.querySelector('#participant-cue');
+        const label = document.querySelector('#participant-cue-text');
+        if (label) label.setAttribute('value', text || '');
+        if (box) box.setAttribute('visible', !!id);
+        this.stateDirty = true;
+    },
+
+    requestCue: function (id) {
+        const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        if (sm && sm.phase !== 'setup') return { ok: false, reason: 'Cues are automatic once the session has started' };
+        if (id !== null && !['reach', 'lap', 'ready'].includes(id)) return { ok: false, reason: 'Unknown cue' };
+        if (this.recentre) this.cueBeforeRecentre = id;
+        else this.setCue(id);
+        return { ok: true };
+    },
+
+    trialInProgress: function () {
+        const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        return !!sm && (sm.phase === 'running' || sm.phase === 'pausing') && sm.currentState !== 'invisible';
+    },
+
+    beginRecentre: function (time) {
+        const ready = this.recentreReady();
+        if (!ready.ok) {
+            this.broadcast(JSON.stringify({ type: 'recentre', ok: false, reason: ready.reason }));
+            return;
+        }
+        this.recentre = { start: time, samples: [], invalid: false, error: null };
+        this.cueBeforeRecentre = this.cue;
+        if (!this.trialInProgress()) this.setCue('lookAhead');
+    },
+
+    sampleHead: function (time) {
+        const r = this.recentre;
+        if (!this.recentreReady().ok) return;
         try {
-            const pose = frame.getViewerPose(this.baseRefSpace);
-            if (!pose) return { ok: false, reason: 'Head not tracked' };
-
-            const q = pose.transform.orientation;
+            const pose = this.el.sceneEl.frame.getViewerPose(this.baseRefSpace);
+            if (!pose) return;
             const p = pose.transform.position;
-            const headQuat = new THREE.Quaternion(q.x, q.y, q.z, q.w);
-            const euler = new THREE.Euler().setFromQuaternion(headQuat, 'YXZ');
-            const yawQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, euler.y, 0));
+            const q = pose.transform.orientation;
+            const yaw = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w), 'YXZ').y;
+            if ([p.x, p.z, yaw].every(Number.isFinite)) r.samples.push({ t: time, x: p.x, z: p.z, yaw });
+            else r.invalid = true;
+        } catch (e) {
+            r.error = e;
+        }
+    },
 
-            if (![p.x, p.z, yawQuat.x, yawQuat.y, yawQuat.z, yawQuat.w].every(Number.isFinite)) {
+    stepRecentre: function (time) {
+        this.sampleHead(time);
+        if (time - this.recentre.start < this.RECENTRE_DELAY) return;
+        const r = this.recentre;
+        this.recentre = null;
+        if (this.cue === 'lookAhead') this.setCue(this.cueBeforeRecentre || null);
+        const result = this.finishRecentre(r, time);
+        this.broadcast(JSON.stringify({ type: 'recentre', ok: result.ok, reason: result.reason || '' }));
+    },
+
+    finishRecentre: function (r, time) {
+        const ready = this.recentreReady();
+        if (!ready.ok) return ready;
+        const win = r.samples.filter(s => s.t >= time - this.RECENTRE_WINDOW);
+        if (win.length === 0) {
+            if (r.error) return { ok: false, reason: 'Error: ' + (r.error?.message || r.error) };
+            return { ok: false, reason: r.invalid ? 'Invalid head pose' : 'Head not tracked' };
+        }
+        let sx = 0, sz = 0, ss = 0, sc = 0;
+        win.forEach(s => { sx += s.x; sz += s.z; ss += Math.sin(s.yaw); sc += Math.cos(s.yaw); });
+        return this.applyRecentre(sx / win.length, sz / win.length, Math.atan2(ss, sc));
+    },
+
+    applyRecentre: function (x, z, yaw) {
+        try {
+            const yawQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0));
+            if (![x, z, yawQuat.x, yawQuat.y, yawQuat.z, yawQuat.w].every(Number.isFinite)) {
                 return { ok: false, reason: 'Invalid head pose' };
             }
-
             const offsetTransform = new XRRigidTransform(
-                { x: p.x, y: 0, z: p.z, w: 1 },
+                { x: x, y: 0, z: z, w: 1 },
                 { x: yawQuat.x, y: yawQuat.y, z: yawQuat.z, w: yawQuat.w }
             );
             const space = this.baseRefSpace.getOffsetReferenceSpace(offsetTransform);
 
-            renderer.xr.setReferenceSpace(space);
+            this.el.sceneEl.renderer.xr.setReferenceSpace(space);
             this.activeSpace = space;
             this.syncReferenceSpaces();
 
@@ -286,12 +479,23 @@ AFRAME.registerComponent('spectator-manager', {
     tick: function (time) {
         if (this.recentrePending) {
             this.recentrePending = false;
-            const result = this.doRecentre();
-            this.broadcast(JSON.stringify({ type: 'recentre', ok: result.ok, reason: result.reason || '' }));
+            if (!this.recentre) this.beginRecentre(time);
+        }
+        if (this.recentre) {
+            try {
+                this.stepRecentre(time);
+            } catch (e) {
+                this.recentre = null;
+                this.broadcast(JSON.stringify({ type: 'recentre', ok: false, reason: 'Error: ' + (e?.message || e) }));
+            }
         }
         this.syncReferenceSpaces();
 
         if (this.connections.length === 0) return;
+        if (this.pendingSync.size && Date.now() - this.lastSyncReply >= this.SYNC_INTERVAL) {
+            try { this.replySync(); } catch (e) {}
+        }
+        if (this.stateDirty || Date.now() - this.lastStateTime >= this.STATE_INTERVAL) this.sendState();
         if (time - this.lastSendTime < 33) return;
         this.lastSendTime = time;
 

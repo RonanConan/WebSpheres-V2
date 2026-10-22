@@ -78,6 +78,51 @@
         .ro-row .good { color: var(--ok); }
         .ro-row .bad { color: var(--err); }
         .ro-row .warn { color: var(--warn); }
+        #guide { min-height: 100%; }
+        .g-head { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 1rem; border-bottom: 1px solid var(--line); }
+        .g-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        #g-alert { padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; }
+        #g-alert[hidden] { display: none; }
+        .step { border-bottom: 1px solid var(--line); }
+        .step-head { width: 100%; display: flex; align-items: center; gap: 0.75rem; text-align: left; background: transparent; border: 0; min-height: 3.1rem; padding: 0 1rem; font-size: 1.1rem; }
+        .step-head:disabled { opacity: 0.4; cursor: default; }
+        .step-mark { width: 1.7rem; height: 1.7rem; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); font: 700 0.9rem var(--mono); color: var(--muted); }
+        .step.current .step-mark { border-color: var(--accent); color: var(--accent); }
+        .step.done .step-mark { background: var(--ok); border-color: var(--ok); color: #06210f; }
+        .step.open .step-head { color: #fff; }
+        .step-body { display: none; padding: 0 1rem 1.1rem; }
+        .step.open .step-body { display: block; }
+        .say { margin: 0.5rem 0 0.8rem; padding-left: 0.8rem; border-left: 3px solid var(--accent); font-size: 1.25rem; line-height: 1.4; }
+        .checks { list-style: none; margin: 0.6rem 0; padding: 0; }
+        .checks li { display: flex; gap: 0.6rem; padding: 0.22rem 0; line-height: 1.35; }
+        .ck { flex: none; width: 1.2rem; font-weight: 700; text-align: center; }
+        .ck.ok { color: var(--ok); } .ck.warn { color: var(--warn); } .ck.bad { color: var(--err); }
+        .g-row { margin: 0.8rem 0; }
+        .g-row .label { margin-bottom: 0.35rem; }
+        .g-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+        .g-primary { background: var(--accent); border-color: var(--accent); color: #031418; font-weight: 700; }
+        .g-primary.amber { background: var(--warn); border-color: var(--warn); color: #1a1000; }
+        .g-primary:disabled { background: #151a24; border-color: var(--line); color: var(--muted); opacity: 1; }
+        .g-big { font-size: 1.1rem; padding: 0 1.4rem; }
+        .g-danger { border-color: var(--err); color: var(--err); }
+        .g-confirm { margin-top: 0.8rem; padding: 0.7rem 0.8rem; border: 1px solid var(--err); }
+        .g-confirm[hidden] { display: none; }
+        .g-confirm p { margin: 0; line-height: 1.4; }
+        .g-msg { margin: 0.6rem 0 0; min-height: 1.2em; line-height: 1.35; }
+        .g-msg.ok { color: var(--ok); } .g-msg.bad { color: var(--err); } .g-msg.busy { color: var(--warn); }
+        .g-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+        #g-id { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--mono); color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; }
+        #g-id:focus { outline: none; border-color: var(--accent); }
+        .opts button.on { background: #0f3a44; border-color: var(--accent); color: #fff; }
+        .sub { margin: 0.9rem 0; padding-left: 0.8rem; border-left: 3px solid var(--line); }
+        .sub.active { border-left-color: var(--accent); }
+        .g-big-line { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin: 0.6rem 0; font: 600 1.5rem var(--mono); }
+        #g6-phase { font: 600 1rem var(--sans); color: var(--warn); }
+        .bar { height: 0.7rem; background: #1b2130; margin-bottom: 0.8rem; }
+        .bar > div { height: 100%; width: 0; background: var(--accent); }
+        .sum { display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1rem; margin: 0.6rem 0; }
+        .sum > span:nth-child(odd) { color: var(--muted); }
+        .sum > span:nth-child(even) { font-family: var(--mono); font-weight: 600; text-align: right; }
         #help { position: absolute; inset: 0; background: rgba(11, 14, 20, 0.94); display: none; align-items: center; justify-content: center; overflow-y: auto; }
         #help.open { display: flex; }
         #help-inner { padding: 1.5rem; }
@@ -89,7 +134,123 @@
 </head>
 <body>
 <div id="app">
-    <aside id="left-slot"></aside>
+    <aside id="left-slot">
+        <div id="guide">
+            <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide</button></div>
+            <div id="g-alert" hidden></div>
+            <section class="step" data-step="1">
+                <button tabindex="-1" class="step-head" data-open="1"><span class="step-mark">1</span><span>Connect</span></button>
+                <div class="step-body">
+                    <ul class="checks" id="g1-checks"></ul>
+                    <p class="g-note" id="g1-note"></p>
+                </div>
+            </section>
+            <section class="step" data-step="2">
+                <button tabindex="-1" class="step-head" data-open="2"><span class="step-mark">2</span><span>Participant</span></button>
+                <div class="step-body">
+                    <div class="g-row"><div class="label">Participant ID</div><input id="g-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"></div>
+                    <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-g="dom" data-v="LEFT">Left</button><button tabindex="-1" data-g="dom" data-v="RIGHT">Right</button></div></div>
+                    <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-g="cond" data-v="1">No-manipulation</button><button tabindex="-1" data-g="cond" data-v="2">Boost-and-tax</button></div></div>
+                    <div class="g-row"><div class="label">Mode</div><div class="opts"><button tabindex="-1" data-g="mode" data-v="standard">Standard 352</button><button tabindex="-1" data-g="mode" data-v="short">Short 110</button><button tabindex="-1" data-g="mode" data-v="fmode">F-mode 44</button><button tabindex="-1" data-g="mode" data-v="block">Block 110</button></div></div>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Confirm</button></div>
+                    <p class="g-msg" id="g2-msg"></p>
+                    <ul class="checks" id="g2-checks"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="2">Next</button></div>
+                </div>
+            </section>
+            <section class="step" data-step="3">
+                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Position</span></button>
+                <div class="step-body">
+                    <p class="say">“Please sit comfortably, face forward, and rest your hands on your lap.”</p>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-recentre">Recentre</button></div>
+                    <ul class="checks" id="g3-checks"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="3">Next</button></div>
+                </div>
+            </section>
+            <section class="step" data-step="4">
+                <button tabindex="-1" class="step-head" data-open="4"><span class="step-mark">4</span><span>Calibrate</span></button>
+                <div class="step-body">
+                    <div class="sub" data-sub="reach">
+                        <div class="label">Reach</div>
+                        <p class="say">“Stretch one arm straight out in front of you, as far as is comfortable.”</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="reach">Calibrate reach</button></div>
+                        <ul class="checks" id="g4-reach"></ul>
+                    </div>
+                    <div class="sub" data-sub="height">
+                        <div class="label">Height</div>
+                        <p class="say">“Sit up straight and look ahead.”</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="height">Calibrate height</button></div>
+                        <ul class="checks" id="g4-height"></ul>
+                    </div>
+                    <div class="sub" data-sub="lap">
+                        <div class="label">Lap</div>
+                        <p class="say">“Rest both hands in your lap.”</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="lap">Calibrate lap</button></div>
+                        <ul class="checks" id="g4-lap"></ul>
+                    </div>
+                    <p class="g-msg" id="g4-msg"></p>
+                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="4">Next</button></div>
+                </div>
+            </section>
+            <section class="step" data-step="5">
+                <button tabindex="-1" class="step-head" data-open="5"><span class="step-mark">5</span><span>Check</span></button>
+                <div class="step-body">
+                    <div class="label">Required</div>
+                    <ul class="checks" id="g5-required"></ul>
+                    <div class="label">Advisory</div>
+                    <ul class="checks" id="g5-advisory"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start</button></div>
+                    <p class="g-msg" id="g5-msg"></p>
+                </div>
+            </section>
+            <section class="step" data-step="6">
+                <button tabindex="-1" class="step-head" data-open="6"><span class="step-mark">6</span><span>Running</span></button>
+                <div class="step-body">
+                    <div class="g-big-line"><span id="g6-trial">–</span><span id="g6-phase"></span></div>
+                    <div class="bar"><div id="g6-bar"></div></div>
+                    <div class="sum">
+                        <span>Elapsed</span><span id="g6-elapsed">–</span>
+                        <span>Remaining (est.)</span><span id="g6-eta">–</span>
+                        <span>Left hand</span><span id="g6-left">–</span>
+                        <span>Right hand</span><span id="g6-right">–</span>
+                    </div>
+                    <div class="g-actions">
+                        <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
+                        <button tabindex="-1" id="g-skip">Skip target</button>
+                        <button tabindex="-1" id="g-save-headset">Save on headset</button>
+                    </div>
+                    <div class="g-actions">
+                        <button tabindex="-1" class="g-danger" id="g-end">End session early</button>
+                        <button tabindex="-1" id="g-unlock">Unlock setup</button>
+                    </div>
+                    <div class="g-confirm" id="g-end-confirm" hidden>
+                        <p>End the session now? The headset saves its files and the session cannot be resumed.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end session</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
+                    </div>
+                    <div class="g-confirm" id="g-unlock-confirm" hidden>
+                        <p>Unlock setup keys and settings mid-session? This is logged in the session info and relocks on the next resume.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
+                    </div>
+                    <p class="g-msg" id="g6-msg"></p>
+                </div>
+            </section>
+            <section class="step" data-step="7">
+                <button tabindex="-1" class="step-head" data-open="7"><span class="step-mark">7</span><span>Finish</span></button>
+                <div class="step-body">
+                    <div class="g-big-line" id="g7-title">–</div>
+                    <ul class="checks" id="g7-files"></ul>
+                    <p class="g-note">Chrome may ask once to allow this page to download multiple files: choose Allow.</p>
+                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Save again</button></div>
+                    <div class="sum" id="g7-summary"></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-new">New session</button></div>
+                    <div class="g-confirm" id="g-new-confirm" hidden>
+                        <p>Reload the WebSpheres page on the headset now so it starts fresh, then reload this page.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload observer</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </aside>
     <header id="topbar">
         <div class="item" id="conn">
             <span id="conn-dot"></span>
@@ -110,6 +271,10 @@
         <section class="drawer" id="drawer-readouts">
             <div class="drawer-head"><h2>Readouts</h2><button tabindex="-1" data-close>Close</button></div>
             <div id="readout-rows"></div>
+            <div class="set-row">
+                <button tabindex="-1" id="save-backup">Save files to laptop</button>
+                <div class="set-note">Saves the laptop's copy of every file so far. Chrome may ask once to allow this page to download multiple files: choose Allow.</div>
+            </div>
         </section>
         <section class="drawer" id="drawer-settings">
             <div class="drawer-head"><h2>Settings</h2><button tabindex="-1" data-close>Close</button></div>
@@ -149,6 +314,7 @@
         <button id="recentre" tabindex="-1" disabled>RECENTRE</button>
         <span id="recentre-note"></span>
         <div class="group">
+            <button tabindex="-1" id="btn-guide">Guide</button>
             <button tabindex="-1" id="btn-readouts" data-panel="drawer-readouts">Readouts</button>
             <button tabindex="-1" id="btn-settings" data-panel="drawer-settings">Settings</button>
             <button tabindex="-1" id="btn-help" data-panel="help">?</button>
@@ -528,6 +694,53 @@
     };
     let lastFrameAt = 0;
     let lastFrame = null;
+    const BACKUP_FILES = ['trials', 'kinL', 'kinR'];
+    const backup = { trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '' };
+
+    function resetBackup() {
+        BACKUP_FILES.forEach(f => { backup[f] = []; });
+        backup.headers = {};
+    }
+
+    function caughtUp(s) {
+        return !!s && !!s.backup && BACKUP_FILES.every(f => backup[f].length === s.backup[f]);
+    }
+
+    function downloadText(filename, text) {
+        const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
+    function saveBackup() {
+        const s = receiver.headsetState;
+        if (!s) return 0;
+        const final = s.phase === 'complete' && s.backup && s.backup.final && s.backup.exportTs && caughtUp(s);
+        const ts = final ? s.backup.exportTs : new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const prefix = s.participantId ? s.participantId + '_' : '';
+        const files = [];
+        if (backup.trials.length) files.push([`${prefix}vr-session-data-${ts}.csv`, backup.headers.trials + backup.trials.join('')]);
+        if (backup.kinL.length) files.push([`${prefix}kinematics-LEFT-${ts}.csv`, backup.headers.kinL + backup.kinL.join('')]);
+        if (backup.kinR.length) files.push([`${prefix}kinematics-RIGHT-${ts}.csv`, backup.headers.kinR + backup.kinR.join('')]);
+        if (s.phase !== 'setup' && s.info) files.push([`${prefix}session-info-${ts}.csv`, s.info]);
+        files.forEach(([name, text]) => downloadText(name, text));
+        backup.saved = files.length ? `${files.length} files at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}` : 'nothing to save yet';
+        if (final) backup.autoSavedTs = s.backup.exportTs;
+        return files.length;
+    }
+
+    function checkAutoSave() {
+        const s = receiver.headsetState;
+        if (!s || s.phase !== 'complete' || !s.backup || !s.backup.final || !s.backup.exportTs) return;
+        if (backup.autoSavedTs === s.backup.exportTs || !caughtUp(s)) return;
+        saveBackup();
+    }
     const stats = { arrivals: [], connectedSince: 0, opens: 0, staleDropped: 0, lastError: '', lastRecentre: '', fps: 0, fpsFrames: 0, fpsT0: 0 };
     const time = () => new Date().toLocaleTimeString();
     const noteError = (type) => { stats.lastError = type + ' at ' + time(); };
@@ -538,7 +751,8 @@
         DATA_TIMEOUT: 5000,
         CONNECT_TIMEOUT: 10000,
         PING_INTERVAL: 2000,
-        RECENTRE_TIMEOUT: 3000,
+        RECENTRE_TIMEOUT: 5000,
+        SYNC_INTERVAL: 1000,
 
         init: function () {
             this.peer = null;
@@ -548,6 +762,7 @@
             this.attemptStarted = 0;
             this.recentreRequestedAt = 0;
             this.lastSeq = null;
+            this.headsetState = null;
             this.status = 'connecting';
 
             this.setupControls();
@@ -556,6 +771,7 @@
             this.setupPeer();
             this.watchdogInterval = setInterval(() => this.watchdog(), 1000);
             this.pingInterval = setInterval(() => this.sendPing(), this.PING_INTERVAL);
+            this.syncInterval = setInterval(() => this.sendSync(), this.SYNC_INTERVAL);
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden && !this.isLive()) this.retryNow();
             });
@@ -638,6 +854,9 @@
                 this.lastSeq = null;
                 this.setStatus('connected', '');
                 this.updateRecentreButton();
+                resetBackup();
+                guideOnConnect();
+                this.sendSync();
             });
             conn.on('data', (rawData) => {
                 if (this.conn !== conn) return;
@@ -731,6 +950,23 @@
             }
         },
 
+        sendSync: function () {
+            this.sendToHost({ type: 'sync', have: { trials: backup.trials.length, kinL: backup.kinL.length, kinR: backup.kinR.length } });
+        },
+
+        handleRows: function (d) {
+            const lines = backup[d.file];
+            if (!BACKUP_FILES.includes(d.file) || !Array.isArray(d.lines) || typeof d.header !== 'string') return;
+            if (d.from !== lines.length || !d.lines.every(l => typeof l === 'string')) return;
+            for (let i = 0; i < d.lines.length; i++) lines.push(d.lines[i]);
+            backup.headers[d.file] = d.header;
+            noteSync();
+            if (d.lines.length) {
+                this.sendSync();
+                checkAutoSave();
+            }
+        },
+
         sendToHost: function (obj) {
             if (!this.conn || !this.conn.open) return false;
             try {
@@ -747,7 +983,7 @@
                 return;
             }
             this.recentreRequestedAt = Date.now();
-            this.setRecentreNote('Recentring…', 'busy');
+            this.setRecentreNote('Recentring in 1.5 s…', 'busy');
         },
 
         handleRecentreAck: function (data) {
@@ -766,6 +1002,16 @@
             if (!data) return;
             if (data.type === 'recentre') {
                 this.handleRecentreAck(data);
+                return;
+            }
+            if (data.type) {
+                if (data.type === 'rows') this.handleRows(data);
+                if (data.type === 'cmdResult') handleCmdResult(data);
+                if (data.type === 'state') {
+                    this.headsetState = data;
+                    guideOnState(data);
+                    checkAutoSave();
+                }
                 return;
             }
 
@@ -799,12 +1045,15 @@
 
             updateHand(hands.L, data.left, data.leftValid);
             updateHand(hands.R, data.right, data.rightValid);
+            guideOnFrame(data);
 
             this.updateBars(data);
         },
 
         setupKeyboard: function () {
             document.addEventListener('keydown', (e) => {
+                if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+                if (e.repeat) return;
                 if (e.code === 'Escape') {
                     closePanels();
                     return;
@@ -828,6 +1077,8 @@
             document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
             document.querySelectorAll('[data-panel]').forEach(b => b.addEventListener('click', () => togglePanel(b.dataset.panel)));
             document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closePanels));
+
+            $('save-backup').addEventListener('click', () => { saveBackup(); updateReadouts(); });
 
             this.recentreBtn = $('recentre');
             this.recentreNoteEl = $('recentre-note');
@@ -879,6 +1130,7 @@
     const READOUTS = [
         ['Session', [['trial', 'Trial'], ['score', 'Score'], ['cond', 'Condition'], ['dom', 'Dominant hand'], ['fire', 'Fire mode'], ['run', 'State'], ['target', 'Active target'], ['recentre', 'Last recentre']]],
         ['Tracking', [['left', 'Left hand'], ['right', 'Right hand'], ['headh', 'Head height']]],
+        ['Backup on this laptop', [['bk-trials', 'Trial rows'], ['bk-kinl', 'Left kinematics rows'], ['bk-kinr', 'Right kinematics rows'], ['bk-saved', 'Last saved']]],
         ['Connection', [['status', 'Status'], ['uptime', 'Connected for'], ['rate', 'Messages / s'], ['age', 'Data age'], ['gap', 'Worst gap, last 10 s'], ['stale', 'Stale frames dropped'],['fps', 'Render rate'], ['reconnects', 'Reconnects'], ['error', 'Last error']]]
     ];
 
@@ -935,10 +1187,446 @@
         setReadout('fps', stats.fps + ' fps');
         setReadout('reconnects', String(Math.max(0, stats.opens - 1)));
         setReadout('error', stats.lastError || 'none');
+        const hs = receiver.headsetState;
+        [['bk-trials', 'trials'], ['bk-kinl', 'kinL'], ['bk-kinr', 'kinR']].forEach(([id, f]) => {
+            const total = hs && hs.backup ? hs.backup[f] : null;
+            setReadout(id, total === null ? String(backup[f].length) : `${backup[f].length} / ${total}`, total !== null && backup[f].length < total ? 'warn' : (total !== null ? 'good' : ''));
+        });
+        setReadout('bk-saved', backup.saved || '–');
+    }
+
+    const APP_VERSION = '2.0.0';
+    const MODE_LABEL = { standard: 'Standard 352', short: 'Short 110', fmode: 'F-mode 44', block: 'Block 110' };
+    const COND_LABEL = { 1: 'No-manipulation', 2: 'Boost-and-tax' };
+    const HAND_LABEL = { LEFT: 'Left', RIGHT: 'Right' };
+    const pendingCmds = new Map();
+    let cmdSeq = 0;
+    const guide = {
+        expanded: null, lastCurrent: null, sub: null, lastCue: undefined,
+        form: { dom: null, cond: null, mode: null }, formDirty: false, busy: false,
+        msg: {}, stateAt: 0, lastPhase: null, phaseChangedAt: 0, lastTrial: null, trialChangedAt: 0,
+        validAt: { L: 0, R: 0 }, summaryKey: '', summary: null
+    };
+
+    function sendCmd(name, value) {
+        return new Promise((resolve) => {
+            const id = 'o' + (++cmdSeq);
+            if (!receiver.sendToHost({ type: 'cmd', name, value, id })) {
+                resolve({ ok: false, reason: 'Not connected' });
+                return;
+            }
+            const timer = setTimeout(() => {
+                pendingCmds.delete(id);
+                resolve({ ok: false, reason: 'No response from headset' });
+            }, 4000);
+            pendingCmds.set(id, (r) => {
+                clearTimeout(timer);
+                resolve({ ok: !!r.ok, reason: r.reason || '' });
+            });
+        });
+    }
+
+    function handleCmdResult(d) {
+        const done = pendingCmds.get(d.id);
+        if (done) {
+            pendingCmds.delete(d.id);
+            done(d);
+        }
+    }
+
+    function setMsg(step, text, kind) {
+        guide.msg[step] = { text, kind: kind || '' };
+        const el = $('g' + step + '-msg');
+        if (el) {
+            el.textContent = text;
+            el.className = 'g-msg ' + (kind || '');
+        }
+    }
+
+    function setChecks(id, items) {
+        const ul = $(id);
+        const key = JSON.stringify(items);
+        if (ul.dataset.key === key) return;
+        ul.dataset.key = key;
+        ul.textContent = '';
+        items.forEach(([kind, text]) => {
+            const li = document.createElement('li');
+            const mark = document.createElement('span');
+            mark.className = 'ck ' + kind;
+            mark.textContent = kind === 'ok' ? '✓' : kind === 'warn' ? '!' : '✗';
+            const label = document.createElement('span');
+            label.textContent = text;
+            li.append(mark, label);
+            ul.appendChild(li);
+        });
+    }
+
+    const tick3 = (ok, text, warnInstead) => [ok ? 'ok' : (warnInstead ? 'warn' : 'bad'), text];
+    const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+    const fmt = (v, d) => Number.isFinite(+v) ? (+v).toFixed(d) : '–';
+
+    function noteSync() {
+        if (caughtUp(receiver.headsetState)) backup.syncedAt = Date.now();
+    }
+
+    function guideOnState(s) {
+        const now = Date.now();
+        guide.stateAt = now;
+        if (s.phase !== guide.lastPhase) {
+            guide.lastPhase = s.phase;
+            guide.phaseChangedAt = now;
+        }
+        if (s.trialCount !== guide.lastTrial) {
+            guide.lastTrial = s.trialCount;
+            guide.trialChangedAt = now;
+        }
+        noteSync();
+    }
+
+    function guideOnFrame(d) {
+        const now = Date.now();
+        if (d.leftValid) guide.validAt.L = now;
+        if (d.rightValid) guide.validAt.R = now;
+    }
+
+    function guideOnConnect() {
+        const now = Date.now();
+        guide.validAt = { L: now, R: now };
+        guide.lastCue = undefined;
+        backup.syncedAt = now;
+    }
+
+    function handsInBox() {
+        const f = lastFrame;
+        if (!f || !f.homePos) return { L: false, R: false };
+        const inBox = (arr, valid) => valid && Array.isArray(arr) && arr.length >= 75 && Array.from({ length: 25 }, (_, i) => i).some(i =>
+            Math.abs(arr[i * 3] - f.homePos.x) < 0.4 && Math.abs(arr[i * 3 + 1] - f.homePos.y) < 0.06 && Math.abs(arr[i * 3 + 2] - f.homePos.z) < 0.11);
+        return { L: inBox(f.left, f.leftValid), R: inBox(f.right, f.rightValid) };
+    }
+
+    function handUse() {
+        let L = 0, R = 0;
+        backup.trials.forEach(line => {
+            const c = line.split(',');
+            if (c[5] === 'SKIP') return;
+            if (c[3] === 'LEFT') L++;
+            else if (c[3] === 'RIGHT') R++;
+        });
+        return { L, R, n: L + R };
+    }
+
+    function computeSummary(s) {
+        const key = [backup.trials.length, backup.kinL.length, backup.kinR.length, s.trialCount, s.recentreCount, s.pauses, s.sessionMs].join('/');
+        if (guide.summaryKey === key) return guide.summary;
+        const rows = backup.trials.map(l => l.trimEnd().split(','));
+        const hits = rows.filter(r => r[5] !== 'SKIP');
+        const by = (hand) => hits.filter(r => r[3] === hand);
+        const L = by('LEFT'), R = by('RIGHT');
+        const pct = (n, d) => d ? `${n} (${Math.round(100 * n / d)}%)` : `${n}`;
+        const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+        const median = (a) => { if (!a.length) return NaN; const b = a.slice().sort((x, y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+        const dt = hits.map(r => +r[6]), mt = hits.map(r => +r[7]);
+        const valid = (lines) => lines.length ? `${Math.round(1000 * lines.filter(l => l.split(',')[10] === '1').length / lines.length) / 10}%` : '–';
+        const ms = (v) => Number.isFinite(v) ? `${Math.round(v)} ms` : '–';
+        guide.summaryKey = key;
+        guide.summary = [
+            ['Trials completed', `${rows.length} / ${s.totalTrials}`],
+            ['Left hand use', pct(L.length, hits.length)],
+            ['Right hand use', pct(R.length, hits.length)],
+            ['Critical hits, left', String(L.filter(r => r[5] === 'critical').length)],
+            ['Critical hits, right', String(R.filter(r => r[5] === 'critical').length)],
+            ['Decision time, mean', ms(mean(dt))],
+            ['Decision time, median', ms(median(dt))],
+            ['Movement time, mean', ms(mean(mt))],
+            ['Movement time, median', ms(median(mt))],
+            ['Skips', String(rows.length - hits.length)],
+            ['Recentres', String(s.recentreCount)],
+            ['Pauses', String(s.pauses)],
+            ['Tracking valid, left', valid(backup.kinL)],
+            ['Tracking valid, right', valid(backup.kinR)],
+            ['Session duration', mmss(s.sessionMs)]
+        ];
+        return guide.summary;
+    }
+
+    function guideStatus() {
+        const s = receiver.headsetState;
+        const live = receiver.isLive();
+        const versionOk = !!s && s.version === APP_VERSION;
+        const calib = s && s.calib;
+        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && +guide.form.cond === s.condition && guide.form.mode === s.mode && $('g-id').value.trim() === s.participantId));
+        const done = {
+            1: live && versionOk,
+            2: !!(s && s.participantId) && formMatches,
+            3: !!(s && s.recentred),
+            4: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
+            5: !!(s && s.phase !== 'setup'),
+            6: !!(s && s.phase === 'complete')
+        };
+        let current;
+        if (!s) current = 1;
+        else if (s.phase === 'complete') current = 7;
+        else if (s.phase !== 'setup') current = 6;
+        else if (!done[1]) current = 1;
+        else current = [2, 3, 4, 5].find(n => !done[n]) || 5;
+        return { s, live, versionOk, done, current, formMatches };
+    }
+
+    function activeSub(s) {
+        if (guide.sub) return guide.sub;
+        const c = s && s.calib;
+        if (!c) return 'reach';
+        return ['reach', 'height', 'lap'].find(k => !c[k].done) || 'lap';
+    }
+
+    function syncCue(st, open) {
+        const s = st.s;
+        if (!s || !st.live || s.phase !== 'setup') return;
+        let cue = null;
+        if (open === 4) {
+            const sub = activeSub(s);
+            cue = sub === 'reach' ? 'reach' : sub === 'lap' ? 'lap' : null;
+        } else if (open === 5) cue = 'ready';
+        if (cue === guide.lastCue) return;
+        guide.lastCue = cue;
+        sendCmd('cue', cue);
+    }
+
+    function prefillForm(s) {
+        if (guide.formDirty || !s) return;
+        guide.form = { dom: s.dominantHand, cond: String(s.condition), mode: s.mode };
+        if (document.activeElement !== $('g-id')) $('g-id').value = s.participantId || '';
+    }
+
+    function renderGuide() {
+        const st = guideStatus();
+        const s = st.s;
+        const now = Date.now();
+        if (st.current !== guide.lastCurrent) {
+            guide.lastCurrent = st.current;
+            guide.expanded = null;
+        }
+        const inSetup = !s || s.phase === 'setup';
+        const open = inSetup && guide.expanded ? guide.expanded : st.current;
+        document.querySelectorAll('#guide .step').forEach(sec => {
+            const n = +sec.dataset.step;
+            sec.classList.toggle('open', n === open);
+            sec.classList.toggle('current', n === st.current);
+            sec.classList.toggle('done', !!st.done[n]);
+            sec.hidden = !inSetup && n !== st.current;
+            sec.querySelector('.step-head').disabled = !(inSetup ? n <= 5 : n === st.current);
+        });
+        if (open !== guide.lastOpen) {
+            guide.lastOpen = open;
+            const sec = document.querySelector(`#guide .step[data-step="${open}"]`);
+            const slot = $('left-slot');
+            if (sec && slot.offsetHeight) slot.scrollTop = Math.max(0, sec.offsetTop - slot.offsetTop - $('g-alert').offsetHeight);
+        }
+        prefillForm(s);
+        syncCue(st, open);
+
+        setChecks('g1-checks', [
+            tick3(st.live, st.live ? 'Connected to the headset' : (s ? 'Reconnecting to the headset…' : 'Looking for the headset…'), !s),
+            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Observer version ${APP_VERSION} ≠ headset version ${s.version || '?'} — hard-refresh both pages.`) : ['warn', 'Version check after connecting']
+        ]);
+        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest and enter VR. This page connects by itself.';
+
+        document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
+        const locked = !!(s && (s.setupLocked || s.phase !== 'setup'));
+        document.querySelectorAll('[data-g], #g-confirm').forEach(b => { b.disabled = locked || !st.live || guide.busy; });
+        $('g-id').disabled = locked;
+        if (s) {
+            setChecks('g2-checks', [
+                tick3(!!s.participantId, s.participantId ? `Participant ID: ${s.participantId}` : 'Participant ID not set on the headset'),
+                tick3(!guide.formDirty || guide.form.dom === s.dominantHand, `Dominant hand: ${HAND_LABEL[s.dominantHand] || '–'}`, true),
+                tick3(!guide.formDirty || +guide.form.cond === s.condition, `Condition: ${COND_LABEL[s.condition] || '–'}`, true),
+                tick3(!guide.formDirty || guide.form.mode === s.mode, `Mode: ${MODE_LABEL[s.mode] || s.mode} (${s.totalTrials} trials)`, true)
+            ]);
+        }
+
+        $('g-recentre').disabled = !st.live;
+        setChecks('g3-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred yet'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
+
+        const c = s && s.calib;
+        const sub = activeSub(s);
+        document.querySelectorAll('#guide .sub').forEach(el => el.classList.toggle('active', el.dataset.sub === sub));
+        document.querySelectorAll('[data-calib]').forEach(b => {
+            const k = b.dataset.calib;
+            b.disabled = locked || !st.live || guide.busy;
+            b.textContent = c && c[k].done ? 'Redo' : `Calibrate ${k}`;
+        });
+        setChecks('g4-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
+        setChecks('g4-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
+        const box = handsInBox();
+        setChecks('g4-lap', c && c.lap.done ? [['ok', `Home box at x ${fmt(c.lap.home.x, 2)}, y ${fmt(c.lap.home.y, 2)}, z ${fmt(c.lap.home.z, 2)} m`], tick3(box.L && box.R, box.L && box.R ? 'Both hands in the box (live)' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside the box (live)`, true)] : [['bad', 'Not calibrated']]);
+
+        const tracked = !!(lastFrame && lastFrame.leftValid && lastFrame.rightValid);
+        const inSync = now - (backup.syncedAt || 0) < 3000;
+        const required = [
+            tick3(st.live, 'Connected'),
+            tick3(st.versionOk, 'Versions match'),
+            tick3(!!(s && s.participantId), 'Participant ID set'),
+            tick3(st.done[2], 'Setup confirmed by the headset'),
+            tick3(!!(c && c.reach.done), 'Reach calibrated'),
+            tick3(!!(c && c.height.done), 'Height calibrated'),
+            tick3(!!(c && c.lap.done), 'Lap calibrated')
+        ];
+        const advisory = [
+            tick3(tracked, 'Both hands tracked', true),
+            tick3(box.L && box.R, 'Both hands in the home box', true),
+            tick3(inSync, 'Backup in sync', true)
+        ];
+        setChecks('g5-required', required);
+        setChecks('g5-advisory', advisory);
+        const reqOk = required.every(r => r[0] === 'ok');
+        const advOk = advisory.every(r => r[0] === 'ok');
+        $('g-start').disabled = !reqOk || guide.busy || !inSetup;
+        $('g-start').textContent = reqOk && !advOk ? 'Start anyway' : 'Start';
+        $('g-start').classList.toggle('amber', reqOk && !advOk);
+
+        if (s && s.phase !== 'setup') {
+            const total = s.totalTrials || 1;
+            $('g6-trial').textContent = `Trial ${s.trialCount} / ${s.totalTrials}`;
+            $('g6-phase').textContent = s.phase === 'pausing' ? 'Pausing after this trial…' : s.phase === 'paused' ? 'Paused' : '';
+            $('g6-bar').style.width = Math.min(100, 100 * s.trialCount / total) + '%';
+            const elapsed = s.sessionMs + (s.phase === 'complete' ? 0 : now - guide.stateAt);
+            $('g6-elapsed').textContent = mmss(elapsed);
+            $('g6-eta').textContent = s.trialCount > 0 && s.phase !== 'complete' ? mmss(elapsed / s.trialCount * (s.totalTrials - s.trialCount)) : '–';
+            const use = handUse();
+            $('g6-left').textContent = use.n ? `${use.L} (${Math.round(100 * use.L / use.n)}%)` : '0';
+            $('g6-right').textContent = use.n ? `${use.R} (${Math.round(100 * use.R / use.n)}%)` : '0';
+            const pb = $('g-pause');
+            pb.textContent = s.phase === 'pausing' ? 'Cancel pause' : s.phase === 'paused' ? 'Resume' : 'Pause';
+            const activeRun = ['running', 'pausing', 'paused'].includes(s.phase);
+            pb.disabled = !st.live || !activeRun;
+            $('g-skip').disabled = !st.live || !(s.phase === 'running' || s.phase === 'pausing');
+            $('g-save-headset').disabled = !st.live;
+            $('g-end').disabled = !st.live || !activeRun;
+            $('g-unlock').disabled = !st.live || !activeRun || !s.setupLocked;
+            $('g-unlock').textContent = s.setupLocked ? 'Unlock setup' : 'Setup unlocked';
+        }
+
+        const alerts = [];
+        if (s && ['running', 'pausing', 'paused'].includes(s.phase)) {
+            if (receiver.status !== 'connected') alerts.push('Connection lost — the headset is still recording and saving');
+            else {
+                if (s.phase !== 'paused') {
+                    [['L', 'Left'], ['R', 'Right']].forEach(([h, name]) => {
+                        const gap = now - guide.validAt[h];
+                        if (gap > 3000) alerts.push(`${name} hand not tracked (${Math.floor(gap / 1000)} s)`);
+                    });
+                }
+                if (s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000) alerts.push('No new trial for 30 s');
+                const behind = now - (backup.syncedAt || now);
+                if (behind > 10000) alerts.push(`Backup behind by ${Math.floor(behind / 1000)} s`);
+            }
+        }
+        const alertEl = $('g-alert');
+        alertEl.hidden = alerts.length === 0;
+        if (alertEl.textContent !== alerts.join(' · ')) alertEl.textContent = alerts.join(' · ');
+
+        if (s && s.phase === 'complete') {
+            $('g7-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
+            const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs);
+            setChecks('g7-files', [
+                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Saving to laptop once the backup has caught up (${backup.kinL.length + backup.kinR.length + backup.trials.length} / ${(s.backup.kinL + s.backup.kinR + s.backup.trials)} rows)`],
+                ['ok', 'The headset also saved its own copy.']
+            ]);
+            const sumEl = $('g7-summary');
+            const rows = computeSummary(s);
+            const key = JSON.stringify(rows);
+            if (sumEl.dataset.key !== key) {
+                sumEl.dataset.key = key;
+                sumEl.textContent = '';
+                rows.forEach(([k, v]) => {
+                    const a = document.createElement('span'); a.textContent = k;
+                    const b = document.createElement('span'); b.textContent = v;
+                    sumEl.append(a, b);
+                });
+            }
+        }
+        $('btn-guide').classList.toggle('on', $('app').classList.contains('left-open'));
+    }
+
+    async function runGuideCmd(step, name, value, okText) {
+        guide.busy = true;
+        setMsg(step, 'Sending to the headset…', 'busy');
+        const r = await sendCmd(name, value);
+        guide.busy = false;
+        setMsg(step, r.ok ? okText : `Headset refused: ${r.reason}`, r.ok ? 'ok' : 'bad');
+        renderGuide();
+        return r;
+    }
+
+    async function confirmSetup() {
+        const id = $('g-id').value.trim();
+        if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID must be 1–32 letters, digits, _ or -', 'bad'); return; }
+        if (/left|right/i.test(id)) { setMsg(2, 'Participant ID cannot contain "left" or "right" (the 3D viewer reads those in filenames)', 'bad'); return; }
+        const f = guide.form;
+        if (!f.dom || !f.cond || !f.mode) { setMsg(2, 'Choose the dominant hand, condition and mode', 'bad'); return; }
+        guide.busy = true;
+        setMsg(2, 'Sending to the headset…', 'busy');
+        for (const [name, value] of [['setDominant', f.dom], ['setCondition', +f.cond], ['setMode', f.mode], ['setParticipant', id]]) {
+            const r = await sendCmd(name, value);
+            if (!r.ok) {
+                guide.busy = false;
+                setMsg(2, `Headset refused: ${r.reason}`, 'bad');
+                return;
+            }
+        }
+        guide.busy = false;
+        guide.formDirty = false;
+        setMsg(2, 'Confirmed by the headset', 'ok');
+        renderGuide();
+    }
+
+    function setupGuide() {
+        document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { guide.expanded = +b.dataset.open; renderGuide(); }));
+        document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => { guide.expanded = +b.dataset.next + 1; renderGuide(); }));
+        document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => { guide.form[b.dataset.g] = b.dataset.v; guide.formDirty = true; renderGuide(); }));
+        $('g-id').addEventListener('input', () => { guide.formDirty = true; });
+        $('g-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('g-id').blur(); confirmSetup(); } });
+        $('g-confirm').addEventListener('click', confirmSetup);
+        $('g-recentre').addEventListener('click', () => receiver.requestRecentre());
+        document.querySelectorAll('#guide .sub').forEach(el => el.addEventListener('click', () => { guide.sub = el.dataset.sub; renderGuide(); }));
+        document.querySelectorAll('[data-calib]').forEach(b => b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const k = b.dataset.calib;
+            guide.sub = k;
+            runGuideCmd(4, 'calibrate', k, `${k[0].toUpperCase() + k.slice(1)} calibrated`).then(r => {
+                if (r.ok) {
+                    const order = ['reach', 'height', 'lap'];
+                    const next = order[order.indexOf(k) + 1];
+                    if (next) guide.sub = next;
+                    renderGuide();
+                }
+            });
+        }));
+        $('g-start').addEventListener('click', () => runGuideCmd(5, 'start', undefined, 'Started'));
+        $('g-pause').addEventListener('click', () => {
+            const s = receiver.headsetState;
+            if (!s) return;
+            if (s.phase === 'running') runGuideCmd(6, 'pause', undefined, 'Pause requested');
+            else runGuideCmd(6, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
+        });
+        $('g-skip').addEventListener('click', () => runGuideCmd(6, 'skip', undefined, 'Target skipped'));
+        $('g-save-headset').addEventListener('click', () => runGuideCmd(6, 'saveOnHeadset', undefined, 'Headset saved its files'));
+        $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
+        $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
+        $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(6, 'endEarly', undefined, 'Session ended'); });
+        $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
+        $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Setup unlocked until the next resume'); });
+        $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
+        $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
+        $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
+        $('g-new-reload').addEventListener('click', () => location.reload());
+        $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
+        $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
     }
 
     window.__obs = {
-        frames: 0, head, gaze, targets, homeBox, controls, hands, settings, setLeftSlot, stats,
+        frames: 0, head, gaze, targets, homeBox, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide,
         get camera() { return camera; },
         get view() { return viewName; }
     };
@@ -976,7 +1664,11 @@
     buildReadouts();
     applySettings();
     receiver.init();
+    setupGuide();
+    setLeftSlot(true);
+    renderGuide();
     setInterval(updateReadouts, 250);
+    setInterval(renderGuide, 250);
     document.querySelectorAll('[data-panel="drawer-readouts"]').forEach(b => b.addEventListener('click', updateReadouts));
     requestAnimationFrame(loop);
 </script>

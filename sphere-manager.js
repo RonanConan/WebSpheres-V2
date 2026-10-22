@@ -14,7 +14,16 @@ AFRAME.registerComponent('sphere-manager', {
         this.isPaused = true;
         this.appearancesPerSphere = 32;
         this.totalTrials = 11 * this.appearancesPerSphere;
-        this.trialsSwitched = false;
+        this.mode = 'standard';
+        this.phase = 'setup';
+        this.endReason = '';
+        this.setupLocked = false;
+        this.selectionBeforeWait = -1;
+        this.calib = {
+            reach: { done: false, hand: '', distance: 0, radius: this.radius },
+            height: { done: false, height: this.height },
+            lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } }
+        };
         this.fModeActive = false;
         this.bModeActive = false;
         this.currentPhase = 0;
@@ -261,92 +270,243 @@ AFRAME.registerComponent('sphere-manager', {
     },
 
     setupCalibration: function () {
+        const keyActions = {
+            Space: ['calibrate', 'reach'],
+            KeyH: ['calibrate', 'height'],
+            KeyL: ['calibrate', 'lap'],
+            KeyS: ['saveOnHeadset'],
+            KeyP: ['playPause'],
+            KeyC: ['toggleCondition'],
+            Digit1: ['setDominant', 'LEFT'],
+            Digit2: ['setDominant', 'RIGHT'],
+            KeyN: ['setMode', 'short'],
+            KeyF: ['setMode', 'fmode'],
+            KeyB: ['setMode', 'block'],
+            KeyZ: ['skip']
+        };
         document.addEventListener('keydown', (event) => {
-            const audioManager = document.querySelector('#audio-manager').components['audio-manager'];
-
-            if (event.code === 'Space') {
-                audioManager.playCalibrationSound('switch');
-                this.calibrateReach();
-            }
-            if (event.code === 'KeyH') {
-                audioManager.playCalibrationSound('switch');
-                this.calibrateHeight();
-            }
-            if (event.code === 'KeyL') {
-                audioManager.playCalibrationSound('switch');
-                this.calibrateLap();
-            }
-            if (event.code === 'KeyS') {
-                audioManager.playCalibrationSound('switch');
-                this.saveData();
-            }
-            if (event.code === 'KeyP') {
-                audioManager.playCalibrationSound('switch');
-                this.resumeGame();
-                const startTime = Date.now();
-                const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
-                kinematicsManager.startTracking(startTime);
-                const dataManager = document.querySelector('#data-manager').components['data-manager'];
-                dataManager.startSession(startTime);
-            }
-            if (event.code === 'KeyC') {
-                audioManager.playCalibrationSound('switch');
-                const scoreManager = document.querySelector('#score-display').components['score-manager'];
-                scoreManager.toggleCondition();
-            }
-            if (event.code === 'Digit1') {
-                audioManager.playCalibrationSound('switch');
-                const scoreManager = document.querySelector('#score-display').components['score-manager'];
-                scoreManager.setDominantHand('LEFT');
-            }
-            if (event.code === 'Digit2') {
-                audioManager.playCalibrationSound('switch');
-                const scoreManager = document.querySelector('#score-display').components['score-manager'];
-                scoreManager.setDominantHand('RIGHT');
-            }
-            if (event.code === 'KeyN') {
-                audioManager.playCalibrationSound('switch');
-                this.switchToShortSession();
-            }
-            if (event.code === 'KeyF') {
-                audioManager.playCalibrationSound('switch');
-                this.setTwoReachesPerSphere();
-            }
-            if (event.code === 'KeyB') {
-                audioManager.playCalibrationSound('switch');
-                this.setBlockMode();
-            }
-            if (event.code === 'KeyZ') {
-                audioManager.playCalibrationSound('switch');
-                this.skipTarget();
-            }
+            if (event.repeat) return;
+            const action = keyActions[event.code];
+            if (action) this.runCommand(action[0], action[1]);
         });
+    },
+
+    runCommand: function (name, value) {
+        let result;
+        try {
+            result = this.doCommand(name, value);
+        } catch (e) {
+            result = { ok: false, reason: 'Error: ' + (e?.message || e) };
+        }
+        if (result.ok) {
+            try {
+                document.querySelector('#audio-manager').components['audio-manager'].playCalibrationSound('switch');
+            } catch (e) {}
+            this.markStateChanged();
+        }
+        return result;
+    },
+
+    setupOpen: function () {
+        if (this.phase === 'complete') return { ok: false, reason: 'Session complete' };
+        if (this.setupLocked) return { ok: false, reason: 'Setup locked - unlock setup first' };
+        return { ok: true };
+    },
+
+    doCommand: function (name, value) {
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        const scoreManager = document.querySelector('#score-display').components['score-manager'];
+        const phase = this.phase;
+        const setupCommands = ['setParticipant', 'setDominant', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
+        if (setupCommands.includes(name)) {
+            const open = this.setupOpen();
+            if (!open.ok) return open;
+        }
+        switch (name) {
+            case 'setParticipant':
+                if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(value)) return { ok: false, reason: 'Participant ID must be 1-32 letters, digits, _ or -' };
+                if (/left|right/i.test(value)) return { ok: false, reason: 'Participant ID cannot contain "left" or "right" (the 3D viewer reads those in filenames)' };
+                dataManager.participantId = value;
+                return { ok: true };
+            case 'setDominant':
+                if (value !== 'LEFT' && value !== 'RIGHT') return { ok: false, reason: 'Dominant hand must be LEFT or RIGHT' };
+                scoreManager.setDominantHand(value);
+                return { ok: true };
+            case 'setCondition':
+                if (value !== 1 && value !== 2) return { ok: false, reason: 'Condition must be 1 or 2' };
+                scoreManager.setCondition(value);
+                return { ok: true };
+            case 'toggleCondition':
+                scoreManager.toggleCondition();
+                return { ok: true };
+            case 'setMode':
+                if (!['standard', 'short', 'fmode', 'block'].includes(value)) return { ok: false, reason: 'Unknown mode' };
+                this.setMode(value);
+                return { ok: true };
+            case 'calibrate':
+                if (value === 'reach') return this.calibrateReach();
+                if (value === 'height') return this.calibrateHeight();
+                if (value === 'lap') return this.calibrateLap();
+                return { ok: false, reason: 'Unknown calibration' };
+            case 'start':
+                if (phase !== 'setup') return { ok: false, reason: 'Session already started' };
+                this.startSession();
+                return { ok: true };
+            case 'pause':
+                if (phase !== 'running') return { ok: false, reason: 'Can only pause while running' };
+                this.requestPause();
+                return { ok: true };
+            case 'resume':
+                if (phase === 'pausing') {
+                    this.phase = 'running';
+                    return { ok: true };
+                }
+                if (phase !== 'paused') return { ok: false, reason: 'Not paused' };
+                this.resumeSession();
+                return { ok: true };
+            case 'playPause':
+                if (phase === 'setup') return this.doCommand('start');
+                if (phase === 'running') return this.doCommand('pause');
+                if (phase === 'pausing' || phase === 'paused') return this.doCommand('resume');
+                return { ok: false, reason: 'Session complete' };
+            case 'endEarly':
+                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'No session running' };
+                this.completeSession('ended-early');
+                return { ok: true };
+            case 'unlockSetup':
+                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup is only locked during a session' };
+                if (this.setupLocked) {
+                    this.setupLocked = false;
+                    dataManager.logSetupUnlock();
+                }
+                return { ok: true };
+            case 'saveOnHeadset':
+                this.saveData();
+                return { ok: true };
+            case 'skip':
+                if (phase !== 'running' && phase !== 'pausing') return { ok: false, reason: 'No trial running' };
+                if (!this.activeSphere || (this.currentState !== 'waiting-to-appear' && this.currentState !== 'visible')) return { ok: false, reason: 'No target to skip' };
+                this.skipTarget();
+                return { ok: true };
+            default:
+                return { ok: false, reason: 'Unknown command' };
+        }
+    },
+
+    markStateChanged: function () {
+        const spectator = document.querySelector('#spectator-manager')?.components?.['spectator-manager'];
+        if (spectator) spectator.stateDirty = true;
+    },
+
+    setHeadsetCue: function (id) {
+        const spectator = document.querySelector('#spectator-manager')?.components?.['spectator-manager'];
+        if (spectator?.setCue) spectator.setCue(id);
+    },
+
+    startSession: function () {
+        const startTime = Date.now();
+        this.setHeadsetCue(null);
+        this.phase = 'running';
+        this.setupLocked = true;
+        this.resumeGame();
+        document.querySelector('#kinematics-manager').components['kinematics-manager'].startTracking(startTime);
+        document.querySelector('#data-manager').components['data-manager'].startSession(startTime);
+    },
+
+    requestPause: function () {
+        if (this.currentState === 'waiting-to-appear') {
+            if (this.appearTimer) {
+                clearTimeout(this.appearTimer);
+                this.appearTimer = null;
+            }
+            this.activeSphere = null;
+            this.lastSelectedPosition = this.selectionBeforeWait;
+            this.currentState = 'invisible';
+        }
+        if (this.currentState === 'invisible') {
+            this.enterPaused();
+        } else {
+            this.phase = 'pausing';
+        }
+    },
+
+    enterPaused: function () {
+        this.phase = 'paused';
+        this.isPaused = true;
+        this.setHeadsetCue('paused');
+        document.querySelector('#data-manager').components['data-manager'].startPause();
+        this.markStateChanged();
+    },
+
+    resumeSession: function () {
+        document.querySelector('#data-manager').components['data-manager'].endPause();
+        this.setHeadsetCue(null);
+        this.phase = 'running';
+        this.setupLocked = true;
+        this.resumeGame();
+    },
+
+    completeSession: function (reason) {
+        if (this.phase === 'complete') return;
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        if (this.appearTimer) {
+            clearTimeout(this.appearTimer);
+            this.appearTimer = null;
+        }
+        if (reason === 'ended-early') {
+            if (this.disappearTimer) {
+                clearTimeout(this.disappearTimer);
+                this.disappearTimer = null;
+            }
+            if (this.activeSphere) this.activeSphere.setAttribute('visible', false);
+            this.activeSphere = null;
+            this.currentState = 'invisible';
+        }
+        if (this.phase === 'paused') dataManager.endPause();
+        this.phase = 'complete';
+        this.endReason = reason;
+        this.setupLocked = true;
+        this.isPaused = true;
+        this.setHeadsetCue('done');
+        dataManager.scheduleFinalExport();
+        this.markStateChanged();
     },
 
     calibrateReach: function () {
         const camera = document.querySelector('a-scene').camera;
-        const cameraPos = camera.el.getAttribute('position');
-        const rightPos = this.getHandPosition(this.rightController);
+        const cameraPos = camera?.el?.getAttribute('position');
+        if (!cameraPos) return { ok: false, reason: 'Head not tracked' };
+        const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
 
-        if (rightPos && cameraPos) {
+        let best = null;
+        [['LEFT', this.leftController], ['RIGHT', this.rightController]].forEach(([hand, controller]) => {
+            if (!kinematicsManager.isHandValid(controller)) return;
+            const tip = this.getHandPosition(controller);
+            if (!tip) return;
             const distance = Math.sqrt(
-                Math.pow(rightPos.x - cameraPos.x, 2) +
-                Math.pow(rightPos.y - cameraPos.y, 2) +
-                Math.pow(rightPos.z - cameraPos.z, 2)
+                Math.pow(tip.x - cameraPos.x, 2) +
+                Math.pow(tip.y - cameraPos.y, 2) +
+                Math.pow(tip.z - cameraPos.z, 2)
             );
-            this.radius = Math.max(0.3, 0.8 * distance);
-            this.updateSpherePositions();
-        }
+            if (Number.isFinite(distance) && (!best || distance > best.distance)) best = { hand, distance };
+        });
+
+        if (!best) return { ok: false, reason: 'No hand tracked' };
+        this.radius = Math.max(0.3, 0.8 * best.distance);
+        this.updateSpherePositions();
+        this.calib.reach = { done: true, hand: best.hand, distance: best.distance, radius: this.radius };
+        return { ok: true };
     },
 
     calibrateHeight: function () {
         const camera = document.querySelector('a-scene').camera;
         const cameraPos = camera.el.getAttribute('position');
-        if (cameraPos && cameraPos.y !== undefined) {
-            this.height = Math.max(0.5, 0.8 * cameraPos.y);
-            this.updateSpherePositions();
-            this.updateTextPositions();
-        }
+        if (!cameraPos || cameraPos.y === undefined) return { ok: false, reason: 'Head not tracked' };
+        this.height = Math.max(0.5, 0.8 * cameraPos.y);
+        this.updateSpherePositions();
+        this.updateTextPositions();
+        this.calib.height = { done: true, height: this.height };
+        return { ok: true };
     },
 
     calibrateLap: function () {
@@ -369,13 +529,12 @@ AFRAME.registerComponent('sphere-manager', {
         }
 
         this.homeRectangle.setAttribute('position', `0 ${newY} ${newZ}`);
+        this.calib.lap = { done: true, home: { x: 0, y: newY, z: newZ } };
+        return { ok: true };
     },
 
     saveData: function () {
-        const dataManager = document.querySelector('#data-manager').components['data-manager'];
-        dataManager.exportCSV();
-        const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
-        kinematicsManager.exportCSV();
+        document.querySelector('#data-manager').components['data-manager'].exportAll();
     },
 
     updateTextPositions: function () {
@@ -422,36 +581,28 @@ AFRAME.registerComponent('sphere-manager', {
         this.currentState = 'invisible';
     },
 
-    switchToShortSession: function () {
-        if (this.trialsSwitched) return;
-        this.appearancesPerSphere = 10;
-        this.totalTrials = 110;
-        this.trialsSwitched = true;
-        const dataManager = document.querySelector('#data-manager').components['data-manager'];
-        dataManager.updateTotalTrials(110);
-    },
-
-    setTwoReachesPerSphere: function () {
-        if (this.trialsSwitched) return;
-        this.appearancesPerSphere = 4;
-        this.totalTrials = 44;
-        this.trialsSwitched = true;
-        this.fModeActive = true;
+    setMode: function (mode) {
+        this.appearancesPerSphere = 32;
+        this.totalTrials = 352;
+        this.fModeActive = false;
+        this.bModeActive = false;
         this.currentPhase = 0;
         this.phaseAppearanceCounts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        if (mode === 'short') {
+            this.appearancesPerSphere = 10;
+            this.totalTrials = 110;
+        } else if (mode === 'fmode') {
+            this.appearancesPerSphere = 4;
+            this.totalTrials = 44;
+            this.fModeActive = true;
+        } else if (mode === 'block') {
+            this.appearancesPerSphere = 2;
+            this.totalTrials = 110;
+            this.bModeActive = true;
+        }
+        this.mode = mode;
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
-        dataManager.updateTotalTrials(44);
-    },
-
-    setBlockMode: function () {
-        if (this.trialsSwitched) return;
-        this.appearancesPerSphere = 2;
-        this.totalTrials = 110;
-        this.trialsSwitched = true;
-        this.bModeActive = true;
-        this.phaseAppearanceCounts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        const dataManager = document.querySelector('#data-manager').components['data-manager'];
-        dataManager.updateTotalTrials(110);
+        dataManager.updateTotalTrials(this.totalTrials);
     },
 
     skipTarget: function () {
@@ -537,6 +688,7 @@ AFRAME.registerComponent('sphere-manager', {
 
         const randomIndex = Math.floor(Math.random() * availablePositions.length);
         const selectedPosition = availablePositions[randomIndex];
+        this.selectionBeforeWait = this.lastSelectedPosition;
         this.activeSphere = this.allSpheres[selectedPosition];
         this.lastSelectedPosition = selectedPosition;
     },
@@ -708,6 +860,7 @@ AFRAME.registerComponent('sphere-manager', {
     },
 
     tick: function () {
+        if (this.phase === 'pausing' && this.currentState === 'invisible') this.enterPaused();
         if (this.isPaused) return;
 
         const homeRectPos = this.homeRectangle.getAttribute('position');

@@ -26,6 +26,11 @@ AFRAME.registerComponent('score-manager', {
         this.updateProbabilities();
     },
 
+    setCondition: function (condition) {
+        this.currentCondition = condition;
+        this.updateProbabilities();
+    },
+
     setDominantHand: function (hand) {
         this.dominantHand = hand;
         this.updateProbabilities();

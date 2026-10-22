@@ -62,6 +62,13 @@
 
             <a-text id="progress-display" value="0%" position="0 -0.22 0.02" align="center" width="2" color="#CCCCCC"
                 font="exo2bold"></a-text>
+
+            <a-entity id="participant-cue" position="0 -0.42 0.02" visible="false">
+                <a-entity geometry="primitive: plane; width: 1.4; height: 0.16"
+                    material="color: #000000; opacity: 0.85; transparent: true; shader: flat"></a-entity>
+                <a-text id="participant-cue-text" value="" position="0 0 0.01" align="center" width="2.4" color="#FFFFFF"
+                    font="exo2bold"></a-text>
+            </a-entity>
         </a-entity>
 
         <!-- MANAGERS -->

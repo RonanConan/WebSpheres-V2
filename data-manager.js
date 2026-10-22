@@ -1,4 +1,6 @@
 AFRAME.registerComponent('data-manager', {
+    TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID\n',
+
     init: function() {
         this.trialData = [];
         this.trialNumber = 0;
@@ -8,7 +10,106 @@ AFRAME.registerComponent('data-manager', {
         this.totalTrials = 352;
         this.sessionStartTime = 0;
         this.recentreCount = 0;
+        this.participantId = '';
+        this.sessionEndTime = 0;
+        this.lastExportTimestamp = '';
+        this.pauses = [];
+        this.setupUnlocks = [];
+        this.finalExportScheduled = false;
         this.setupManualExport();
+    },
+
+    sessionTime: function() {
+        return this.sessionStartTime > 0 ? Date.now() - this.sessionStartTime : 0;
+    },
+
+    startPause: function() {
+        this.pauses.push({ start: this.sessionTime(), end: null });
+    },
+
+    endPause: function() {
+        const last = this.pauses[this.pauses.length - 1];
+        if (last && last.end === null) last.end = this.sessionTime();
+    },
+
+    logSetupUnlock: function() {
+        this.setupUnlocks.push(this.sessionTime());
+    },
+
+    scheduleFinalExport: function() {
+        if (this.finalExportScheduled) return;
+        this.finalExportScheduled = true;
+        this.sessionEndTime = Date.now();
+        setTimeout(() => {
+            document.querySelector('#kinematics-manager').components['kinematics-manager'].stopTracking();
+            this.exportAll();
+        }, 1000);
+    },
+
+    filePrefix: function() {
+        return this.participantId ? this.participantId + '_' : '';
+    },
+
+    fileTimestamp: function() {
+        return new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    },
+
+    formatTrialRow: function(trial) {
+        return `${trial.trial},${trial.timestamp},${trial.target},${trial.hand},${trial.points},${trial.hitType},${trial.decisionTime},${trial.totalMovementTime},${trial.recentreCount},${trial.participantId}\n`;
+    },
+
+    buildSessionInfo: function() {
+        const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        const scoreManager = document.querySelector('#score-display')?.components?.['score-manager'];
+        const home = document.querySelector('#home-rectangle')?.getAttribute('position') || {};
+        const reach = sphereManager?.calib?.reach || {};
+        const iso = (t) => t > 0 ? new Date(t).toISOString() : '';
+        const rows = [
+            ['ParticipantID', this.participantId],
+            ['AppVersion', typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''],
+            ['SessionStartISO', iso(this.sessionStartTime)],
+            ['SessionEndISO', iso(this.sessionEndTime)],
+            ['EndReason', sphereManager?.endReason ?? ''],
+            ['DominantHand', scoreManager?.dominantHand ?? ''],
+            ['Condition', scoreManager?.currentCondition ?? ''],
+            ['Mode', sphereManager?.mode ?? ''],
+            ['TotalTrials', sphereManager?.totalTrials ?? this.totalTrials],
+            ['TrialsCompleted', this.trialNumber],
+            ['ReachHand', reach.done ? reach.hand : ''],
+            ['ReachDistance', reach.done ? reach.distance : ''],
+            ['Radius', sphereManager?.radius ?? ''],
+            ['Height', sphereManager?.height ?? ''],
+            ['HomeX', home.x ?? ''],
+            ['HomeY', home.y ?? ''],
+            ['HomeZ', home.z ?? ''],
+            ['RecentreCount', this.recentreCount],
+            ['Pauses', this.pauses.map(p => `${p.start}-${p.end === null ? '' : p.end}`).join(';')],
+            ['SetupUnlocks', this.setupUnlocks.join(';')]
+        ];
+        return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
+    },
+
+    download: function(filename, parts) {
+        const blob = new Blob(parts, { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    },
+
+    exportAll: function() {
+        const timestamp = this.fileTimestamp();
+        this.lastExportTimestamp = timestamp;
+        this.exportCSV(timestamp);
+        document.querySelector('#kinematics-manager').components['kinematics-manager'].exportCSV(timestamp);
+        if (this.sessionStartTime > 0) {
+            this.download(`${this.filePrefix()}session-info-${timestamp}.csv`, [this.buildSessionInfo()]);
+        }
     },
     
     setupManualExport: function() {
@@ -90,7 +191,8 @@ AFRAME.registerComponent('data-manager', {
             hitType: hitType,
             decisionTime: decisionTime,
             totalMovementTime: this.currentMovementTime,
-            recentreCount: this.recentreCount
+            recentreCount: this.recentreCount,
+            participantId: this.participantId
         });
         
         console.log(`Trial ${this.trialNumber}: Target ${targetPosition + 1}, Hand ${handUsed}, Points ${points}, Type ${hitType}, Decision Time ${decisionTime}ms`);
@@ -102,43 +204,18 @@ AFRAME.registerComponent('data-manager', {
         
         // Check if session complete (110 trials)
         if (this.trialNumber >= this.totalTrials) {
-            setTimeout(() => {
-                this.exportCSV();
-                const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
-                kinematicsManager.exportCSV();
-            }, 1000); // Delay to ensure last trial is recorded
+            const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+            if (sphereManager?.completeSession) sphereManager.completeSession('finished');
+            else this.scheduleFinalExport();
         }
     },
     
-    exportCSV: function() {
+    exportCSV: function(timestamp) {
         if (this.trialData.length === 0) {
             return;
         }
-        
-        // Generate CSV content
-        let csvContent = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount\n';
-        
-        this.trialData.forEach(trial => {
-            csvContent += `${trial.trial},${trial.timestamp},${trial.target},${trial.hand},${trial.points},${trial.hitType},${trial.decisionTime},${trial.totalMovementTime},${trial.recentreCount}\n`;
-        });
-        
-        // Create and download CSV file
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `vr-session-data-${timestamp}.csv`;
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.style.display = 'none';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        URL.revokeObjectURL(url);
+        const csvContent = this.TRIAL_HEADER + this.trialData.map(trial => this.formatTrialRow(trial)).join('');
+        this.download(`${this.filePrefix()}vr-session-data-${timestamp || this.fileTimestamp()}.csv`, [csvContent]);
     },
     
     updateTotalTrials: function(newTotal) {

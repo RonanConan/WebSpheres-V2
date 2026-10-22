@@ -16,6 +16,7 @@ const near = (a, b, e) => Math.abs(a - b) < (e || 1e-4);
   const settle = () => p.waitForTimeout(150);
   const view = (v) => p.click(`[data-view="${v}"]`).then(settle);
 
+  await E(() => window.__obs.setLeftSlot(false));
   console.log('SCENE (Chromium)');
   ok(await E(() => window.__obs.view === 'orbit' && !window.__obs.head.visible), 'starts in Orbit, head hidden until head data arrives');
   await E(() => { const P = window.__peers[0]; P.serverOpen(); const c = P.conns.at(-1); c.open = true; c.emit('open'); });
