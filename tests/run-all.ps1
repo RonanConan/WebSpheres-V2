@@ -5,14 +5,14 @@ $root = Split-Path $PSScriptRoot -Parent
 $git = (Get-Command git -ErrorAction SilentlyContinue).Source
 if (-not $git) { $git = Get-ChildItem "$env:LOCALAPPDATA\GitHubDesktop" -Filter git.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -like '*\git\cmd\git.exe' } | Select-Object -First 1 -ExpandProperty FullName }
 $base = Join-Path $env:TEMP "webspheres-baseline-$Baseline"
-if (-not (Test-Path $base)) {
+if (-not (Test-Path (Join-Path $base 'kinematics-manager.js'))) {
     & $git -C $root archive --format=zip -o "$base.zip" $Baseline
-    Expand-Archive "$base.zip" -DestinationPath $base
+    Expand-Archive "$base.zip" -DestinationPath $base -Force
     Remove-Item "$base.zip"
 }
 $env:WS_BASELINE = $base
 $env:WS_TOOLS = $tools
-$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'keyboard-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs'
+$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'keyboard-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs', 'info-browser.cjs', 'home-browser.cjs'
 $failed = @()
 foreach ($s in $suites) {
     Write-Output "===== $s"

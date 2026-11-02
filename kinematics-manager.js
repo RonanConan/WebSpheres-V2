@@ -53,18 +53,21 @@ AFRAME.registerComponent('kinematics-manager', {
         const dataManager = document.querySelector('#data-manager')?.components?.['data-manager'];
         const recentreCount = dataManager?.recentreCount ?? 0;
 
-        const common = `${homePos.x},${homePos.y},${homePos.z},${targetX},${targetY},${targetZ}`;
+        const perHand = sphereManager?.homeMode === 'per-hand';
+        const leftHome = perHand ? sphereManager.homeLeft : homePos;
+        const leftCommon = `${leftHome.x},${leftHome.y},${leftHome.z},${targetX},${targetY},${targetZ}`;
+        const rightCommon = perHand ? `${sphereManager.homeRight.x},${sphereManager.homeRight.y},${sphereManager.homeRight.z},${targetX},${targetY},${targetZ}` : leftCommon;
         const head = `${this.r5(this.headPos.x)},${this.r5(this.headPos.y)},${this.r5(this.headPos.z)},` +
             `${this.r6(this.headQuat.x)},${this.r6(this.headQuat.y)},${this.r6(this.headQuat.z)},${this.r6(this.headQuat.w)}`;
 
         if (leftPos) {
             const valid = this.updateWrist(this.leftController, this.leftWrist);
-            this.leftHandData.push(this.buildRow(timestamp, leftPos, common, valid, this.leftWrist, head, recentreCount));
+            this.leftHandData.push(this.buildRow(timestamp, leftPos, leftCommon, valid, this.leftWrist, head, recentreCount));
         }
 
         if (rightPos) {
             const valid = this.updateWrist(this.rightController, this.rightWrist);
-            this.rightHandData.push(this.buildRow(timestamp, rightPos, common, valid, this.rightWrist, head, recentreCount));
+            this.rightHandData.push(this.buildRow(timestamp, rightPos, rightCommon, valid, this.rightWrist, head, recentreCount));
         }
     },
 

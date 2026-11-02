@@ -11,6 +11,7 @@ AFRAME.registerComponent('data-manager', {
         this.sessionStartTime = 0;
         this.recentreCount = 0;
         this.participantId = '';
+        this.experimenter = '';
         this.sessionEndTime = 0;
         this.lastExportTimestamp = '';
         this.pauses = [];
@@ -63,6 +64,7 @@ AFRAME.registerComponent('data-manager', {
         const scoreManager = document.querySelector('#score-display')?.components?.['score-manager'];
         const home = document.querySelector('#home-rectangle')?.getAttribute('position') || {};
         const reach = sphereManager?.calib?.reach || {};
+        const perHand = sphereManager?.calib?.lap?.left ? sphereManager.calib.lap : null;
         const iso = (t) => t > 0 ? new Date(t).toISOString() : '';
         const rows = [
             ['ParticipantID', this.participantId],
@@ -84,7 +86,15 @@ AFRAME.registerComponent('data-manager', {
             ['HomeZ', home.z ?? ''],
             ['RecentreCount', this.recentreCount],
             ['Pauses', this.pauses.map(p => `${p.start}-${p.end === null ? '' : p.end}`).join(';')],
-            ['SetupUnlocks', this.setupUnlocks.join(';')]
+            ['SetupUnlocks', this.setupUnlocks.join(';')],
+            ['Experimenter', this.experimenter],
+            ['HomeMode', sphereManager?.homeMode ?? ''],
+            ['HomeLeftX', perHand?.left.x ?? ''],
+            ['HomeLeftY', perHand?.left.y ?? ''],
+            ['HomeLeftZ', perHand?.left.z ?? ''],
+            ['HomeRightX', perHand?.right.x ?? ''],
+            ['HomeRightY', perHand?.right.y ?? ''],
+            ['HomeRightZ', perHand?.right.z ?? '']
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
     },

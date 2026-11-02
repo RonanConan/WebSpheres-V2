@@ -39,6 +39,12 @@ AFRAME.registerComponent('sphere-manager', {
 
         // Single home rectangle
         this.homeRectangle = document.querySelector('#home-rectangle');
+        this.homeLeftEl = document.querySelector('#home-left');
+        this.homeRightEl = document.querySelector('#home-right');
+        this.homeMode = 'one-box';
+        this.homeHalfWidth = 0.4;
+        this.homeLeft = { x: -0.15, y: 0.9, z: -0.4 };
+        this.homeRight = { x: 0.15, y: 0.9, z: -0.4 };
         this.leftController = document.querySelector('[hand-tracking-controls="hand: left"]');
         this.rightController = document.querySelector('[hand-tracking-controls="hand: right"]');
 
@@ -309,7 +315,7 @@ AFRAME.registerComponent('sphere-manager', {
 
     setupOpen: function () {
         if (this.phase === 'complete') return { ok: false, reason: 'Session complete' };
-        if (this.setupLocked) return { ok: false, reason: 'Setup locked - unlock setup first' };
+        if (this.setupLocked) return { ok: false, reason: 'Setup locked. Unlock first.' };
         return { ok: true };
     },
 
@@ -317,23 +323,33 @@ AFRAME.registerComponent('sphere-manager', {
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const scoreManager = document.querySelector('#score-display').components['score-manager'];
         const phase = this.phase;
-        const setupCommands = ['setParticipant', 'setDominant', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
+        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
         if (setupCommands.includes(name)) {
             const open = this.setupOpen();
             if (!open.ok) return open;
         }
         switch (name) {
             case 'setParticipant':
-                if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(value)) return { ok: false, reason: 'Participant ID must be 1-32 letters, digits, _ or -' };
-                if (/left|right/i.test(value)) return { ok: false, reason: 'Participant ID cannot contain "left" or "right" (the 3D viewer reads those in filenames)' };
+                if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(value)) return { ok: false, reason: 'Participant ID: 1-32 letters, digits, _ or -' };
+                if (/left|right/i.test(value)) return { ok: false, reason: 'Participant ID: no "left" or "right". 3D viewer reads those words in filenames.' };
                 dataManager.participantId = value;
                 return { ok: true };
+            case 'setExperimenter':
+                if (typeof value !== 'string' || !value.trim() || value.length > 64) return { ok: false, reason: 'Experimenter name: 1-64 characters' };
+                if (/[,\r\n]/.test(value)) return { ok: false, reason: 'Experimenter name: no commas (breaks the CSV)' };
+                dataManager.experimenter = value.trim();
+                return { ok: true };
+            case 'setHomeMode':
+                if (value !== 'one-box' && value !== 'per-hand') return { ok: false, reason: 'Home position: one-box or per-hand' };
+                if (phase !== 'setup') return { ok: false, reason: 'Home position: set before start' };
+                this.setHomeMode(value);
+                return { ok: true };
             case 'setDominant':
-                if (value !== 'LEFT' && value !== 'RIGHT') return { ok: false, reason: 'Dominant hand must be LEFT or RIGHT' };
+                if (value !== 'LEFT' && value !== 'RIGHT') return { ok: false, reason: 'Dominant hand: LEFT or RIGHT' };
                 scoreManager.setDominantHand(value);
                 return { ok: true };
             case 'setCondition':
-                if (value !== 1 && value !== 2) return { ok: false, reason: 'Condition must be 1 or 2' };
+                if (value !== 1 && value !== 2) return { ok: false, reason: 'Condition: 1 or 2' };
                 scoreManager.setCondition(value);
                 return { ok: true };
             case 'toggleCondition':
@@ -353,7 +369,7 @@ AFRAME.registerComponent('sphere-manager', {
                 this.startSession();
                 return { ok: true };
             case 'pause':
-                if (phase !== 'running') return { ok: false, reason: 'Can only pause while running' };
+                if (phase !== 'running') return { ok: false, reason: 'Pause only while running' };
                 this.requestPause();
                 return { ok: true };
             case 'resume':
@@ -374,7 +390,7 @@ AFRAME.registerComponent('sphere-manager', {
                 this.completeSession('ended-early');
                 return { ok: true };
             case 'unlockSetup':
-                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup is only locked during a session' };
+                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup locks only during a session' };
                 if (this.setupLocked) {
                     this.setupLocked = false;
                     dataManager.logSetupUnlock();
@@ -509,7 +525,43 @@ AFRAME.registerComponent('sphere-manager', {
         return { ok: true };
     },
 
+    setHomeMode: function (mode) {
+        if (mode === this.homeMode) return;
+        this.homeMode = mode;
+        this.homeHalfWidth = mode === 'per-hand' ? 0.1 : 0.4;
+        this.homeRectangle.setAttribute('position', '0 0.9 -0.4');
+        this.homeRectangle.setAttribute('visible', mode === 'one-box');
+        this.homeLeftEl.setAttribute('visible', false);
+        this.homeRightEl.setAttribute('visible', false);
+        this.calib.lap = { done: false, home: { x: 0, y: 0.9, z: -0.4 } };
+    },
+
+    calibrateHomePerHand: function () {
+        const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
+        if (!kinematicsManager.isHandValid(this.leftController) || !kinematicsManager.isHandValid(this.rightController)) {
+            return { ok: false, reason: 'Both hands must be tracked' };
+        }
+        const l = this.getHandPosition(this.leftController);
+        const r = this.getHandPosition(this.rightController);
+        if (!l || !r) return { ok: false, reason: 'Both hands must be tracked' };
+        this.homeLeft = { x: l.x, y: l.y, z: l.z + 0.02 };
+        this.homeRight = { x: r.x, y: r.y, z: r.z + 0.02 };
+        const mid = {
+            x: (this.homeLeft.x + this.homeRight.x) / 2,
+            y: (this.homeLeft.y + this.homeRight.y) / 2,
+            z: (this.homeLeft.z + this.homeRight.z) / 2
+        };
+        this.homeLeftEl.setAttribute('position', `${this.homeLeft.x} ${this.homeLeft.y} ${this.homeLeft.z}`);
+        this.homeRightEl.setAttribute('position', `${this.homeRight.x} ${this.homeRight.y} ${this.homeRight.z}`);
+        this.homeLeftEl.setAttribute('visible', true);
+        this.homeRightEl.setAttribute('visible', true);
+        this.homeRectangle.setAttribute('position', `${mid.x} ${mid.y} ${mid.z}`);
+        this.calib.lap = { done: true, home: mid, left: this.homeLeft, right: this.homeRight };
+        return { ok: true };
+    },
+
     calibrateLap: function () {
+        if (this.homeMode === 'per-hand') return this.calibrateHomePerHand();
         const leftPos = this.getHandPosition(this.leftController);
         const rightPos = this.getHandPosition(this.rightController);
 
@@ -747,7 +799,7 @@ AFRAME.registerComponent('sphere-manager', {
 
     isInsideRectangle: function (pos, rectanglePos) {
         // Half-dimensions for single centered box (0.8 x 0.12 x 0.22)
-        const width = 0.4;
+        const width = this.homeHalfWidth;
         const height = 0.06;
         const depth = 0.11;
         return Math.abs(pos.x - rectanglePos.x) < width &&
@@ -864,25 +916,28 @@ AFRAME.registerComponent('sphere-manager', {
         if (this.isPaused) return;
 
         const homeRectPos = this.homeRectangle.getAttribute('position');
+        const perHand = this.homeMode === 'per-hand';
+        const leftHomePos = perHand ? this.homeLeft : homeRectPos;
+        const rightHomePos = perHand ? this.homeRight : homeRectPos;
 
         // Check if each hand has ANY joint inside the single home box
         let leftAtHome = false;
         let rightAtHome = false;
 
         if (this.leftJoints) {
-            leftAtHome = this.isAnyJointInsideRectangle(this.leftJoints, homeRectPos);
+            leftAtHome = this.isAnyJointInsideRectangle(this.leftJoints, leftHomePos);
         } else {
             // Fallback to fingertip if joints not available
             const leftPos = this.getHandPosition(this.leftController);
-            leftAtHome = leftPos && this.isInsideRectangle(leftPos, homeRectPos);
+            leftAtHome = leftPos && this.isInsideRectangle(leftPos, leftHomePos);
         }
 
         if (this.rightJoints) {
-            rightAtHome = this.isAnyJointInsideRectangle(this.rightJoints, homeRectPos);
+            rightAtHome = this.isAnyJointInsideRectangle(this.rightJoints, rightHomePos);
         } else {
             // Fallback to fingertip if joints not available
             const rightPos = this.getHandPosition(this.rightController);
-            rightAtHome = rightPos && this.isInsideRectangle(rightPos, homeRectPos);
+            rightAtHome = rightPos && this.isInsideRectangle(rightPos, rightHomePos);
         }
 
         if (this.currentState === 'invisible' && this.totalAppearances < this.totalTrials) {

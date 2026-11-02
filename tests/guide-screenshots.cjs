@@ -3,7 +3,7 @@ const { serve, launch } = require('./harness.cjs');
 const OUT = process.argv[2] || path.join(os.tmpdir(), 'webspheres-guide-shots');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const BASE = {
-  type: 'state', version: '2.0.0', phase: 'setup', endReason: '', participantId: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.1.0', phase: 'setup', endReason: '', participantId: '', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -34,12 +34,13 @@ const kin = Array.from({ length: 300 }, (_, i) => `${i * 11},0.1,1,-0.3,0,0.9,-0
     const fr = (o) => p.evaluate((f) => window.__c.emit('data', JSON.stringify(f)), Object.assign({}, FRAME, o || {}));
     await st({ version: '1.9.0' }); await fr();
     await shot('1-version-mismatch');
-    await st({ version: '2.0.0' }); await fr();
+    await st({ version: '2.1.0' }); await fr();
+    await p.fill('#g-exp', 'Jo Smith');
     await p.fill('#g-id', 'G05');
     await p.click('[data-g="dom"][data-v="RIGHT"]'); await p.click('[data-g="cond"][data-v="2"]'); await p.click('[data-g="mode"][data-v="fmode"]');
     await shot('2-participant');
     await p.click('#g-confirm'); await sleep(100);
-    await st({ participantId: 'G05', dominantHand: 'RIGHT', condition: 2, mode: 'fmode', totalTrials: 44 }); await fr();
+    await st({ experimenter: 'Jo Smith', participantId: 'G05', dominantHand: 'RIGHT', condition: 2, mode: 'fmode', totalTrials: 44 }); await fr();
     await shot('3-position');
     await st({ recentred: true, calib: Object.assign({}, S.calib, { reach: { done: true, hand: 'RIGHT', distance: 0.62, radius: 0.496 } }) }); await fr();
     await p.evaluate(() => { window.__obs.guide.sub = 'height'; });

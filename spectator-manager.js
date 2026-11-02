@@ -1,4 +1,4 @@
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -29,6 +29,7 @@ AFRAME.registerComponent('spectator-manager', {
             lookAhead: 'Please look straight ahead',
             reach: 'Stretch one arm straight out',
             lap: 'Rest both hands in the green box',
+            lapPerHand: 'Rest both hands in your lap',
             ready: 'Get ready...',
             paused: 'Short break',
             done: 'All done - thank you!'
@@ -274,6 +275,8 @@ AFRAME.registerComponent('spectator-manager', {
             phase: sm?.phase ?? 'setup',
             endReason: sm?.endReason ?? '',
             participantId: dataM?.participantId ?? '',
+            experimenter: dataM?.experimenter ?? '',
+            homeMode: sm?.homeMode ?? 'one-box',
             dominantHand: scoreM?.dominantHand ?? 'LEFT',
             condition: scoreM?.currentCondition ?? 1,
             mode: sm?.mode ?? 'standard',
@@ -377,7 +380,8 @@ AFRAME.registerComponent('spectator-manager', {
     },
 
     setCue: function (id) {
-        const text = id ? this.CUES[id] : '';
+        const perHand = document.querySelector('#sphere-manager')?.components?.['sphere-manager']?.homeMode === 'per-hand';
+        const text = id ? this.CUES[id === 'lap' && perHand ? 'lapPerHand' : id] : '';
         if (id && !text) return;
         this.cue = id || null;
         const box = document.querySelector('#participant-cue');
@@ -389,7 +393,7 @@ AFRAME.registerComponent('spectator-manager', {
 
     requestCue: function (id) {
         const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
-        if (sm && sm.phase !== 'setup') return { ok: false, reason: 'Cues are automatic once the session has started' };
+        if (sm && sm.phase !== 'setup') return { ok: false, reason: 'Cues automatic after start' };
         if (id !== null && !['reach', 'lap', 'ready'].includes(id)) return { ok: false, reason: 'Unknown cue' };
         if (this.recentre) this.cueBeforeRecentre = id;
         else this.setCue(id);

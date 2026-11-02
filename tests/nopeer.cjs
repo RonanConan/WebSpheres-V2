@@ -25,7 +25,7 @@ const { ok, done } = counter('NO PEERJS');
       ok(r.afterP.paused === false && r.afterP.tracking === true, 'P still starts the session without PeerJS');
     } else {
       ok(r.canvas && r.frames > 0, 'observer renders without PeerJS');
-      ok(r.state === 'Error' && r.status.startsWith('PeerJS failed to load'), 'observer shows Error + PeerJS-failed message');
+      ok(r.state === 'Error' && r.status.startsWith('Connection library not loaded'), 'observer shows Error + library-not-loaded message');
       ok(r.recentreDisabled, 'recentre disabled');
     }
     ok(errs.length === 0, file + ': no page errors (' + errs.slice(0, 2).join(' | ') + ')');

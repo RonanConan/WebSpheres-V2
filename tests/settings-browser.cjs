@@ -1,7 +1,7 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('SETTINGS & READOUTS BROWSER');
 const KEY = 'webspheres-observer-settings';
-const DEFAULTS = { hands: 'mesh', trails: true, trailSeconds: 1, head: true, gaze: true, arc: 'all', homeBox: true, textSize: 1, keyRelay: true };
+const DEFAULTS = { hands: 'mesh', trails: true, trailSeconds: 1, head: true, gaze: true, arc: 'all', homeBox: true, textSize: 1, keyControl: false };
 const joints = (side) => { const a = []; for (let i = 0; i < 25; i++) a.push(side * 0.2 + i * 0.003, 0.95 + (i % 5) * 0.004, -0.3 - i * 0.004); return a; };
 const FRAME = { head: { px: 0, py: 1.23, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, left: joints(-1), right: null, leftValid: true, rightValid: false, activeSphere: 4, radius: 0.45, height: 1.2, score: 7, condition: 2, dominantHand: 'RIGHT', fireMode: true, isPaused: false, trialCount: 9, totalTrials: 110, homePos: { x: 0, y: 0.9, z: -0.4 } };
 
@@ -29,7 +29,7 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   let { ctx, p } = await open(b);
   await connect(p); await send(p); await p.waitForTimeout(100);
   const rows = await p.evaluate(() => [...document.querySelectorAll('#setting-rows .set-row .label')].map(l => l.textContent));
-  ok(rows.join('|') === 'Hands|Fingertip trails|Trail length|Head|Gaze cone|Target arc|Home box|Text size|Keyboard relay', 'all nine settings listed in order');
+  ok(rows.join('|') === 'Hands|Fingertip trails|Trail length|Head|Gaze cone|Target arc|Home box|Text size|Keyboard control', 'all nine settings listed in order');
   const on0 = await onVals(p);
   ok(Object.entries(DEFAULTS).every(([k, v]) => on0[k] === String(v)), 'defaults selected on first visit');
   ok(await p.evaluate(() => !!document.getElementById('settings-reset')), 'Reset to defaults button present');
@@ -55,17 +55,22 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   await set(p, 'trails', false); await p.waitForTimeout(80);
   ok(await p.evaluate(() => !window.__obs.hands.L.trail.visible), 'Fingertip trails: Off');
   await set(p, 'trailSeconds', 2);
-  await set(p, 'keyRelay', false);
+  const keysSent = (n) => p.evaluate((i) => window.__peers.at(-1).conns.at(-1).sent.slice(i).map(x => JSON.parse(x).code).filter(Boolean).join(), n);
   const b0 = await p.evaluate(() => window.__peers.at(-1).conns.at(-1).sent.length);
+  await send(p); await p.keyboard.press('KeyH'); await p.keyboard.press('KeyR'); await p.keyboard.press('KeyZ');
+  ok(await keysSent(b0) === '', 'Keyboard control: Off by default, no keys reach the headset, including R and Z');
+  await set(p, 'keyControl', true);
+  const b1 = await p.evaluate(() => window.__peers.at(-1).conns.at(-1).sent.length);
   await send(p); await p.keyboard.press('KeyH'); await p.keyboard.press('KeyR');
-  ok(await p.evaluate((n) => window.__peers.at(-1).conns.at(-1).sent.slice(n).map(x => JSON.parse(x).code).filter(Boolean).join(), b0) === 'KeyR', 'Keyboard relay: Off blocks keys, Recentre still sent');
+  ok(await keysSent(b1) === 'KeyH,KeyR', 'Keyboard control: On sends keys and R');
+  await set(p, 'keyControl', false);
   const stored = await p.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
-  ok(stored && stored.head === false && stored.arc === 'active' && stored.textSize === 1.4 && stored.trailSeconds === 2 && stored.keyRelay === false, 'saved under one localStorage key');
+  ok(stored && stored.head === false && stored.arc === 'active' && stored.textSize === 1.4 && stored.trailSeconds === 2 && stored.keyControl === false, 'saved under one localStorage key');
 
   await p.reload(); await p.waitForFunction(() => window.__obs && window.__obs.frames > 2);
   const after = await p.evaluate(() => { const o = window.__obs; return { s: Object.assign({}, o.settings), skull: o.head.children[0].visible, home: o.homeBox.visible, fs: parseFloat(getComputedStyle(document.documentElement).fontSize), keys: o.hands.L.keys.visible }; });
   const on1 = await onVals(p);
-  ok(after.s.head === false && after.s.gaze === false && after.s.arc === 'active' && after.s.homeBox === false && after.s.textSize === 1.4 && after.s.hands === 'keys' && after.s.trails === false && after.s.trailSeconds === 2 && after.s.keyRelay === false, 'every setting survives a reload');
+  ok(after.s.head === false && after.s.gaze === false && after.s.arc === 'active' && after.s.homeBox === false && after.s.textSize === 1.4 && after.s.hands === 'keys' && after.s.trails === false && after.s.trailSeconds === 2 && after.s.keyControl === false, 'every setting survives a reload');
   ok(!after.skull && !after.home && Math.abs(after.fs - 25.2) < 0.01 && after.keys && on1.arc === 'active' && on1.textSize === '1.4', 'reloaded settings are applied to the scene and buttons');
   await p.evaluate(() => document.getElementById('settings-reset').click());
   const reset = await p.evaluate((k) => ({ s: Object.assign({}, window.__obs.settings), stored: JSON.parse(localStorage.getItem(k)) }), KEY);
@@ -98,14 +103,14 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   await p.evaluate(() => window.__peers[0].emit('error', { type: 'peer-unavailable' }));
   await p.click('#btn-readouts'); await p.clock.runFor(300);
   const groups = await p.evaluate(() => [...document.querySelectorAll('#readout-rows h3')].map(h => h.textContent).join('|'));
-  ok(groups === 'Session|Tracking|Backup on this laptop|Connection', 'Session, Tracking, Backup and Connection groups');
+  ok(groups === 'Session|Tracking|Laptop copy|Connection', 'Session, Tracking, Laptop copy and Connection groups');
   ok((await r('trial')) === '–' && (await r('left')) === 'no data' && (await r('reconnects')) === '0', 'empty values before any data');
   ok((await r('error')).startsWith('peer-unavailable at '), 'last error type shown (' + (await r('error')) + ')');
   await p.evaluate(() => window.__peers[0].serverOpen());
   await p.evaluate(() => { const c = window.__peers[0].conns.at(-1); c.open = true; c.emit('open'); });
   for (let i = 0; i < 90; i++) { await send(p); await p.clock.runFor(33); }
   await p.clock.runFor(260);
-  ok((await r('trial')) === '9 / 110' && (await r('score')) === '7' && (await r('cond')) === 'Boost-and-tax' && (await r('dom')) === 'Right' && (await r('fire')) === 'On' && (await r('run')) === 'Running', 'session values');
+  ok((await r('trial')) === '9 / 110' && (await r('score')) === '7' && (await r('cond')) === 'Boost' && (await r('dom')) === 'Right' && (await r('fire')) === 'On' && (await r('run')) === 'Running', 'session values');
   ok((await r('target')) === '5', 'active target shown 1–11 (activeSphere 4 → 5)');
   ok((await r('left')) === 'tracked' && (await rc('left')) === 'good' && (await r('right')) === 'no data', 'left tracked, right never seen');
   ok((await r('headh')) === '1.23 m', 'head height in metres');

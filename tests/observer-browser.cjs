@@ -43,13 +43,14 @@ const { ok, done } = counter('OBSERVER BROWSER');
 
   console.log(' top bar');
   await frame();
-  ok((await txt('v-trial')) === '3 / 352' && (await txt('v-score')) === '5' && (await txt('v-cond')) === 'NO-MANIP' && (await txt('v-dom')) === 'L' && (await txt('v-fire')) === '–', 'trial, score, condition, dominant, fire shown');
+  ok((await txt('v-trial')) === '3 / 352' && (await txt('v-score')) === '5' && (await txt('v-cond')) === 'NO BOOST' && (await txt('v-dom')) === 'L' && (await txt('v-fire')) === '–', 'trial, score, condition, dominant, fire shown');
   await frame({ condition: 2, dominantHand: 'RIGHT', fireMode: true, score: 84, trialCount: 12 });
-  ok((await txt('v-trial')) === '12 / 352' && (await txt('v-score')) === '84' && (await txt('v-cond')) === 'BOOST-TAX' && (await txt('v-dom')) === 'R', 'top bar follows new values');
+  ok((await txt('v-trial')) === '12 / 352' && (await txt('v-score')) === '84' && (await txt('v-cond')) === 'BOOST' && (await txt('v-dom')) === 'R', 'top bar follows new values');
   ok((await txt('v-fire')) === 'ON' && await E(() => getComputedStyle(document.getElementById('v-fire')).color === 'rgb(255, 211, 77)'), 'fire mode "ON" in critical colour');
   ok(await E(() => parseFloat(getComputedStyle(document.getElementById('v-score')).fontSize) >= 26), 'top-bar values ≥ 26 px');
 
   console.log(' recentre');
+  await E(() => { window.__obs.settings.keyControl = true; });
   await frame();
   await page.click('#recentre');
   ok(await count('KeyR') === 1 && (await note()) === 'Recentring in 1.5 s…', 'button → KeyR sent + "Recentring in 1.5 s…"');
@@ -82,11 +83,11 @@ const { ok, done } = counter('OBSERVER BROWSER');
   await E(() => window.__peers[0].conns.at(-1).emit('data', JSON.stringify({ type: 'state', phase: 'running', trialCount: 99, totalTrials: 1 })));
   await E(() => window.__peers[0].conns.at(-1).emit('data', JSON.stringify({ type: 'cmdResult', id: 'x', ok: true, reason: '' })));
   ok((await txt('v-trial')) === '3 / 352' && await E(() => window.__obs.receiver.headsetState && window.__obs.receiver.headsetState.phase === 'running'), 'state / cmdResult messages kept aside, not drawn as frames');
-  await E(() => { window.__obs.settings.keyRelay = false; });
+  await E(() => { window.__obs.settings.keyControl = false; });
   const b2 = (await sent()).length;
   await page.keyboard.press('KeyH'); await frame(); await page.keyboard.press('KeyR');
-  ok((await sent()).slice(b2).join() === 'KeyR', 'relay Off: keys not sent, Recentre still works');
-  await E(() => { window.__obs.settings.keyRelay = true; });
+  ok((await sent()).slice(b2).join() === '', 'Keyboard control Off: all keys ignored, including R');
+  await E(() => { window.__obs.settings.keyControl = true; });
   await E(() => window.__peers[0].conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: true, reason: '' })));
 
   await page.click('#btn-settings'); await page.clock.runFor(300);

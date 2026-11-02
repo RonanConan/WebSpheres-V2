@@ -40,6 +40,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   console.log('GUIDED SESSION, BUTTONS ONLY (real headset page ⇄ real observer)');
   await waitStep(2);
   ok(true, 'connects and moves to step 2 by itself');
+  await o.fill('#g-exp', 'Jo Smith');
   await o.fill('#g-id', 'G05');
   await o.click('[data-g="dom"][data-v="RIGHT"]'); await o.click('[data-g="cond"][data-v="2"]'); await o.click('[data-g="mode"][data-v="fmode"]');
   await o.click('#g-confirm');

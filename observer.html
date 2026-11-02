@@ -41,6 +41,7 @@
         .value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.5rem; font-weight: 600; line-height: 1.15; }
         #conn { flex-direction: row; align-items: center; gap: 0.6rem; }
         #conn-dot { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--warn); flex: none; }
+        #conn-dot[hidden] { display: none; }
         #conn-state { font-family: var(--sans); text-transform: uppercase; letter-spacing: 0.04em; }
         #conn-detail { font-size: 0.75rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
         #data-age { color: var(--crit); }
@@ -111,8 +112,8 @@
         .g-msg { margin: 0.6rem 0 0; min-height: 1.2em; line-height: 1.35; }
         .g-msg.ok { color: var(--ok); } .g-msg.bad { color: var(--err); } .g-msg.busy { color: var(--warn); }
         .g-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
-        #g-id { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--mono); color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; }
-        #g-id:focus { outline: none; border-color: var(--accent); }
+        #g-id, #g-exp { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--mono); color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; }
+        #g-id:focus, #g-exp:focus { outline: none; border-color: var(--accent); }
         .opts button.on { background: #0f3a44; border-color: var(--accent); color: #fff; }
         .sub { margin: 0.9rem 0; padding-left: 0.8rem; border-left: 3px solid var(--line); }
         .sub.active { border-left-color: var(--accent); }
@@ -123,6 +124,15 @@
         .sum { display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1rem; margin: 0.6rem 0; }
         .sum > span:nth-child(odd) { color: var(--muted); }
         .sum > span:nth-child(even) { font-family: var(--mono); font-weight: 600; text-align: right; }
+        button.info { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; min-height: 0; margin-left: 0.35rem; padding: 0; border: 1px solid var(--muted); border-radius: 50%; background: transparent; color: var(--muted); font: italic 700 0.7rem/1 Georgia, serif; letter-spacing: 0; text-transform: none; vertical-align: middle; }
+        button.info:hover, button.info.on { border-color: var(--accent); color: var(--accent); }
+        #info-pop { position: fixed; z-index: 20; max-width: 22rem; padding: 0.55rem 0.7rem; background: #0f131b; border: 1px solid var(--accent); font-size: 0.95rem; line-height: 1.35; white-space: pre-line; pointer-events: none; }
+        #info-pop[hidden] { display: none; }
+        .ro-summary { padding: 0.5rem 0; font-size: 1.05rem; font-weight: 600; line-height: 1.35; border-bottom: 1px solid var(--line); }
+        .ro-summary .good { color: var(--ok); }
+        .ro-summary .warn { color: var(--warn); }
+        .ro-summary .bad { color: var(--err); }
+        .ro-tech summary { padding: 0.5rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
         #help { position: absolute; inset: 0; background: rgba(11, 14, 20, 0.94); display: none; align-items: center; justify-content: center; overflow-y: auto; }
         #help.open { display: flex; }
         #help-inner { padding: 1.5rem; }
@@ -136,7 +146,7 @@
 <div id="app">
     <aside id="left-slot">
         <div id="guide">
-            <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide</button></div>
+            <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide guide</button></div>
             <div id="g-alert" hidden></div>
             <section class="step" data-step="1">
                 <button tabindex="-1" class="step-head" data-open="1"><span class="step-mark">1</span><span>Connect</span></button>
@@ -148,11 +158,13 @@
             <section class="step" data-step="2">
                 <button tabindex="-1" class="step-head" data-open="2"><span class="step-mark">2</span><span>Participant</span></button>
                 <div class="step-body">
+                    <div class="g-row"><div class="label">Experimenter</div><input id="g-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Participant ID</div><input id="g-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-g="dom" data-v="LEFT">Left</button><button tabindex="-1" data-g="dom" data-v="RIGHT">Right</button></div></div>
-                    <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-g="cond" data-v="1">No-manipulation</button><button tabindex="-1" data-g="cond" data-v="2">Boost-and-tax</button></div></div>
-                    <div class="g-row"><div class="label">Mode</div><div class="opts"><button tabindex="-1" data-g="mode" data-v="standard">Standard 352</button><button tabindex="-1" data-g="mode" data-v="short">Short 110</button><button tabindex="-1" data-g="mode" data-v="fmode">F-mode 44</button><button tabindex="-1" data-g="mode" data-v="block">Block 110</button></div></div>
-                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Confirm</button></div>
+                    <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-g="cond" data-v="1">No boost</button><button tabindex="-1" data-g="cond" data-v="2">Boost</button></div></div>
+                    <div class="g-row"><div class="label">Mode</div><div class="opts"><button tabindex="-1" data-g="mode" data-v="standard">352</button><button tabindex="-1" data-g="mode" data-v="short">110</button><button tabindex="-1" data-g="mode" data-v="fmode">44 (2 sets of 22)</button><button tabindex="-1" data-g="mode" data-v="block">110 (5 sets of 22)</button></div></div>
+                    <div class="g-row"><div class="label">Home position</div><div class="opts"><button tabindex="-1" data-g="home" data-v="one-box">One box</button><button tabindex="-1" data-g="home" data-v="per-hand">One per hand</button></div></div>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Send to headset</button></div>
                     <p class="g-msg" id="g2-msg"></p>
                     <ul class="checks" id="g2-checks"></ul>
                     <div class="g-actions"><button tabindex="-1" class="g-next" data-next="2">Next</button></div>
@@ -183,9 +195,9 @@
                         <ul class="checks" id="g4-height"></ul>
                     </div>
                     <div class="sub" data-sub="lap">
-                        <div class="label">Lap</div>
+                        <div class="label">Home</div>
                         <p class="say">“Rest both hands in your lap.”</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="lap">Calibrate lap</button></div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="lap">Calibrate home</button></div>
                         <ul class="checks" id="g4-lap"></ul>
                     </div>
                     <p class="g-msg" id="g4-msg"></p>
@@ -197,7 +209,7 @@
                 <div class="step-body">
                     <div class="label">Required</div>
                     <ul class="checks" id="g5-required"></ul>
-                    <div class="label">Advisory</div>
+                    <div class="label">Recommended</div>
                     <ul class="checks" id="g5-advisory"></ul>
                     <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start</button></div>
                     <p class="g-msg" id="g5-msg"></p>
@@ -217,18 +229,18 @@
                     <div class="g-actions">
                         <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
                         <button tabindex="-1" id="g-skip">Skip target</button>
-                        <button tabindex="-1" id="g-save-headset">Save on headset</button>
+                        <button tabindex="-1" id="g-save-headset">Save headset copy</button>
                     </div>
                     <div class="g-actions">
                         <button tabindex="-1" class="g-danger" id="g-end">End session early</button>
                         <button tabindex="-1" id="g-unlock">Unlock setup</button>
                     </div>
                     <div class="g-confirm" id="g-end-confirm" hidden>
-                        <p>End the session now? The headset saves its files and the session cannot be resumed.</p>
+                        <p>End session now? Headset saves files. Session cannot resume.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end session</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
                     </div>
                     <div class="g-confirm" id="g-unlock-confirm" hidden>
-                        <p>Unlock setup keys and settings mid-session? This is logged in the session info and relocks on the next resume.</p>
+                        <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
                     </div>
                     <p class="g-msg" id="g6-msg"></p>
@@ -239,13 +251,13 @@
                 <div class="step-body">
                     <div class="g-big-line" id="g7-title">–</div>
                     <ul class="checks" id="g7-files"></ul>
-                    <p class="g-note">Chrome may ask once to allow this page to download multiple files: choose Allow.</p>
+                    <p class="g-note">Chrome may ask to allow multiple downloads. Choose Allow.</p>
                     <div class="g-actions"><button tabindex="-1" id="g-save-again">Save again</button></div>
                     <div class="sum" id="g7-summary"></div>
                     <div class="g-actions"><button tabindex="-1" id="g-new">New session</button></div>
                     <div class="g-confirm" id="g-new-confirm" hidden>
-                        <p>Reload the WebSpheres page on the headset now so it starts fresh, then reload this page.</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload observer</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
+                        <p>Reload WebSpheres on the headset first. Then reload this page.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload this page</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
                     </div>
                 </div>
             </section>
@@ -255,25 +267,25 @@
         <div class="item" id="conn">
             <span id="conn-dot"></span>
             <div class="item">
-                <span class="value" id="conn-state">Connecting</span>
+                <span class="value" id="conn-state-row"><span id="conn-state">Connecting</span><button tabindex="-1" class="info" data-info="conn" aria-label="About connection status">i</button></span>
                 <span id="conn-detail">Looking for the headset</span>
             </div>
         </div>
-        <div class="item" id="data-age" hidden><span class="label">Stream</span><span class="value" id="data-age-value"></span></div>
-        <div class="item"><span class="label">Trial</span><span class="value" id="v-trial">–</span></div>
-        <div class="item"><span class="label">Score</span><span class="value" id="v-score">–</span></div>
-        <div class="item"><span class="label">Condition</span><span class="value" id="v-cond">–</span></div>
-        <div class="item"><span class="label">Dominant</span><span class="value" id="v-dom">–</span></div>
-        <div class="item"><span class="label">Fire</span><span class="value" id="v-fire">–</span></div>
+        <div class="item" id="data-age" hidden><span class="label">Stream<button tabindex="-1" class="info" data-info="stream" aria-label="About Stream">i</button></span><span class="value" id="data-age-value"></span></div>
+        <div class="item"><span class="label">Trial<button tabindex="-1" class="info" data-info="trial" aria-label="About Trial">i</button></span><span class="value" id="v-trial">–</span></div>
+        <div class="item"><span class="label">Score<button tabindex="-1" class="info" data-info="score" aria-label="About Score">i</button></span><span class="value" id="v-score">–</span></div>
+        <div class="item"><span class="label">Condition<button tabindex="-1" class="info" data-info="cond" aria-label="About Condition">i</button></span><span class="value" id="v-cond">–</span></div>
+        <div class="item"><span class="label">Dominant<button tabindex="-1" class="info" data-info="dom" aria-label="About Dominant">i</button></span><span class="value" id="v-dom">–</span></div>
+        <div class="item"><span class="label">Fire<button tabindex="-1" class="info" data-info="fire" aria-label="About Fire">i</button></span><span class="value" id="v-fire">–</span></div>
     </header>
     <main id="stage">
         <canvas id="scene"></canvas>
         <section class="drawer" id="drawer-readouts">
-            <div class="drawer-head"><h2>Readouts</h2><button tabindex="-1" data-close>Close</button></div>
+            <div class="drawer-head"><h2>Status</h2><button tabindex="-1" data-close>Close</button></div>
             <div id="readout-rows"></div>
             <div class="set-row">
-                <button tabindex="-1" id="save-backup">Save files to laptop</button>
-                <div class="set-note">Saves the laptop's copy of every file so far. Chrome may ask once to allow this page to download multiple files: choose Allow.</div>
+                <button tabindex="-1" id="save-backup">Save laptop copy</button>
+                <div class="set-note">Saves all laptop files so far. Chrome may ask to allow multiple downloads. Choose Allow.</div>
             </div>
         </section>
         <section class="drawer" id="drawer-settings">
@@ -283,41 +295,43 @@
         </section>
         <section id="help">
             <div id="help-inner">
-                <h2>Keys sent to the headset</h2>
+                <h2>Keys</h2>
                 <div id="help-keys">
                     <kbd>Space</kbd><span>Calibrate reach</span>
                     <kbd>H</kbd><span>Calibrate height</span>
-                    <kbd>L</kbd><span>Calibrate lap</span>
-                    <kbd>S</kbd><span>Save data on the headset</span>
-                    <kbd>P</kbd><span>Start / resume</span>
-                    <kbd>C</kbd><span>Toggle condition</span>
+                    <kbd>L</kbd><span>Calibrate home</span>
+                    <kbd>S</kbd><span>Save headset copy</span>
+                    <kbd>P</kbd><span>Start / pause / resume</span>
+                    <kbd>C</kbd><span>Switch condition</span>
                     <kbd>1</kbd><span>Dominant hand: left</span>
                     <kbd>2</kbd><span>Dominant hand: right</span>
-                    <kbd>N</kbd><span>Short session</span>
-                    <kbd>F</kbd><span>F-mode</span>
-                    <kbd>B</kbd><span>Block mode</span>
+                    <kbd>N</kbd><span>Mode: 110</span>
+                    <kbd>F</kbd><span>Mode: 44 (2 sets of 22)</span>
+                    <kbd>B</kbd><span>Mode: 110 (5 sets of 22)</span>
                     <kbd>Z</kbd><span>Skip target</span>
-                    <kbd>R</kbd><span>Recentre (same as the Recentre button)</span>
+                    <kbd>R</kbd><span>Recentre</span>
                 </div>
-                <p>Esc closes this and the side panels.</p>
+                <p>Off by default. Turn on: Settings, Keyboard control.</p>
+                <p>Esc: close panels.</p>
             </div>
         </section>
     </main>
+    <div id="info-pop" hidden></div>
     <footer id="bottombar">
         <div class="group">
             <button tabindex="-1" data-view="orbit">Orbit</button>
             <button tabindex="-1" data-view="top">Top</button>
             <button tabindex="-1" data-view="side">Side</button>
             <button tabindex="-1" data-view="front">Front</button>
-            <button tabindex="-1" data-view="pov">Head POV</button>
+            <button tabindex="-1" data-view="pov">Participant view</button>
         </div>
-        <button id="recentre" tabindex="-1" disabled>RECENTRE</button>
+        <button id="recentre" tabindex="-1" disabled>Recentre</button>
         <span id="recentre-note"></span>
         <div class="group">
             <button tabindex="-1" id="btn-guide">Guide</button>
-            <button tabindex="-1" id="btn-readouts" data-panel="drawer-readouts">Readouts</button>
+            <button tabindex="-1" id="btn-readouts" data-panel="drawer-readouts">Status</button>
             <button tabindex="-1" id="btn-settings" data-panel="drawer-settings">Settings</button>
-            <button tabindex="-1" id="btn-help" data-panel="help">?</button>
+            <button tabindex="-1" id="btn-help" data-panel="help">Keys</button>
         </div>
     </footer>
 </div>
@@ -337,7 +351,7 @@
     };
     const STALE_MS = 1000;
     const STORE_KEY = 'webspheres-observer-settings';
-    const DEFAULTS = { hands: 'mesh', trails: true, trailSeconds: 1, head: true, gaze: true, arc: 'all', homeBox: true, textSize: 1, keyRelay: true };
+    const DEFAULTS = { hands: 'mesh', trails: true, trailSeconds: 1, head: true, gaze: true, arc: 'all', homeBox: true, textSize: 1, keyControl: false };
     const SETTINGS_SPEC = [
         ['hands', 'Hands', [['mesh', 'Hand mesh'], ['skeleton', 'Skeleton'], ['keys', 'Key points']]],
         ['trails', 'Fingertip trails', [[true, 'On'], [false, 'Off']]],
@@ -347,7 +361,7 @@
         ['arc', 'Target arc', [['all', 'All targets'], ['active', 'Active only']]],
         ['homeBox', 'Home box', [[true, 'Show'], [false, 'Hide']]],
         ['textSize', 'Text size', [[1, 'Normal'], [1.2, 'Large'], [1.4, 'Extra large']]],
-        ['keyRelay', 'Keyboard relay', [[true, 'On'], [false, 'Off']], 'Off stops keys reaching the headset. Recentre still works.']
+        ['keyControl', 'Keyboard control', [[true, 'On'], [false, 'Off']], 'Off: laptop keys ignored. Buttons always work.']
     ];
     const settings = Object.assign({}, DEFAULTS);
     try {
@@ -387,6 +401,15 @@
     homeBox.add(new THREE.LineSegments(new THREE.EdgesGeometry(homeBox.geometry), new THREE.LineBasicMaterial({ color: COLORS.home, transparent: true, opacity: 0.6 })));
     homeBox.position.set(0, 0.9, -0.4);
     scene.add(homeBox);
+    const makeHandBox = () => {
+        const box = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.22), homeBox.material);
+        box.add(new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), homeBox.children[0].material));
+        box.visible = false;
+        scene.add(box);
+        return box;
+    };
+    const homeBoxL = makeHandBox();
+    const homeBoxR = makeHandBox();
 
     const targetGeo = new THREE.OctahedronGeometry(0.06);
     const targets = [];
@@ -586,6 +609,17 @@
         hands.R.history.length = 0;
     }
 
+    function updateHomeBoxes() {
+        const s = receiver.headsetState;
+        const perHand = !!s && s.homeMode === 'per-hand';
+        const lap = perHand && s.calib && s.calib.lap;
+        homeBox.visible = settings.homeBox && !perHand;
+        [[homeBoxL, lap && lap.left], [homeBoxR, lap && lap.right]].forEach(([box, pos]) => {
+            box.visible = settings.homeBox && !!pos;
+            if (pos) box.position.set(pos.x, pos.y, pos.z);
+        });
+    }
+
     function applySettings() {
         Object.values(hands).forEach(h => {
             h.mesh.visible = settings.hands === 'mesh';
@@ -595,7 +629,7 @@
         skull.visible = settings.head;
         visor.visible = settings.head;
         gaze.visible = settings.gaze;
-        homeBox.visible = settings.homeBox;
+        updateHomeBoxes();
         placeTargets(arc.radius, arc.height, arc.active);
         document.documentElement.style.setProperty('--scale', settings.textSize);
         document.querySelectorAll('[data-set]').forEach(b => b.classList.toggle('on', String(settings[b.dataset.set]) === b.dataset.val));
@@ -672,6 +706,7 @@
     const PANELS = ['drawer-readouts', 'drawer-settings', 'help'];
 
     function closePanels() {
+        closeInfo();
         PANELS.forEach(id => $(id).classList.remove('open'));
         document.querySelectorAll('[data-panel]').forEach(b => b.classList.remove('on'));
     }
@@ -730,7 +765,7 @@
         if (backup.kinR.length) files.push([`${prefix}kinematics-RIGHT-${ts}.csv`, backup.headers.kinR + backup.kinR.join('')]);
         if (s.phase !== 'setup' && s.info) files.push([`${prefix}session-info-${ts}.csv`, s.info]);
         files.forEach(([name, text]) => downloadText(name, text));
-        backup.saved = files.length ? `${files.length} files at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}` : 'nothing to save yet';
+        backup.saved = files.length ? `${files.length} files at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}` : 'Nothing to save';
         if (final) backup.autoSavedTs = s.backup.exportTs;
         return files.length;
     }
@@ -793,7 +828,7 @@
             }
 
             if (typeof Peer === 'undefined') {
-                this.setStatus('error', 'PeerJS failed to load — check internet, then reload');
+                this.setStatus('error', 'Connection library not loaded. Check internet. Reload page.');
                 return;
             }
 
@@ -801,7 +836,7 @@
             try {
                 peer = new Peer({ debug: 0 });
             } catch (e) {
-                this.setStatus('error', 'Could not start connection — retrying');
+                this.setStatus('error', 'Connection not started. Retrying.');
                 this.scheduleRetry();
                 return;
             }
@@ -816,9 +851,9 @@
                 noteError(err?.type || 'unknown');
                 if (this.isLive()) return;
                 if (err?.type === 'peer-unavailable') {
-                    this.setStatus('notfound', 'Headset not found — retrying');
+                    this.setStatus('notfound', 'Headset not found. Retrying.');
                 } else {
-                    this.setStatus('error', 'Network issue (' + (err?.type || 'unknown') + ') — retrying');
+                    this.setStatus('error', 'Network error (' + (err?.type || 'unknown') + '). Retrying.');
                 }
                 this.scheduleRetry();
             });
@@ -1058,11 +1093,12 @@
                     closePanels();
                     return;
                 }
+                if (!settings.keyControl) return;
                 if (e.code === 'KeyR') {
                     this.requestRecentre();
                     return;
                 }
-                if (settings.keyRelay) this.sendToHost({ code: e.code });
+                this.sendToHost({ code: e.code });
             });
         },
 
@@ -1101,6 +1137,7 @@
             $('conn-state').textContent = word;
             $('conn-state').style.color = color;
             $('conn-dot').style.background = color;
+            $('conn-dot').hidden = state === 'connected';
             $('conn-detail').textContent = detail || '';
         },
 
@@ -1108,7 +1145,7 @@
             const show = (v) => (v === undefined || v === null || v === '') ? '–' : String(v);
             $('v-trial').textContent = `${show(data.trialCount)} / ${show(data.totalTrials)}`;
             $('v-score').textContent = show(data.score);
-            $('v-cond').textContent = data.condition === 1 ? 'NO-MANIP' : data.condition === 2 ? 'BOOST-TAX' : '–';
+            $('v-cond').textContent = data.condition === 1 ? 'NO BOOST' : data.condition === 2 ? 'BOOST' : '–';
             $('v-dom').textContent = data.dominantHand === 'LEFT' ? 'L' : data.dominantHand === 'RIGHT' ? 'R' : '–';
             $('v-fire').textContent = data.fireMode ? 'ON' : '–';
             $('v-fire').classList.toggle('on', !!data.fireMode);
@@ -1128,20 +1165,116 @@
     }
 
     const READOUTS = [
-        ['Session', [['trial', 'Trial'], ['score', 'Score'], ['cond', 'Condition'], ['dom', 'Dominant hand'], ['fire', 'Fire mode'], ['run', 'State'], ['target', 'Active target'], ['recentre', 'Last recentre']]],
-        ['Tracking', [['left', 'Left hand'], ['right', 'Right hand'], ['headh', 'Head height']]],
-        ['Backup on this laptop', [['bk-trials', 'Trial rows'], ['bk-kinl', 'Left kinematics rows'], ['bk-kinr', 'Right kinematics rows'], ['bk-saved', 'Last saved']]],
-        ['Connection', [['status', 'Status'], ['uptime', 'Connected for'], ['rate', 'Messages / s'], ['age', 'Data age'], ['gap', 'Worst gap, last 10 s'], ['stale', 'Stale frames dropped'],['fps', 'Render rate'], ['reconnects', 'Reconnects'], ['error', 'Last error']]]
+        ['Session', [['trial', 'Trial', 'trial'], ['score', 'Score', 'score'], ['cond', 'Condition', 'cond'], ['dom', 'Dominant hand', 'dom'], ['fire', 'Fire mode', 'fire'], ['run', 'State'], ['target', 'Active target', 'target'], ['recentre', 'Last recentre', 'recentre']]],
+        ['Tracking', [['left', 'Left hand', 'hand'], ['right', 'Right hand', 'hand'], ['headh', 'Head height', 'headh']]],
+        ['Laptop copy', [['bk-trials', 'Trial rows', 'rows'], ['bk-kinl', 'Left kinematics rows', 'rows'], ['bk-kinr', 'Right kinematics rows', 'rows'], ['bk-saved', 'Last saved']]]
     ];
+    const TECH_READOUTS = [['status', 'Status', 'conn'], ['uptime', 'Connected for', 'uptime'], ['rate', 'Live updates per second', 'rate'], ['age', 'Data age', 'age'], ['gap', 'Longest wait, last 10 s', 'gap'], ['stale', 'Late updates discarded', 'stale'], ['fps', '3D view smoothness', 'fps'], ['reconnects', 'Reconnects', 'reconnects'], ['error', 'Last error', 'error']];
+    const RECORDING = ' Recording continues.';
+    const CONN_INFO = {
+        connected: () => 'Live data arriving.',
+        connecting: () => 'Searching for headset. Check WebSpheres is open, in VR.',
+        reconnecting: (rec) => 'Link lost. Retrying.' + rec,
+        notfound: () => 'Headset not found. Check WebSpheres is open. Retrying.',
+        error: () => 'Connection error. Retrying. If persistent: check internet, reload page.'
+    };
+    const INFO = {
+        conn: (rec) => CONN_INFO[receiver.status](rec),
+        stream: (rec) => '3D view out of date.' + rec,
+        trial: () => 'Completed / total, this run.',
+        score: () => 'Points, this run.',
+        cond: () => 'No boost: Critical hit chance: 30% both hands.\nBoost: Critical hit chance: non-dominant 55%, dominant 5%.',
+        dom: () => 'Hand taxed under Boost.',
+        fire: () => 'On: 3 non-dominant critical hits in a row. Off: any dominant hit. No effect on points.',
+        target: () => 'Current target, 1–11. Numbering matches trial file.',
+        recentre: () => 'Time of last recentre.',
+        hand: () => 'Tracked: Hand in view.\nLost: Hand out of view.\nNo data: Nothing received yet.',
+        headh: () => 'Height above floor.',
+        rows: () => 'Laptop / headset. Equal = laptop copy complete so far.',
+        uptime: () => 'Time since link started.',
+        rate: () => '3D view updates. Should be steady. Not the recording rate.',
+        age: () => 'Time since last update. Normal: under 1 s.',
+        gap: () => 'Longest pause between updates. Normal: under 1 s.',
+        stale: () => 'Out-of-order updates ignored. Saved data unaffected.',
+        fps: () => 'Laptop drawing speed. Unrelated to headset or saved data.',
+        reconnects: () => 'Links restored since page opened.',
+        error: () => 'Latest technical message. "None" = good.'
+    };
+    const infoBtn = (key, label) => key ? `<button tabindex="-1" class="info" data-info="${key}" aria-label="About ${label}">i</button>` : '';
+    const roRow = ([id, label, info]) => `<div class="ro-row"><span>${label}${infoBtn(info, label)}</span><span id="r-${id}">–</span></div>`;
+    const infoState = { btn: null, pinned: false };
+
+    function recordingNote() {
+        const s = receiver.headsetState;
+        return s && ['running', 'pausing', 'paused'].includes(s.phase) ? RECORDING : '';
+    }
+
+    function renderInfo() {
+        const pop = $('info-pop');
+        const btn = infoState.btn;
+        if (!btn) return;
+        if (!btn.offsetParent) {
+            closeInfo();
+            return;
+        }
+        const text = INFO[btn.dataset.info](recordingNote());
+        if (pop.textContent !== text) pop.textContent = text;
+        pop.hidden = false;
+        const r = btn.getBoundingClientRect();
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8));
+        const below = r.bottom + 6;
+        const top = below + pop.offsetHeight > window.innerHeight - 8 ? Math.max(8, r.top - pop.offsetHeight - 6) : below;
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+    }
+
+    function closeInfo() {
+        if (infoState.btn) infoState.btn.classList.remove('on');
+        infoState.btn = null;
+        infoState.pinned = false;
+        $('info-pop').hidden = true;
+    }
+
+    function openInfo(btn, pinned) {
+        if (infoState.btn && infoState.btn !== btn) infoState.btn.classList.remove('on');
+        infoState.btn = btn;
+        infoState.pinned = pinned;
+        btn.classList.add('on');
+        renderInfo();
+    }
+
+    function setupInfo() {
+        document.addEventListener('mouseover', (e) => {
+            const btn = e.target.closest('button.info');
+            if (btn && !infoState.pinned) openInfo(btn, false);
+        });
+        document.addEventListener('mouseout', (e) => {
+            const btn = e.target.closest('button.info');
+            if (btn && btn === infoState.btn && !infoState.pinned) closeInfo();
+        });
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('button.info');
+            if (!btn) {
+                if (infoState.pinned) closeInfo();
+                return;
+            }
+            if (infoState.btn === btn && infoState.pinned) closeInfo();
+            else openInfo(btn, true);
+        });
+    }
 
     function buildReadouts() {
         const box = $('readout-rows');
         READOUTS.forEach(([title, rows]) => {
             const sec = document.createElement('div');
             sec.className = 'ro-section';
-            sec.innerHTML = `<h3>${title}</h3>` + rows.map(([id, label]) => `<div class="ro-row"><span>${label}</span><span id="r-${id}">–</span></div>`).join('');
+            sec.innerHTML = `<h3>${title}</h3>` + rows.map(roRow).join('');
             box.appendChild(sec);
         });
+        const conn = document.createElement('div');
+        conn.className = 'ro-section';
+        conn.innerHTML = `<h3>Connection</h3><div class="ro-summary"><span id="r-health">–</span></div><details class="ro-tech"><summary>Technical details</summary>${TECH_READOUTS.map(roRow).join('')}</details>`;
+        box.appendChild(conn);
     }
 
     function setReadout(id, text, kind) {
@@ -1163,7 +1296,7 @@
         const has = (v) => v !== undefined && v !== null;
         setReadout('trial', has(f.trialCount) ? `${f.trialCount} / ${has(f.totalTrials) ? f.totalTrials : '–'}` : '–');
         setReadout('score', has(f.score) ? String(f.score) : '–');
-        setReadout('cond', f.condition === 1 ? 'No-manipulation' : f.condition === 2 ? 'Boost-and-tax' : '–');
+        setReadout('cond', f.condition === 1 ? 'No boost' : f.condition === 2 ? 'Boost' : '–');
         setReadout('dom', f.dominantHand === 'LEFT' ? 'Left' : f.dominantHand === 'RIGHT' ? 'Right' : '–');
         setReadout('fire', lastFrame ? (f.fireMode ? 'On' : 'Off') : '–', f.fireMode ? 'warn' : '');
         setReadout('run', lastFrame ? (f.isPaused ? 'Paused' : 'Running') : '–');
@@ -1183,6 +1316,10 @@
         let gap = 0;
         for (let i = 1; i < win.length; i++) gap = Math.max(gap, win[i] - win[i - 1]);
         setReadout('gap', win.length > 1 ? gap + ' ms' : '–', gap > STALE_MS ? 'warn' : '');
+        const rec = recordingNote();
+        if (receiver.status !== 'connected' || !receiver.lastData) setReadout('health', 'Down: No live data.' + rec, 'bad');
+        else if (now - receiver.lastData > STALE_MS || gap > STALE_MS) setReadout('health', 'Unstable: Gaps in live data.' + rec, 'warn');
+        else setReadout('health', 'Healthy: Live data arriving.', 'good');
         setReadout('stale', String(stats.staleDropped));
         setReadout('fps', stats.fps + ' fps');
         setReadout('reconnects', String(Math.max(0, stats.opens - 1)));
@@ -1195,9 +1332,11 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.0.0';
-    const MODE_LABEL = { standard: 'Standard 352', short: 'Short 110', fmode: 'F-mode 44', block: 'Block 110' };
-    const COND_LABEL = { 1: 'No-manipulation', 2: 'Boost-and-tax' };
+    const APP_VERSION = '2.1.0';
+    const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
+    const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
+    const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
+    const HOME_LABEL = { 'one-box': 'One box', 'per-hand': 'One per hand' };
     const HAND_LABEL = { LEFT: 'Left', RIGHT: 'Right' };
     const pendingCmds = new Map();
     let cmdSeq = 0;
@@ -1299,9 +1438,12 @@
     function handsInBox() {
         const f = lastFrame;
         if (!f || !f.homePos) return { L: false, R: false };
-        const inBox = (arr, valid) => valid && Array.isArray(arr) && arr.length >= 75 && Array.from({ length: 25 }, (_, i) => i).some(i =>
-            Math.abs(arr[i * 3] - f.homePos.x) < 0.4 && Math.abs(arr[i * 3 + 1] - f.homePos.y) < 0.06 && Math.abs(arr[i * 3 + 2] - f.homePos.z) < 0.11);
-        return { L: inBox(f.left, f.leftValid), R: inBox(f.right, f.rightValid) };
+        const s = receiver.headsetState;
+        const lap = s && s.homeMode === 'per-hand' && s.calib ? s.calib.lap : null;
+        const halfWidth = lap ? 0.1 : 0.4;
+        const inBox = (arr, valid, home) => valid && !!home && Array.isArray(arr) && arr.length >= 75 && Array.from({ length: 25 }, (_, i) => i).some(i =>
+            Math.abs(arr[i * 3] - home.x) < halfWidth && Math.abs(arr[i * 3 + 1] - home.y) < 0.06 && Math.abs(arr[i * 3 + 2] - home.z) < 0.11);
+        return { L: inBox(f.left, f.leftValid, lap ? lap.left : f.homePos), R: inBox(f.right, f.rightValid, lap ? lap.right : f.homePos) };
     }
 
     function handUse() {
@@ -1354,10 +1496,10 @@
         const live = receiver.isLive();
         const versionOk = !!s && s.version === APP_VERSION;
         const calib = s && s.calib;
-        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && +guide.form.cond === s.condition && guide.form.mode === s.mode && $('g-id').value.trim() === s.participantId));
+        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && +guide.form.cond === s.condition && guide.form.mode === s.mode && guide.form.home === s.homeMode && $('g-id').value.trim() === s.participantId && $('g-exp').value.trim() === s.experimenter));
         const done = {
             1: live && versionOk,
-            2: !!(s && s.participantId) && formMatches,
+            2: !!(s && s.participantId && s.experimenter) && formMatches,
             3: !!(s && s.recentred),
             4: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
             5: !!(s && s.phase !== 'setup'),
@@ -1394,8 +1536,9 @@
 
     function prefillForm(s) {
         if (guide.formDirty || !s) return;
-        guide.form = { dom: s.dominantHand, cond: String(s.condition), mode: s.mode };
+        guide.form = { dom: s.dominantHand, cond: String(s.condition), mode: s.mode, home: s.homeMode };
         if (document.activeElement !== $('g-id')) $('g-id').value = s.participantId || '';
+        if (document.activeElement !== $('g-exp')) $('g-exp').value = s.experimenter || '';
     }
 
     function renderGuide() {
@@ -1426,26 +1569,29 @@
         syncCue(st, open);
 
         setChecks('g1-checks', [
-            tick3(st.live, st.live ? 'Connected to the headset' : (s ? 'Reconnecting to the headset…' : 'Looking for the headset…'), !s),
-            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Observer version ${APP_VERSION} ≠ headset version ${s.version || '?'} — hard-refresh both pages.`) : ['warn', 'Version check after connecting']
+            tick3(st.live, st.live ? 'Connected' : (s ? 'Reconnecting…' : 'Searching for headset…'), !s),
+            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Hard-refresh both pages.`) : ['warn', 'Version checked on connection']
         ]);
-        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest and enter VR. This page connects by itself.';
+        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest. Enter VR. Connects automatically.';
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
         const locked = !!(s && (s.setupLocked || s.phase !== 'setup'));
         document.querySelectorAll('[data-g], #g-confirm').forEach(b => { b.disabled = locked || !st.live || guide.busy; });
         $('g-id').disabled = locked;
+        $('g-exp').disabled = locked;
         if (s) {
             setChecks('g2-checks', [
-                tick3(!!s.participantId, s.participantId ? `Participant ID: ${s.participantId}` : 'Participant ID not set on the headset'),
+                tick3(!!s.experimenter, s.experimenter ? `Experimenter: ${s.experimenter}` : 'Experimenter: not sent'),
+                tick3(!!s.participantId, s.participantId ? `Participant ID: ${s.participantId}` : 'Participant ID: not sent'),
                 tick3(!guide.formDirty || guide.form.dom === s.dominantHand, `Dominant hand: ${HAND_LABEL[s.dominantHand] || '–'}`, true),
                 tick3(!guide.formDirty || +guide.form.cond === s.condition, `Condition: ${COND_LABEL[s.condition] || '–'}`, true),
-                tick3(!guide.formDirty || guide.form.mode === s.mode, `Mode: ${MODE_LABEL[s.mode] || s.mode} (${s.totalTrials} trials)`, true)
+                tick3(!guide.formDirty || guide.form.mode === s.mode, `Mode: ${MODE_LABEL[s.mode] || s.mode}`, true),
+                tick3(!guide.formDirty || guide.form.home === s.homeMode, `Home position: ${HOME_LABEL[s.homeMode] || '–'}`, true)
             ]);
         }
 
         $('g-recentre').disabled = !st.live;
-        setChecks('g3-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred yet'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
+        setChecks('g3-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
 
         const c = s && s.calib;
         const sub = activeSub(s);
@@ -1453,28 +1599,31 @@
         document.querySelectorAll('[data-calib]').forEach(b => {
             const k = b.dataset.calib;
             b.disabled = locked || !st.live || guide.busy;
-            b.textContent = c && c[k].done ? 'Redo' : `Calibrate ${k}`;
+            b.textContent = `${c && c[k].done ? 'Redo' : 'Calibrate'} ${CALIB_LABEL[k]}`;
         });
         setChecks('g4-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
         setChecks('g4-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
         const box = handsInBox();
-        setChecks('g4-lap', c && c.lap.done ? [['ok', `Home box at x ${fmt(c.lap.home.x, 2)}, y ${fmt(c.lap.home.y, 2)}, z ${fmt(c.lap.home.z, 2)} m`], tick3(box.L && box.R, box.L && box.R ? 'Both hands in the box (live)' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside the box (live)`, true)] : [['bad', 'Not calibrated']]);
+        const boxAt = (name, h) => ['ok', `${name} at x ${fmt(h.x, 2)}, y ${fmt(h.y, 2)}, z ${fmt(h.z, 2)} m`];
+        const boxLines = c && c.lap.done ? (c.lap.left ? [boxAt('Left box', c.lap.left), boxAt('Right box', c.lap.right)] : [boxAt('Home box', c.lap.home)]) : [];
+        setChecks('g4-lap', c && c.lap.done ? [...boxLines, tick3(box.L && box.R, box.L && box.R ? 'Both hands in box now' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside box now`, true)] : [['bad', 'Not calibrated']]);
 
         const tracked = !!(lastFrame && lastFrame.leftValid && lastFrame.rightValid);
         const inSync = now - (backup.syncedAt || 0) < 3000;
         const required = [
             tick3(st.live, 'Connected'),
             tick3(st.versionOk, 'Versions match'),
+            tick3(!!(s && s.experimenter), 'Experimenter set'),
             tick3(!!(s && s.participantId), 'Participant ID set'),
-            tick3(st.done[2], 'Setup confirmed by the headset'),
+            tick3(st.done[2], 'Setup received by headset'),
             tick3(!!(c && c.reach.done), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
-            tick3(!!(c && c.lap.done), 'Lap calibrated')
+            tick3(!!(c && c.lap.done), 'Home calibrated')
         ];
         const advisory = [
             tick3(tracked, 'Both hands tracked', true),
-            tick3(box.L && box.R, 'Both hands in the home box', true),
-            tick3(inSync, 'Backup in sync', true)
+            tick3(box.L && box.R, 'Both hands in home box', true),
+            tick3(inSync, 'Laptop copy up to date', true)
         ];
         setChecks('g5-required', required);
         setChecks('g5-advisory', advisory);
@@ -1508,7 +1657,7 @@
 
         const alerts = [];
         if (s && ['running', 'pausing', 'paused'].includes(s.phase)) {
-            if (receiver.status !== 'connected') alerts.push('Connection lost — the headset is still recording and saving');
+            if (receiver.status !== 'connected') alerts.push('Link lost. Recording continues.');
             else {
                 if (s.phase !== 'paused') {
                     [['L', 'Left'], ['R', 'Right']].forEach(([h, name]) => {
@@ -1518,7 +1667,7 @@
                 }
                 if (s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000) alerts.push('No new trial for 30 s');
                 const behind = now - (backup.syncedAt || now);
-                if (behind > 10000) alerts.push(`Backup behind by ${Math.floor(behind / 1000)} s`);
+                if (behind > 10000) alerts.push(`Laptop copy ${Math.floor(behind / 1000)} s behind`);
             }
         }
         const alertEl = $('g-alert');
@@ -1529,8 +1678,8 @@
             $('g7-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
             const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs);
             setChecks('g7-files', [
-                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Saving to laptop once the backup has caught up (${backup.kinL.length + backup.kinR.length + backup.trials.length} / ${(s.backup.kinL + s.backup.kinR + s.backup.trials)} rows)`],
-                ['ok', 'The headset also saved its own copy.']
+                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Laptop copy catching up (${backup.kinL.length + backup.kinR.length + backup.trials.length} / ${(s.backup.kinL + s.backup.kinR + s.backup.trials)} rows). Saves when complete.`],
+                ['ok', 'Headset copy saved']
             ]);
             const sumEl = $('g7-summary');
             const rows = computeSummary(s);
@@ -1545,12 +1694,13 @@
                 });
             }
         }
+        updateHomeBoxes();
         $('btn-guide').classList.toggle('on', $('app').classList.contains('left-open'));
     }
 
     async function runGuideCmd(step, name, value, okText) {
         guide.busy = true;
-        setMsg(step, 'Sending to the headset…', 'busy');
+        setMsg(step, 'Sending…', 'busy');
         const r = await sendCmd(name, value);
         guide.busy = false;
         setMsg(step, r.ok ? okText : `Headset refused: ${r.reason}`, r.ok ? 'ok' : 'bad');
@@ -1559,14 +1709,17 @@
     }
 
     async function confirmSetup() {
+        const exp = $('g-exp').value.trim();
+        if (!exp) { setMsg(2, 'Enter experimenter name', 'bad'); return; }
+        if (exp.includes(',')) { setMsg(2, 'Experimenter name: no commas (breaks the CSV)', 'bad'); return; }
         const id = $('g-id').value.trim();
-        if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID must be 1–32 letters, digits, _ or -', 'bad'); return; }
-        if (/left|right/i.test(id)) { setMsg(2, 'Participant ID cannot contain "left" or "right" (the 3D viewer reads those in filenames)', 'bad'); return; }
+        if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID: 1–32 letters, digits, _ or -', 'bad'); return; }
+        if (/left|right/i.test(id)) { setMsg(2, 'Participant ID: no "left" or "right". 3D viewer reads those words in filenames.', 'bad'); return; }
         const f = guide.form;
-        if (!f.dom || !f.cond || !f.mode) { setMsg(2, 'Choose the dominant hand, condition and mode', 'bad'); return; }
+        if (!f.dom || !f.cond || !f.mode || !f.home) { setMsg(2, 'Choose dominant hand, condition, mode, home position', 'bad'); return; }
         guide.busy = true;
-        setMsg(2, 'Sending to the headset…', 'busy');
-        for (const [name, value] of [['setDominant', f.dom], ['setCondition', +f.cond], ['setMode', f.mode], ['setParticipant', id]]) {
+        setMsg(2, 'Sending…', 'busy');
+        for (const [name, value] of [['setDominant', f.dom], ['setCondition', +f.cond], ['setMode', f.mode], ['setHomeMode', f.home], ['setExperimenter', exp], ['setParticipant', id]]) {
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
@@ -1576,7 +1729,7 @@
         }
         guide.busy = false;
         guide.formDirty = false;
-        setMsg(2, 'Confirmed by the headset', 'ok');
+        setMsg(2, 'Received by headset', 'ok');
         renderGuide();
     }
 
@@ -1585,6 +1738,8 @@
         document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => { guide.expanded = +b.dataset.next + 1; renderGuide(); }));
         document.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => { guide.form[b.dataset.g] = b.dataset.v; guide.formDirty = true; renderGuide(); }));
         $('g-id').addEventListener('input', () => { guide.formDirty = true; });
+        $('g-exp').addEventListener('input', () => { guide.formDirty = true; });
+        $('g-exp').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('g-exp').blur(); confirmSetup(); } });
         $('g-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('g-id').blur(); confirmSetup(); } });
         $('g-confirm').addEventListener('click', confirmSetup);
         $('g-recentre').addEventListener('click', () => receiver.requestRecentre());
@@ -1593,7 +1748,7 @@
             e.stopPropagation();
             const k = b.dataset.calib;
             guide.sub = k;
-            runGuideCmd(4, 'calibrate', k, `${k[0].toUpperCase() + k.slice(1)} calibrated`).then(r => {
+            runGuideCmd(4, 'calibrate', k, `${CALIB_LABEL[k][0].toUpperCase() + CALIB_LABEL[k].slice(1)} calibrated`).then(r => {
                 if (r.ok) {
                     const order = ['reach', 'height', 'lap'];
                     const next = order[order.indexOf(k) + 1];
@@ -1610,13 +1765,13 @@
             else runGuideCmd(6, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
         });
         $('g-skip').addEventListener('click', () => runGuideCmd(6, 'skip', undefined, 'Target skipped'));
-        $('g-save-headset').addEventListener('click', () => runGuideCmd(6, 'saveOnHeadset', undefined, 'Headset saved its files'));
+        $('g-save-headset').addEventListener('click', () => runGuideCmd(6, 'saveOnHeadset', undefined, 'Headset copy saved'));
         $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
         $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
         $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(6, 'endEarly', undefined, 'Session ended'); });
         $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
         $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
-        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Setup unlocked until the next resume'); });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Unlocked until next resume'); });
         $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
         $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
@@ -1626,7 +1781,7 @@
     }
 
     window.__obs = {
-        frames: 0, head, gaze, targets, homeBox, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide,
+        frames: 0, head, gaze, targets, homeBox, homeBoxL, homeBoxR, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide,
         get camera() { return camera; },
         get view() { return viewName; }
     };
@@ -1665,9 +1820,11 @@
     applySettings();
     receiver.init();
     setupGuide();
+    setupInfo();
     setLeftSlot(true);
     renderGuide();
     setInterval(updateReadouts, 250);
+    setInterval(renderInfo, 250);
     setInterval(renderGuide, 250);
     document.querySelectorAll('[data-panel="drawer-readouts"]').forEach(b => b.addEventListener('click', updateReadouts));
     requestAnimationFrame(loop);

@@ -13,19 +13,27 @@ const { ok, done } = counter('SESSION BROWSER');
 
   console.log('SETUP PHASE');
   let s = await state();
-  ok(s && s.version === '2.0.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
+  ok(s && s.version === '2.1.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
   ok(s.calib && !s.calib.reach.done && !s.calib.height.done && !s.calib.lap.done && s.backup && s.backup.trials === 0, 'state carries calibration and backup counts');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
   r = await cmd('setParticipant', 'bad id!');
-  ok(!r.result.ok && r.result.reason === 'Participant ID must be 1-32 letters, digits, _ or -', 'invalid participant ID refused with reason');
+  ok(!r.result.ok && r.result.reason === 'Participant ID: 1-32 letters, digits, _ or -', 'invalid participant ID refused with reason');
   r = await cmd('setParticipant', 'x'.repeat(33));
   ok(!r.result.ok, '33-character ID refused');
   for (const id of ['CLEFT01', 'Wright', 'p_RiGhT', 'left']) {
     r = await cmd('setParticipant', id);
-    ok(!r.result.ok && /cannot contain "left" or "right"/.test(r.result.reason), `ID "${id}" refused (left/right, any case)`);
+    ok(!r.result.ok && /no "left" or "right"/.test(r.result.reason), `ID "${id}" refused (left/right, any case)`);
   }
   ok((await state()).participantId === 'P01', 'refused IDs leave the previous ID in place');
+  ok((await state()).experimenter === '', 'experimenter starts empty');
+  ok(!(await cmd('setExperimenter', '   ')).result.ok, 'blank experimenter refused');
+  ok(!(await cmd('setExperimenter', 'x'.repeat(65))).result.ok, '65-character experimenter refused');
+  r = await cmd('setExperimenter', 'Smith, Jo');
+  ok(!r.result.ok && r.result.reason === 'Experimenter name: no commas (breaks the CSV)', 'experimenter with a comma refused with reason');
+  ok(!(await cmd('setExperimenter', 42)).result.ok, 'non-text experimenter refused');
+  r = await cmd('setExperimenter', '  Jo Smith ');
+  ok(r.result.ok && r.next.experimenter === 'Jo Smith', 'setExperimenter trims, then a fresh state with the name');
   r = await cmd('setDominant', 'RIGHT');
   ok(r.result.ok && r.next.dominantHand === 'RIGHT', 'setDominant RIGHT');
   ok(!(await cmd('setDominant', 'UP')).result.ok, 'invalid dominant hand refused');
@@ -82,7 +90,7 @@ const { ok, done } = counter('SESSION BROWSER');
   await key('Space');
   ok(await E(() => window.__sm.calib.reach.hand === 'RIGHT' && Math.abs(window.__sm.calib.reach.distance - 0.62) < 1e-9), 'Space key uses the same either-hand logic');
   console.log('SETUP PHASE (continued)');
-  for (const [n, re] of [['pause', /running/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /only locked/], ['skip', /No trial/]]) {
+  for (const [n, re] of [['pause', /running/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /locks only/], ['skip', /No trial/]]) {
     r = await cmd(n);
     ok(!r.result.ok && re.test(r.result.reason), `${n} refused in setup ("${r.result.reason}")`);
   }

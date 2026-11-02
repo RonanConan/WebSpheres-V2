@@ -4,7 +4,7 @@ const { openHost } = require('./host-page.cjs');
 const { ok, done } = counter('DATA BROWSER');
 const VIEWER = process.env.WS_VIEWER || path.join(ROOT, 'For Claude', 'reference', 'viewer-src');
 const OLD_HEADER = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount';
-const INFO_KEYS = ['ParticipantID', 'AppVersion', 'SessionStartISO', 'SessionEndISO', 'EndReason', 'DominantHand', 'Condition', 'Mode', 'TotalTrials', 'TrialsCompleted', 'ReachHand', 'ReachDistance', 'Radius', 'Height', 'HomeX', 'HomeY', 'HomeZ', 'RecentreCount', 'Pauses', 'SetupUnlocks'];
+const INFO_KEYS = ['ParticipantID', 'AppVersion', 'SessionStartISO', 'SessionEndISO', 'EndReason', 'DominantHand', 'Condition', 'Mode', 'TotalTrials', 'TrialsCompleted', 'ReachHand', 'ReachDistance', 'Radius', 'Height', 'HomeX', 'HomeY', 'HomeZ', 'RecentreCount', 'Pauses', 'SetupUnlocks', 'Experimenter', 'HomeMode', 'HomeLeftX', 'HomeLeftY', 'HomeLeftZ', 'HomeRightX', 'HomeRightY', 'HomeRightZ'];
 
 async function saveAll(p, from, dir) {
   const out = [];
@@ -26,7 +26,7 @@ const info = (text) => { const lines = text.trimEnd().split('\n'); return { head
   const E = (fn, arg) => p.evaluate(fn, arg);
   const cmd = (n, v) => E(([a, c]) => window.__cmd(a, c), [n, v]);
   const until = (fn, arg, t) => p.waitForFunction(fn, arg, { timeout: t || 5000, polling: 10 });
-  for (const [n, v] of [['setParticipant', 'P07'], ['setDominant', 'RIGHT'], ['setCondition', 2], ['setMode', 'short'], ['calibrate', 'height']]) await cmd(n, v);
+  for (const [n, v] of [['setExperimenter', 'Dr Ada Lovelace'], ['setParticipant', 'P07'], ['setDominant', 'RIGHT'], ['setCondition', 2], ['setMode', 'short'], ['calibrate', 'height']]) await cmd(n, v);
   await E(() => window.__home(true));
   await cmd('calibrate', 'lap');
   await E(() => { const c = document.querySelector('a-scene').camera.el.getAttribute('position'); window.__track('L', null); window.__track('R', [c.x + 0.1, c.y, c.z - 0.55]); });
@@ -71,7 +71,7 @@ const info = (text) => { const lines = text.trimEnd().split('\n'); return { head
   ok(si.header === 'Key,Value' && si.keys.join() === INFO_KEYS.join(), 'session info: Key,Value with the 20 keys in the planned order');
   const st = await E(() => ({ start: new Date(window.__dm.sessionStartTime).toISOString(), end: window.__dm.sessionEndTime, reach: window.__sm.calib.reach, r: window.__sm.radius, h: window.__sm.height, pauses: window.__dm.pauses, unlocks: window.__dm.setupUnlocks }));
   const m = si.map;
-  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.0.0' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
+  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.1.0' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
   ok(m.SessionStartISO === st.start && m.SessionEndISO === new Date(st.end).toISOString() && m.SessionEndISO > m.SessionStartISO, 'SessionStartISO and SessionEndISO');
   ok(m.DominantHand === 'RIGHT' && m.Condition === '2' && m.Mode === 'short' && m.TotalTrials === '110' && m.TrialsCompleted === String(expect.n), 'DominantHand, Condition, Mode, TotalTrials, TrialsCompleted');
   ok(m.ReachHand === 'RIGHT' && +m.ReachDistance === st.reach.distance && +m.Radius === st.r && +m.Height === st.h, 'ReachHand, ReachDistance, Radius, Height');
