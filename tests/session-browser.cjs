@@ -13,7 +13,7 @@ const { ok, done } = counter('SESSION BROWSER');
 
   console.log('SETUP PHASE');
   let s = await state();
-  ok(s && s.version === '2.1.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
+  ok(s && s.version === '2.1.1' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
   ok(s.calib && !s.calib.reach.done && !s.calib.height.done && !s.calib.lap.done && s.backup && s.backup.trials === 0, 'state carries calibration and backup counts');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
@@ -167,7 +167,8 @@ const { ok, done } = counter('SESSION BROWSER');
   await key('KeyC');
   ok(await E(() => window.__sc.currentCondition === 2), 'locked keys work again after unlock');
   r = await cmd('setMode', 'fmode');
-  ok(r.result.ok && r.next.totalTrials === 44, 'mode change allowed while unlocked (Ronan: unlock re-enables everything)');
+  ok(!r.result.ok && r.result.reason === 'Mode: set before start', 'mode change refused even while unlocked');
+  await E(() => window.__sm.setMode('fmode'));
   await until(() => window.__sm.currentState === 'invisible' || window.__sm.currentState === 'visible' || window.__sm.currentState === 'waiting-to-appear');
   await cmd('pause');
   await E(() => window.__home(false));

@@ -16,6 +16,7 @@ AFRAME.registerComponent('data-manager', {
         this.lastExportTimestamp = '';
         this.pauses = [];
         this.setupUnlocks = [];
+        this.setupChanges = [];
         this.finalExportScheduled = false;
         this.setupManualExport();
     },
@@ -35,6 +36,11 @@ AFRAME.registerComponent('data-manager', {
 
     logSetupUnlock: function() {
         this.setupUnlocks.push(this.sessionTime());
+    },
+
+    logSetupChange: function (field, before, after) {
+        const clean = (v) => String(v).replace(/[;|,\r\n]/g, ' ');
+        this.setupChanges.push(`${this.sessionTime()}|${this.trialNumber}|${field}|${clean(before)}|${clean(after)}`);
     },
 
     scheduleFinalExport: function() {
@@ -94,7 +100,8 @@ AFRAME.registerComponent('data-manager', {
             ['HomeLeftZ', perHand?.left.z ?? ''],
             ['HomeRightX', perHand?.right.x ?? ''],
             ['HomeRightY', perHand?.right.y ?? ''],
-            ['HomeRightZ', perHand?.right.z ?? '']
+            ['HomeRightZ', perHand?.right.z ?? ''],
+            ['SetupChanges', this.setupChanges.join(';')]
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
     },

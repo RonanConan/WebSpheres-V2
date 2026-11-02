@@ -30,7 +30,7 @@
         #left-slot { grid-column: 1; grid-row: 1 / 4; display: none; background: var(--bar); border-right: 1px solid var(--line); overflow-y: auto; }
         #app.left-open #left-slot { display: block; }
         #topbar, #bottombar { grid-column: 2; display: flex; align-items: center; background: var(--bar); overflow: hidden; white-space: nowrap; }
-        #topbar { grid-row: 1; flex-wrap: wrap; gap: 0.4rem 2.2rem; padding: 0.55rem 1.1rem; border-bottom: 1px solid var(--line); }
+        #topbar { grid-row: 1; flex-wrap: wrap; gap: 0.4rem 1.6rem; padding: 0.55rem 1.1rem; border-bottom: 1px solid var(--line); }
         #topbar > .item { flex: none; }
         #bottombar { grid-row: 3; flex-wrap: wrap; gap: 0.5rem 0.7rem; padding: 0.5rem 1.1rem; border-top: 1px solid var(--line); }
         #stage { grid-column: 2; grid-row: 2; position: relative; overflow: hidden; }
@@ -109,11 +109,15 @@
         .g-confirm { margin-top: 0.8rem; padding: 0.7rem 0.8rem; border: 1px solid var(--err); }
         .g-confirm[hidden] { display: none; }
         .g-confirm p { margin: 0; line-height: 1.4; }
+        .g-unlocked { margin-top: 0.8rem; padding: 0.7rem 0.8rem; border: 1px solid var(--warn); }
+        .g-unlocked[hidden] { display: none; }
+        .g-unlocked > .label { color: var(--warn); }
+        .g-inline { display: flex; gap: 0.5rem; }
         .g-msg { margin: 0.6rem 0 0; min-height: 1.2em; line-height: 1.35; }
         .g-msg.ok { color: var(--ok); } .g-msg.bad { color: var(--err); } .g-msg.busy { color: var(--warn); }
         .g-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
-        #g-id, #g-exp { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--mono); color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; }
-        #g-id:focus, #g-exp:focus { outline: none; border-color: var(--accent); }
+        #g-id, #g-exp, #u-id, #u-exp { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--mono); color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; }
+        #g-id:focus, #g-exp:focus, #u-id:focus, #u-exp:focus { outline: none; border-color: var(--accent); }
         .opts button.on { background: #0f3a44; border-color: var(--accent); color: #fff; }
         .sub { margin: 0.9rem 0; padding-left: 0.8rem; border-left: 3px solid var(--line); }
         .sub.active { border-left-color: var(--accent); }
@@ -242,6 +246,19 @@
                     <div class="g-confirm" id="g-unlock-confirm" hidden>
                         <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
+                    </div>
+                    <div class="g-unlocked" id="g-unlocked" hidden>
+                        <div class="label">Setup unlocked</div>
+                        <p class="g-note">Changes apply now. All logged.</p>
+                        <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
+                        <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
+                        <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
+                        <div class="g-row"><div class="label">Participant ID</div><div class="g-inline"><input id="u-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-id-go">Change</button></div></div>
+                        <div class="g-row"><div class="label">Calibration</div>
+                            <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
+                            <ul class="checks" id="g6-calib"></ul>
+                        </div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-relock">Relock setup</button></div>
                     </div>
                     <p class="g-msg" id="g6-msg"></p>
                 </div>
@@ -1332,7 +1349,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.1.0';
+    const APP_VERSION = '2.1.1';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -1651,8 +1668,23 @@
             $('g-skip').disabled = !st.live || !(s.phase === 'running' || s.phase === 'pausing');
             $('g-save-headset').disabled = !st.live;
             $('g-end').disabled = !st.live || !activeRun;
-            $('g-unlock').disabled = !st.live || !activeRun || !s.setupLocked;
-            $('g-unlock').textContent = s.setupLocked ? 'Unlock setup' : 'Setup unlocked';
+            $('g-unlock').disabled = !st.live || !activeRun;
+            const unlocked = activeRun && !s.setupLocked;
+            $('g-unlock').hidden = unlocked;
+            $('g-unlocked').hidden = !unlocked;
+            if (unlocked) {
+                if (!guide.unlockedShown) $('g-unlocked').scrollIntoView({ block: 'nearest' });
+                const idle = !st.live || guide.busy;
+                document.querySelectorAll('[data-u]').forEach(b => {
+                    b.classList.toggle('on', b.dataset.v === String(b.dataset.u === 'setCondition' ? s.condition : s.dominantHand));
+                    b.disabled = idle;
+                });
+                document.querySelectorAll('[data-ucalib], #u-exp-go, #u-id-go, #g-relock').forEach(b => { b.disabled = idle; });
+                if (document.activeElement !== $('u-exp')) $('u-exp').value = s.experimenter || '';
+                if (document.activeElement !== $('u-id')) $('u-id').value = s.participantId || '';
+                setChecks('g6-calib', c ? [['ok', `Reach radius ${fmt(c.reach.radius, 2)} m`], ['ok', `Height ${fmt(c.height.height, 2)} m`], ...boxLines] : []);
+            }
+            guide.unlockedShown = unlocked;
         }
 
         const alerts = [];
@@ -1771,7 +1803,21 @@
         $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(6, 'endEarly', undefined, 'Session ended'); });
         $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
         $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
-        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Unlocked until next resume'); });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Unlocked. Relocks on resume.'); });
+        document.querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
+            const condition = b.dataset.u === 'setCondition';
+            runGuideCmd(6, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, condition ? 'Condition changed' : 'Dominant hand changed');
+        }));
+        document.querySelectorAll('[data-ucalib]').forEach(b => b.addEventListener('click', () => {
+            const label = CALIB_LABEL[b.dataset.ucalib];
+            runGuideCmd(6, 'calibrate', b.dataset.ucalib, `${label[0].toUpperCase() + label.slice(1)} calibrated`);
+        }));
+        [['u-exp', 'setExperimenter', 'Experimenter changed'], ['u-id', 'setParticipant', 'Participant ID changed']].forEach(([id, name, okText]) => {
+            const send = () => { $(id).blur(); runGuideCmd(6, name, $(id).value.trim(), okText); };
+            $(id + '-go').addEventListener('click', send);
+            $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+        });
+        $('g-relock').addEventListener('click', () => runGuideCmd(6, 'relockSetup', undefined, 'Setup relocked'));
         $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
         $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });

@@ -297,7 +297,33 @@ AFRAME.registerComponent('sphere-manager', {
         });
     },
 
+    setupSnapshot: function () {
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        const scoreManager = document.querySelector('#score-display').components['score-manager'];
+        const at = (h) => `${h.x} ${h.y} ${h.z}`;
+        const lap = this.calib.lap;
+        return {
+            Setup: this.setupLocked ? 'locked' : 'unlocked',
+            ParticipantID: dataManager.participantId,
+            Experimenter: dataManager.experimenter,
+            DominantHand: scoreManager.dominantHand,
+            Condition: scoreManager.currentCondition,
+            Radius: this.radius,
+            Height: this.height,
+            Home: lap.left ? `${at(lap.left)}/${at(lap.right)}` : at(lap.home)
+        };
+    },
+
+    logSetupChanges: function (before) {
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        const after = this.setupSnapshot();
+        Object.keys(after).forEach(field => {
+            if (before[field] !== after[field]) dataManager.logSetupChange(field, before[field], after[field]);
+        });
+    },
+
     runCommand: function (name, value) {
+        const before = this.phase === 'setup' ? null : this.setupSnapshot();
         let result;
         try {
             result = this.doCommand(name, value);
@@ -305,6 +331,7 @@ AFRAME.registerComponent('sphere-manager', {
             result = { ok: false, reason: 'Error: ' + (e?.message || e) };
         }
         if (result.ok) {
+            if (before) this.logSetupChanges(before);
             try {
                 document.querySelector('#audio-manager').components['audio-manager'].playCalibrationSound('switch');
             } catch (e) {}
@@ -357,6 +384,7 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'setMode':
                 if (!['standard', 'short', 'fmode', 'block'].includes(value)) return { ok: false, reason: 'Unknown mode' };
+                if (phase !== 'setup') return { ok: false, reason: 'Mode: set before start' };
                 this.setMode(value);
                 return { ok: true };
             case 'calibrate':
@@ -395,6 +423,10 @@ AFRAME.registerComponent('sphere-manager', {
                     this.setupLocked = false;
                     dataManager.logSetupUnlock();
                 }
+                return { ok: true };
+            case 'relockSetup':
+                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup locks only during a session' };
+                this.setupLocked = true;
                 return { ok: true };
             case 'saveOnHeadset':
                 this.saveData();
