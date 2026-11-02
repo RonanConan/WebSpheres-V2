@@ -20,7 +20,7 @@ const rig = new THREE.Object3D(); rig.add(camObj); rig.updateMatrixWorld(true);
 const home = { x: 0, y: 0.9, z: -0.4 };
 const sphere = { getAttribute: () => ({ x: 0.1234567891234, y: 1.2, z: -0.43 }) };
 const sm = { activeSphere: sphere };
-const dm = { recentreCount: 2 };
+const dm = { recentreCount: 2, download: (name, parts) => new globalThis.Blob(parts) };
 globalThis.document = { querySelector: s => s.includes('left') ? L : s.includes('right') ? R : s === '#home-rectangle' ? { getAttribute: () => home } : s === '#sphere-manager' ? { components: { 'sphere-manager': sm } } : s === '#data-manager' ? { components: { 'data-manager': dm } } : null,
   createElement: () => ({ style: {}, click() {} }), body: { appendChild() {}, removeChild() {} } };
 let blobs = []; globalThis.Blob = function (parts) { this.text = parts.join(''); blobs.push(this.text); }; globalThis.URL = { createObjectURL: () => 'u', revokeObjectURL() {} };

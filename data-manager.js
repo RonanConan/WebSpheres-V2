@@ -1,5 +1,5 @@
 AFRAME.registerComponent('data-manager', {
-    TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID\n',
+    TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run\n',
 
     init: function() {
         this.trialData = [];
@@ -18,6 +18,15 @@ AFRAME.registerComponent('data-manager', {
         this.setupUnlocks = [];
         this.setupChanges = [];
         this.finalExportScheduled = false;
+        this.runClosing = false;
+        this.runNumber = 1;
+        this.plan = null;
+        this.completedRuns = [];
+        this.frozenInfo = null;
+        this.breakBefore = '';
+        this.recalibrated = [];
+        this.recalibratedBefore = [];
+        this.betweenRecentres = 0;
         this.setupManualExport();
     },
 
@@ -46,15 +55,73 @@ AFRAME.registerComponent('data-manager', {
     scheduleFinalExport: function() {
         if (this.finalExportScheduled) return;
         this.finalExportScheduled = true;
+        this.runClosing = true;
         this.sessionEndTime = Date.now();
         setTimeout(() => {
             document.querySelector('#kinematics-manager').components['kinematics-manager'].stopTracking();
-            this.exportAll();
+            this.runClosing = false;
+            this.frozenInfo = this.buildSessionInfo();
+            const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+            if (!sphereManager || sphereManager.phase === 'complete') this.exportAll();
+            sphereManager?.markStateChanged();
         }, 1000);
     },
 
+    plannedRuns: function() {
+        return Math.max(this.plan ? this.plan.runs.length : 1, this.runNumber);
+    },
+
+    planText: function() {
+        if (!this.plan) return '';
+        return this.plan.runs.map((r, i) => `${i + 1}:${r.condition === 2 ? 'boost' : 'no-boost'}:${r.off ? 'headset-off' : 'headset-on'}${r.recal ? ':recalibrate' : ''}`).join('|');
+    },
+
+    runPrefix: function(participantId, run) {
+        const id = participantId ? participantId + '_' : '';
+        return this.plannedRuns() > 1 ? `${id}run${run}_` : id;
+    },
+
     filePrefix: function() {
-        return this.participantId ? this.participantId + '_' : '';
+        return this.runPrefix(this.participantId, this.runNumber);
+    },
+
+    sessionInfo: function() {
+        return this.frozenInfo || this.buildSessionInfo();
+    },
+
+    archiveRun: function(kinematicsManager) {
+        this.completedRuns.push({
+            run: this.runNumber,
+            participantId: this.participantId,
+            trials: this.trialData,
+            kinL: kinematicsManager.leftHandData,
+            kinR: kinematicsManager.rightHandData,
+            info: this.sessionInfo(),
+            ms: this.sessionEndTime - this.sessionStartTime,
+            recentres: this.recentreCount,
+            pauses: this.pauses.length
+        });
+    },
+
+    prepareNextRun: function() {
+        const finished = this.plan?.runs[this.runNumber - 1];
+        this.breakBefore = finished?.off ? 'headset-off' : 'headset-on';
+        this.recalibratedBefore = this.recalibrated;
+        this.recalibrated = [];
+        this.betweenRecentres = 0;
+        this.runNumber++;
+        this.trialData = [];
+        this.trialNumber = 0;
+        this.recentreCount = 0;
+        this.pauses = [];
+        this.setupUnlocks = [];
+        this.setupChanges = [];
+        this.sessionEndTime = 0;
+        this.sphereAppearTime = 0;
+        this.currentDecisionTime = 0;
+        this.currentMovementTime = 0;
+        this.finalExportScheduled = false;
+        this.frozenInfo = null;
     },
 
     fileTimestamp: function() {
@@ -62,7 +129,7 @@ AFRAME.registerComponent('data-manager', {
     },
 
     formatTrialRow: function(trial) {
-        return `${trial.trial},${trial.timestamp},${trial.target},${trial.hand},${trial.points},${trial.hitType},${trial.decisionTime},${trial.totalMovementTime},${trial.recentreCount},${trial.participantId}\n`;
+        return `${trial.trial},${trial.timestamp},${trial.target},${trial.hand},${trial.points},${trial.hitType},${trial.decisionTime},${trial.totalMovementTime},${trial.recentreCount},${trial.participantId},${trial.run}\n`;
     },
 
     buildSessionInfo: function() {
@@ -101,31 +168,68 @@ AFRAME.registerComponent('data-manager', {
             ['HomeRightX', perHand?.right.x ?? ''],
             ['HomeRightY', perHand?.right.y ?? ''],
             ['HomeRightZ', perHand?.right.z ?? ''],
-            ['SetupChanges', this.setupChanges.join(';')]
+            ['SetupChanges', this.setupChanges.join(';')],
+            ['Run', this.runNumber],
+            ['PlannedRuns', this.plannedRuns()],
+            ['Plan', this.planText()],
+            ['BreakBefore', this.breakBefore],
+            ['RecalibratedBefore', this.recalibratedBefore.join(';')]
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
     },
 
+    queueDownload: function(job) {
+        this.downloadQueue = this.downloadQueue || [];
+        this.downloadCount = this.downloadCount || 0;
+        this.downloadQueue.push(job);
+        this.pumpDownloads();
+    },
+
+    pumpDownloads: function() {
+        if (this.downloadTimer) return;
+        while (this.downloadQueue.length && this.downloadCount < 4) {
+            this.downloadQueue.shift()();
+            this.downloadCount++;
+        }
+        if (this.downloadCount >= 4) {
+            this.downloadTimer = setTimeout(() => {
+                this.downloadTimer = null;
+                this.downloadCount = 0;
+                this.pumpDownloads();
+            }, 1000);
+        }
+    },
+
     download: function(filename, parts) {
-        const blob = new Blob(parts, { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        this.queueDownload(() => {
+            const blob = new Blob(parts, { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
     },
 
     exportAll: function() {
         const timestamp = this.fileTimestamp();
+        const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
         this.lastExportTimestamp = timestamp;
+        this.completedRuns.forEach(r => {
+            const prefix = this.runPrefix(r.participantId, r.run);
+            if (r.trials.length) this.download(`${prefix}vr-session-data-${timestamp}.csv`, [this.TRIAL_HEADER + r.trials.map(t => this.formatTrialRow(t)).join('')]);
+            if (r.kinL.length) kinematicsManager.exportHandData(r.kinL, 'LEFT', timestamp, prefix);
+            if (r.kinR.length) kinematicsManager.exportHandData(r.kinR, 'RIGHT', timestamp, prefix);
+            this.download(`${prefix}session-info-${timestamp}.csv`, [r.info]);
+        });
         this.exportCSV(timestamp);
-        document.querySelector('#kinematics-manager').components['kinematics-manager'].exportCSV(timestamp);
+        kinematicsManager.exportCSV(timestamp);
         if (this.sessionStartTime > 0) {
-            this.download(`${this.filePrefix()}session-info-${timestamp}.csv`, [this.buildSessionInfo()]);
+            this.download(`${this.filePrefix()}session-info-${timestamp}.csv`, [this.sessionInfo()]);
         }
     },
     
@@ -177,7 +281,9 @@ AFRAME.registerComponent('data-manager', {
     },
     
     logRecentre: function() {
-        if (this.sessionStartTime > 0) this.recentreCount++;
+        const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        if (sphereManager?.phase === 'between') this.betweenRecentres++;
+        else if (this.sessionStartTime > 0) this.recentreCount++;
     },
     
     startDecisionTimer: function() {
@@ -209,7 +315,8 @@ AFRAME.registerComponent('data-manager', {
             decisionTime: decisionTime,
             totalMovementTime: this.currentMovementTime,
             recentreCount: this.recentreCount,
-            participantId: this.participantId
+            participantId: this.participantId,
+            run: this.runNumber
         });
         
         console.log(`Trial ${this.trialNumber}: Target ${targetPosition + 1}, Hand ${handUsed}, Points ${points}, Type ${hitType}, Decision Time ${decisionTime}ms`);

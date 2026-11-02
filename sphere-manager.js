@@ -1,4 +1,6 @@
 AFRAME.registerComponent('sphere-manager', {
+    ACTIVE_PHASES: ['running', 'pausing', 'paused'],
+
     init: function () {
         this.currentState = 'invisible';
         this.activeSphere = null;
@@ -297,6 +299,10 @@ AFRAME.registerComponent('sphere-manager', {
         });
     },
 
+    isRunActive: function () {
+        return this.ACTIVE_PHASES.includes(this.phase);
+    },
+
     setupSnapshot: function () {
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const scoreManager = document.querySelector('#score-display').components['score-manager'];
@@ -323,7 +329,7 @@ AFRAME.registerComponent('sphere-manager', {
     },
 
     runCommand: function (name, value) {
-        const before = this.phase === 'setup' ? null : this.setupSnapshot();
+        const before = this.isRunActive() ? this.setupSnapshot() : null;
         let result;
         try {
             result = this.doCommand(name, value);
@@ -331,7 +337,7 @@ AFRAME.registerComponent('sphere-manager', {
             result = { ok: false, reason: 'Error: ' + (e?.message || e) };
         }
         if (result.ok) {
-            if (before) this.logSetupChanges(before);
+            if (before && this.isRunActive()) this.logSetupChanges(before);
             try {
                 document.querySelector('#audio-manager').components['audio-manager'].playCalibrationSound('switch');
             } catch (e) {}
@@ -363,7 +369,7 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'setExperimenter':
                 if (typeof value !== 'string' || !value.trim() || value.length > 64) return { ok: false, reason: 'Experimenter name: 1-64 characters' };
-                if (/[,\r\n]/.test(value)) return { ok: false, reason: 'Experimenter name: no commas (breaks the CSV)' };
+                if (/[,"\r\n]/.test(value)) return { ok: false, reason: 'Experimenter name: no commas or quotes (breaks the CSV)' };
                 dataManager.experimenter = value.trim();
                 return { ok: true };
             case 'setHomeMode':
@@ -388,10 +394,8 @@ AFRAME.registerComponent('sphere-manager', {
                 this.setMode(value);
                 return { ok: true };
             case 'calibrate':
-                if (value === 'reach') return this.calibrateReach();
-                if (value === 'height') return this.calibrateHeight();
-                if (value === 'lap') return this.calibrateLap();
-                return { ok: false, reason: 'Unknown calibration' };
+                if (!['reach', 'height', 'lap'].includes(value)) return { ok: false, reason: 'Unknown calibration' };
+                return this.runCalibration(value);
             case 'start':
                 if (phase !== 'setup') return { ok: false, reason: 'Session already started' };
                 this.startSession();
@@ -412,20 +416,44 @@ AFRAME.registerComponent('sphere-manager', {
                 if (phase === 'setup') return this.doCommand('start');
                 if (phase === 'running') return this.doCommand('pause');
                 if (phase === 'pausing' || phase === 'paused') return this.doCommand('resume');
+                if (phase === 'between') return { ok: false, reason: 'Use Start next run' };
                 return { ok: false, reason: 'Session complete' };
             case 'endEarly':
-                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'No session running' };
+                if (!this.isRunActive()) return { ok: false, reason: 'No session running' };
                 this.completeSession('ended-early');
                 return { ok: true };
             case 'unlockSetup':
-                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup locks only during a session' };
+                if (!this.isRunActive()) return { ok: false, reason: 'Setup locks only during a session' };
                 if (this.setupLocked) {
                     this.setupLocked = false;
                     dataManager.logSetupUnlock();
                 }
                 return { ok: true };
+            case 'setPlan':
+                return this.setPlan(value);
+            case 'nextRun':
+                if (phase !== 'between') return { ok: false, reason: 'Next run only between runs' };
+                if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'No more runs in plan' };
+                this.startNextRun();
+                return { ok: true };
+            case 'finishSession':
+                if (phase !== 'between') return { ok: false, reason: 'Finish only between runs' };
+                this.phase = 'complete';
+                this.setupLocked = true;
+                this.setHeadsetCue('done');
+                if (!dataManager.runClosing) dataManager.exportAll();
+                return { ok: true };
+            case 'reopenSession':
+                if (phase !== 'complete') return { ok: false, reason: 'Session not complete' };
+                if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'No more runs in plan' };
+                this.phase = 'between';
+                this.setupLocked = false;
+                this.setHeadsetCue('paused');
+                return { ok: true };
             case 'relockSetup':
-                if (phase !== 'running' && phase !== 'pausing' && phase !== 'paused') return { ok: false, reason: 'Setup locks only during a session' };
+                if (!this.isRunActive()) return { ok: false, reason: 'Setup locks only during a session' };
                 this.setupLocked = true;
                 return { ok: true };
             case 'saveOnHeadset':
@@ -449,6 +477,52 @@ AFRAME.registerComponent('sphere-manager', {
     setHeadsetCue: function (id) {
         const spectator = document.querySelector('#spectator-manager')?.components?.['spectator-manager'];
         if (spectator?.setCue) spectator.setCue(id);
+    },
+
+    runCalibration: function (name) {
+        const result = name === 'reach' ? this.calibrateReach() : name === 'height' ? this.calibrateHeight() : this.calibrateLap();
+        if (result.ok && this.phase === 'between') {
+            const dataManager = document.querySelector('#data-manager').components['data-manager'];
+            if (!dataManager.recalibrated.includes(name)) dataManager.recalibrated.push(name);
+        }
+        return result;
+    },
+
+    setPlan: function (value) {
+        if (this.isRunActive()) return { ok: false, reason: 'Plan: set before start or between runs' };
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        const runs = value && value.runs;
+        if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'Plan: 1-20 runs' };
+        if (runs.length < dataManager.runNumber) return { ok: false, reason: 'Plan: cannot remove finished runs' };
+        if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Plan: reward must be 1 or 2' };
+        dataManager.plan = { mode: this.mode, home: this.homeMode, runs: runs.map(r => ({ condition: r.condition, off: !!r.off, recal: !!r.recal })) };
+        return { ok: true };
+    },
+
+    startNextRun: function () {
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
+        const scoreManager = document.querySelector('#score-display').components['score-manager'];
+        [this.appearTimer, this.disappearTimer].forEach(t => { if (t) clearTimeout(t); });
+        this.appearTimer = null;
+        this.disappearTimer = null;
+        if (this.activeSphere) this.activeSphere.setAttribute('visible', false);
+        this.activeSphere = null;
+        this.appearanceCounts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        this.phaseAppearanceCounts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        this.totalAppearances = 0;
+        this.currentPhase = 0;
+        this.lastSelectedPosition = -1;
+        this.selectionBeforeWait = -1;
+        this.decisionTimeRecorded = false;
+        this.homeTrackingInitialized = false;
+        this.endReason = '';
+        dataManager.archiveRun(kinematicsManager);
+        kinematicsManager.resetForRun();
+        dataManager.prepareNextRun();
+        scoreManager.resetForRun();
+        scoreManager.updateProgress(0, this.totalTrials);
+        this.startSession();
     },
 
     startSession: function () {
@@ -511,11 +585,12 @@ AFRAME.registerComponent('sphere-manager', {
             this.currentState = 'invisible';
         }
         if (this.phase === 'paused') dataManager.endPause();
-        this.phase = 'complete';
+        const more = dataManager.runNumber < dataManager.plannedRuns();
+        this.phase = more ? 'between' : 'complete';
         this.endReason = reason;
-        this.setupLocked = true;
+        this.setupLocked = !more;
         this.isPaused = true;
-        this.setHeadsetCue('done');
+        this.setHeadsetCue(more ? 'paused' : 'done');
         dataManager.scheduleFinalExport();
         this.markStateChanged();
     },

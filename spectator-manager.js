@@ -1,4 +1,4 @@
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '2.2.0';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -70,6 +70,7 @@ AFRAME.registerComponent('spectator-manager', {
             this.rightController.addEventListener('hand-tracking-extras-ready', this.bindExtrasReady);
         }
 
+        this.sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         this.el.sceneEl.addEventListener('enter-vr', this.bindEnterVR);
         this.el.sceneEl.addEventListener('exit-vr', this.bindExitVR);
         document.addEventListener('visibilitychange', this.bindVisibility);
@@ -89,8 +90,15 @@ AFRAME.registerComponent('spectator-manager', {
         else if (hand === 'right') this.rightHandData = evt.detail.data;
     },
 
+    clearBetweenRecentres: function () {
+        const dataM = document.querySelector('#data-manager')?.components?.['data-manager'];
+        if (dataM) dataM.betweenRecentres = 0;
+    },
+
     onEnterVR: function () {
         const sceneEl = this.el.sceneEl;
+        this.stateDirty = true;
+        this.clearBetweenRecentres();
         this.recentrePending = false;
         this.recentre = null;
         this.activeSpace = null;
@@ -99,6 +107,8 @@ AFRAME.registerComponent('spectator-manager', {
     },
 
     onExitVR: function () {
+        this.stateDirty = true;
+        this.clearBetweenRecentres();
         this.recentrePending = false;
         if (this.recentre) {
             this.recentre = null;
@@ -239,7 +249,7 @@ AFRAME.registerComponent('spectator-manager', {
             return;
         }
         if (data.type === 'sync') {
-            if (conn) this.pendingSync.set(conn, data.have || {});
+            if (conn) this.pendingSync.set(conn, Object.assign({}, data.have, { run: data.run }));
             return;
         }
         if (data.code === 'KeyR') {
@@ -272,6 +282,18 @@ AFRAME.registerComponent('spectator-manager', {
         return JSON.stringify({
             type: 'state',
             version: APP_VERSION,
+            sessionId: this.sessionId,
+            inVR: !!this.el.sceneEl.is?.('vr-mode'),
+            run: dataM?.runNumber ?? 1,
+            plannedRuns: dataM?.plannedRuns ? dataM.plannedRuns() : 1,
+            plan: dataM?.plan ?? null,
+            closing: dataM?.runClosing ?? false,
+            saving: (dataM?.downloadQueue?.length ?? 0) > 0,
+            filePrefix: dataM?.filePrefix ? dataM.filePrefix() : '',
+            betweenMs: sm?.phase === 'between' && dataM?.sessionEndTime ? Date.now() - dataM.sessionEndTime : 0,
+            betweenRecentres: dataM?.betweenRecentres ?? 0,
+            recalibrated: dataM?.recalibrated ?? [],
+            completedRuns: (dataM?.completedRuns ?? []).map(r => ({ run: r.run, prefix: dataM.runPrefix(r.participantId, r.run), trials: r.trials.length, kinL: r.kinL.length, kinR: r.kinR.length, info: r.info, ms: r.ms, recentres: r.recentres, pauses: r.pauses })),
             phase: sm?.phase ?? 'setup',
             endReason: sm?.endReason ?? '',
             participantId: dataM?.participantId ?? '',
@@ -296,7 +318,7 @@ AFRAME.registerComponent('spectator-manager', {
                 final: sm?.phase === 'complete' && km?.isTracking === false,
                 exportTs: dataM?.lastExportTimestamp ?? ''
             },
-            info: dataM?.buildSessionInfo ? dataM.buildSessionInfo() : ''
+            info: dataM?.sessionInfo ? dataM.sessionInfo() : ''
         });
     },
 
@@ -307,18 +329,21 @@ AFRAME.registerComponent('spectator-manager', {
         const dataM = document.querySelector('#data-manager')?.components?.['data-manager'];
         const km = document.querySelector('#kinematics-manager')?.components?.['kinematics-manager'];
         if (!dataM || !km) return;
-        const sources = [
-            ['trials', dataM.trialData, dataM.TRIAL_HEADER, (t) => dataM.formatTrialRow(t), true],
-            ['kinL', km.leftHandData, km.HEADER, null, false],
-            ['kinR', km.rightHandData, km.HEADER, null, false]
-        ];
         pending.forEach((have, conn) => {
+            const run = have.run === undefined ? dataM.runNumber : have.run;
+            const archived = dataM.completedRuns?.find(r => r.run === run);
+            if (!archived && run !== dataM.runNumber) return;
+            const sources = [
+                ['trials', archived ? archived.trials : dataM.trialData, dataM.TRIAL_HEADER, (t) => dataM.formatTrialRow(t), true],
+                ['kinL', archived ? archived.kinL : km.leftHandData, km.HEADER, null, false],
+                ['kinR', archived ? archived.kinR : km.rightHandData, km.HEADER, null, false]
+            ];
             sources.forEach(([file, rows, header, format, all]) => {
                 const from = Math.max(0, Math.floor(Number(have[file]) || 0));
                 if (from >= rows.length) return;
                 const end = all ? rows.length : Math.min(rows.length, from + this.SYNC_BATCH);
                 const slice = rows.slice(from, end);
-                this.sendTo(conn, JSON.stringify({ type: 'rows', file, from, header, lines: format ? slice.map(format) : slice }));
+                this.sendTo(conn, JSON.stringify({ type: 'rows', run, file, from, header, lines: format ? slice.map(format) : slice }));
             });
         });
     },
@@ -393,10 +418,12 @@ AFRAME.registerComponent('spectator-manager', {
 
     requestCue: function (id) {
         const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
-        if (sm && sm.phase !== 'setup') return { ok: false, reason: 'Cues automatic after start' };
+        const between = sm?.phase === 'between';
+        if (sm && sm.phase !== 'setup' && !between) return { ok: false, reason: 'Cues automatic after start' };
         if (id !== null && !['reach', 'lap', 'ready'].includes(id)) return { ok: false, reason: 'Unknown cue' };
-        if (this.recentre) this.cueBeforeRecentre = id;
-        else this.setCue(id);
+        const cue = id === null && between ? 'paused' : id;
+        if (this.recentre) this.cueBeforeRecentre = cue;
+        else this.setCue(cue);
         return { ok: true };
     },
 

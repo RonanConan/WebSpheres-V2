@@ -122,7 +122,7 @@
         .sub { margin: 0.9rem 0; padding-left: 0.8rem; border-left: 3px solid var(--line); }
         .sub.active { border-left-color: var(--accent); }
         .g-big-line { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin: 0.6rem 0; font: 600 1.5rem var(--mono); }
-        #g6-phase { font: 600 1rem var(--sans); color: var(--warn); }
+        #g7-phase { font: 600 1rem var(--sans); color: var(--warn); }
         .bar { height: 0.7rem; background: #1b2130; margin-bottom: 0.8rem; }
         .bar > div { height: 100%; width: 0; background: var(--accent); }
         .sum { display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1rem; margin: 0.6rem 0; }
@@ -137,6 +137,44 @@
         .ro-summary .warn { color: var(--warn); }
         .ro-summary .bad { color: var(--err); }
         .ro-tech summary { padding: 0.5rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
+        #v-run-item[hidden] { display: none; }
+        #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
+        #plan-builder[hidden] { display: none; }
+        .plan-settings { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin-bottom: 1.5rem; }
+        .plan-settings .label { margin-bottom: 0.35rem; }
+        .plan-title { margin: 0 0 0.6rem; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        .plan-totals { font: 600 1.15rem var(--mono); margin-bottom: 1.3rem; }
+        .plan-totals span { color: var(--muted); font: 400 0.9rem var(--sans); }
+        #plan-strip { display: flex; flex-wrap: wrap; align-items: stretch; row-gap: 1rem; }
+        .run-card { width: 11.3rem; padding: 0.7rem 0.75rem 0.8rem; background: #11161f; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 0.55rem; }
+        .run-card[draggable="true"] { cursor: grab; }
+        .run-card.boost { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+        .run-card.done { opacity: 0.55; }
+        .run-card.next { outline: 2px solid var(--ok); outline-offset: 2px; }
+        .run-card.drag { opacity: 0.4; }
+        .run-card.over { border-style: dashed; border-color: var(--warn); }
+        .run-top { display: flex; justify-content: space-between; align-items: center; min-height: 1.6rem; }
+        .run-name { font-weight: 700; letter-spacing: 0.04em; }
+        button.run-x { min-height: 1.6rem; width: 1.6rem; padding: 0; background: transparent; border: 0; color: var(--muted); font-size: 1rem; }
+        button.run-x:hover:not(:disabled) { color: var(--err); }
+        .run-n { font: 600 1.3rem var(--mono); }
+        .run-n span { color: var(--muted); font: 400 0.8rem var(--sans); margin-left: 0.3rem; }
+        .run-state { font-size: 0.85rem; color: var(--muted); }
+        .run-state.next { color: var(--ok); font-weight: 600; }
+        .run-link { width: 8.6rem; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 0.3rem; padding: 0 0.5rem; position: relative; }
+        .run-link::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid var(--line); }
+        .run-link.off::before { border-top: 2px dashed var(--warn); }
+        .run-link > * { position: relative; }
+        .run-link button { width: 100%; }
+        .run-link.off button { border-color: var(--warn); color: var(--warn); }
+        .run-link label { display: flex; gap: 0.4rem; align-items: flex-start; padding: 0.3rem 0.35rem; font-size: 0.78rem; line-height: 1.3; color: var(--muted); background: var(--bg); cursor: pointer; }
+        .run-link label.on { color: var(--text); }
+        .run-link input { width: 1rem; height: 1rem; flex: none; margin: 0; accent-color: var(--accent); }
+        button.run-add { width: 7.5rem; margin-left: 0.8rem; border: 1px dashed #3a4458; background: transparent; color: var(--accent); font-weight: 700; white-space: normal; }
+        .plan-hint { margin-top: 1rem; color: var(--muted); font-size: 0.85rem; }
+        .g-timer { font: 600 2.2rem var(--mono); color: var(--warn); margin: 0.4rem 0; }
+        .g-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; cursor: pointer; line-height: 1.3; }
+        .g-tick input { width: 1.25rem; height: 1.25rem; flex: none; margin: 0; accent-color: var(--accent); }
         #help { position: absolute; inset: 0; background: rgba(11, 14, 20, 0.94); display: none; align-items: center; justify-content: center; overflow-y: auto; }
         #help.open { display: flex; }
         #help-inner { padding: 1.5rem; }
@@ -165,9 +203,6 @@
                     <div class="g-row"><div class="label">Experimenter</div><input id="g-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Participant ID</div><input id="g-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-g="dom" data-v="LEFT">Left</button><button tabindex="-1" data-g="dom" data-v="RIGHT">Right</button></div></div>
-                    <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-g="cond" data-v="1">No boost</button><button tabindex="-1" data-g="cond" data-v="2">Boost</button></div></div>
-                    <div class="g-row"><div class="label">Mode</div><div class="opts"><button tabindex="-1" data-g="mode" data-v="standard">352</button><button tabindex="-1" data-g="mode" data-v="short">110</button><button tabindex="-1" data-g="mode" data-v="fmode">44 (2 sets of 22)</button><button tabindex="-1" data-g="mode" data-v="block">110 (5 sets of 22)</button></div></div>
-                    <div class="g-row"><div class="label">Home position</div><div class="opts"><button tabindex="-1" data-g="home" data-v="one-box">One box</button><button tabindex="-1" data-g="home" data-v="per-hand">One per hand</button></div></div>
                     <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Send to headset</button></div>
                     <p class="g-msg" id="g2-msg"></p>
                     <ul class="checks" id="g2-checks"></ul>
@@ -175,60 +210,70 @@
                 </div>
             </section>
             <section class="step" data-step="3">
-                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Position</span></button>
+                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Run plan</span></button>
                 <div class="step-body">
-                    <p class="say">“Please sit comfortably, face forward, and rest your hands on your lap.”</p>
-                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-recentre">Recentre</button></div>
                     <ul class="checks" id="g3-checks"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-plan-send">Send to headset</button></div>
+                    <p class="g-msg" id="g3-msg"></p>
                     <div class="g-actions"><button tabindex="-1" class="g-next" data-next="3">Next</button></div>
                 </div>
             </section>
             <section class="step" data-step="4">
-                <button tabindex="-1" class="step-head" data-open="4"><span class="step-mark">4</span><span>Calibrate</span></button>
+                <button tabindex="-1" class="step-head" data-open="4"><span class="step-mark">4</span><span>Position</span></button>
+                <div class="step-body">
+                    <p class="say">“Please sit comfortably, face forward, and rest your hands on your lap.”</p>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-recentre">Recentre</button></div>
+                    <ul class="checks" id="g4-checks"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="4">Next</button></div>
+                </div>
+            </section>
+            <section class="step" data-step="5">
+                <button tabindex="-1" class="step-head" data-open="5"><span class="step-mark">5</span><span>Calibrate</span></button>
                 <div class="step-body">
                     <div class="sub" data-sub="reach">
                         <div class="label">Reach</div>
                         <p class="say">“Stretch one arm straight out in front of you, as far as is comfortable.”</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="reach">Calibrate reach</button></div>
-                        <ul class="checks" id="g4-reach"></ul>
+                        <ul class="checks" id="g5-reach"></ul>
                     </div>
                     <div class="sub" data-sub="height">
                         <div class="label">Height</div>
                         <p class="say">“Sit up straight and look ahead.”</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="height">Calibrate height</button></div>
-                        <ul class="checks" id="g4-height"></ul>
+                        <ul class="checks" id="g5-height"></ul>
                     </div>
                     <div class="sub" data-sub="lap">
                         <div class="label">Home</div>
                         <p class="say">“Rest both hands in your lap.”</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="lap">Calibrate home</button></div>
-                        <ul class="checks" id="g4-lap"></ul>
+                        <ul class="checks" id="g5-lap"></ul>
                     </div>
-                    <p class="g-msg" id="g4-msg"></p>
-                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="4">Next</button></div>
-                </div>
-            </section>
-            <section class="step" data-step="5">
-                <button tabindex="-1" class="step-head" data-open="5"><span class="step-mark">5</span><span>Check</span></button>
-                <div class="step-body">
-                    <div class="label">Required</div>
-                    <ul class="checks" id="g5-required"></ul>
-                    <div class="label">Recommended</div>
-                    <ul class="checks" id="g5-advisory"></ul>
-                    <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start</button></div>
                     <p class="g-msg" id="g5-msg"></p>
+                    <div class="g-actions"><button tabindex="-1" class="g-next" data-next="5">Next</button></div>
                 </div>
             </section>
             <section class="step" data-step="6">
-                <button tabindex="-1" class="step-head" data-open="6"><span class="step-mark">6</span><span>Running</span></button>
+                <button tabindex="-1" class="step-head" data-open="6"><span class="step-mark">6</span><span>Check</span></button>
                 <div class="step-body">
-                    <div class="g-big-line"><span id="g6-trial">–</span><span id="g6-phase"></span></div>
-                    <div class="bar"><div id="g6-bar"></div></div>
+                    <div class="label">Required</div>
+                    <ul class="checks" id="g6-required"></ul>
+                    <div class="label">Recommended</div>
+                    <ul class="checks" id="g6-advisory"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start run 1</button></div>
+                    <p class="g-msg" id="g6-msg"></p>
+                </div>
+            </section>
+            <section class="step" data-step="7">
+                <button tabindex="-1" class="step-head" data-open="7"><span class="step-mark">7</span><span id="g7-head">Running</span></button>
+                <div class="step-body">
+                    <div id="g7-run">
+                    <div class="g-big-line"><span id="g7-trial">–</span><span id="g7-phase"></span></div>
+                    <div class="bar"><div id="g7-bar"></div></div>
                     <div class="sum">
-                        <span>Elapsed</span><span id="g6-elapsed">–</span>
-                        <span>Remaining (est.)</span><span id="g6-eta">–</span>
-                        <span>Left hand</span><span id="g6-left">–</span>
-                        <span>Right hand</span><span id="g6-right">–</span>
+                        <span>Elapsed</span><span id="g7-elapsed">–</span>
+                        <span>Remaining (est.)</span><span id="g7-eta">–</span>
+                        <span>Left hand</span><span id="g7-left">–</span>
+                        <span>Right hand</span><span id="g7-right">–</span>
                     </div>
                     <div class="g-actions">
                         <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
@@ -236,12 +281,12 @@
                         <button tabindex="-1" id="g-save-headset">Save headset copy</button>
                     </div>
                     <div class="g-actions">
-                        <button tabindex="-1" class="g-danger" id="g-end">End session early</button>
+                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
                         <button tabindex="-1" id="g-unlock">Unlock setup</button>
                     </div>
                     <div class="g-confirm" id="g-end-confirm" hidden>
-                        <p>End session now? Headset saves files. Session cannot resume.</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end session</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
+                        <p>End run now? Run cannot resume.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end run</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
                     </div>
                     <div class="g-confirm" id="g-unlock-confirm" hidden>
                         <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
@@ -256,22 +301,48 @@
                         <div class="g-row"><div class="label">Participant ID</div><div class="g-inline"><input id="u-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-id-go">Change</button></div></div>
                         <div class="g-row"><div class="label">Calibration</div>
                             <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
-                            <ul class="checks" id="g6-calib"></ul>
+                            <ul class="checks" id="g7-calib"></ul>
                         </div>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-relock">Relock setup</button></div>
                     </div>
-                    <p class="g-msg" id="g6-msg"></p>
+                    </div>
+                    <div id="g7-between" hidden>
+                        <div class="g-big-line" id="g7-b-title">–</div>
+                        <p class="g-note" id="g7-b-next"></p>
+                        <div id="g7-b-break" hidden>
+                            <div class="label" style="margin-top:0.8rem">Break</div>
+                            <div class="g-timer" id="g7-b-timer">0:00</div>
+                        </div>
+                        <ul class="checks" id="g7-b-copy"></ul>
+                        <div id="g7-b-off" hidden>
+                            <label class="g-tick"><input type="checkbox" id="g7-b-removed"><span>Headset removed and put back on</span></label>
+                            <ul class="checks" id="g7-b-vr"></ul>
+                        </div>
+                        <ul class="checks" id="g7-b-recentred"></ul>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g7-b-recentre">Recentre</button></div>
+                        <div id="g7-b-recal" hidden>
+                            <div class="label" style="margin-top:0.9rem">Recalibrate</div>
+                            <p class="say" id="g7-b-say" hidden></p>
+                            <div class="opts" style="margin-top:0.35rem"><button tabindex="-1" data-bcalib="reach">Redo reach</button><button tabindex="-1" data-bcalib="height">Redo height</button><button tabindex="-1" data-bcalib="lap">Redo home</button></div>
+                            <ul class="checks" id="g7-b-recal-status"></ul>
+                            <div class="g-actions"><button tabindex="-1" id="g7-b-skip">Skip recalibration</button></div>
+                        </div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g7-b-start">Start next run</button></div>
+                        <div class="g-actions"><button tabindex="-1" id="g7-b-add">Add run</button><button tabindex="-1" class="g-danger" id="g7-b-finish">Finish session</button></div>
+                    </div>
+                    <p class="g-msg" id="g7-msg"></p>
                 </div>
             </section>
-            <section class="step" data-step="7">
-                <button tabindex="-1" class="step-head" data-open="7"><span class="step-mark">7</span><span>Finish</span></button>
+            <section class="step" data-step="8">
+                <button tabindex="-1" class="step-head" data-open="8"><span class="step-mark">8</span><span>Finish</span></button>
                 <div class="step-body">
-                    <div class="g-big-line" id="g7-title">–</div>
-                    <ul class="checks" id="g7-files"></ul>
+                    <div class="g-big-line" id="g8-title">–</div>
+                    <ul class="checks" id="g8-files"></ul>
                     <p class="g-note">Chrome may ask to allow multiple downloads. Choose Allow.</p>
                     <div class="g-actions"><button tabindex="-1" id="g-save-again">Save again</button></div>
-                    <div class="sum" id="g7-summary"></div>
-                    <div class="g-actions"><button tabindex="-1" id="g-new">New session</button></div>
+                    <div class="sum" id="g8-summary"></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-add-run">Add run</button><button tabindex="-1" id="g-new">New session</button></div>
+                    <p class="g-msg" id="g8-msg"></p>
                     <div class="g-confirm" id="g-new-confirm" hidden>
                         <p>Reload WebSpheres on the headset first. Then reload this page.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload this page</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
@@ -290,6 +361,7 @@
         </div>
         <div class="item" id="data-age" hidden><span class="label">Stream<button tabindex="-1" class="info" data-info="stream" aria-label="About Stream">i</button></span><span class="value" id="data-age-value"></span></div>
         <div class="item"><span class="label">Trial<button tabindex="-1" class="info" data-info="trial" aria-label="About Trial">i</button></span><span class="value" id="v-trial">–</span></div>
+        <div class="item" id="v-run-item" hidden><span class="label">Run<button tabindex="-1" class="info" data-info="run" aria-label="About Run">i</button></span><span class="value" id="v-run">–</span></div>
         <div class="item"><span class="label">Score<button tabindex="-1" class="info" data-info="score" aria-label="About Score">i</button></span><span class="value" id="v-score">–</span></div>
         <div class="item"><span class="label">Condition<button tabindex="-1" class="info" data-info="cond" aria-label="About Condition">i</button></span><span class="value" id="v-cond">–</span></div>
         <div class="item"><span class="label">Dominant<button tabindex="-1" class="info" data-info="dom" aria-label="About Dominant">i</button></span><span class="value" id="v-dom">–</span></div>
@@ -297,6 +369,7 @@
     </header>
     <main id="stage">
         <canvas id="scene"></canvas>
+        <section id="plan-builder" hidden></section>
         <section class="drawer" id="drawer-readouts">
             <div class="drawer-head"><h2>Status</h2><button tabindex="-1" data-close>Close</button></div>
             <div id="readout-rows"></div>
@@ -737,6 +810,7 @@
     }
 
     const finite = (...v) => v.every(Number.isFinite);
+    const ACTIVE_PHASES = ['running', 'pausing', 'paused'];
     const STATUS = {
         connecting: ['Connecting', 'var(--warn)'],
         connected: ['Connected', 'var(--ok)'],
@@ -747,18 +821,40 @@
     let lastFrameAt = 0;
     let lastFrame = null;
     const BACKUP_FILES = ['trials', 'kinL', 'kinR'];
-    const backup = { trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '' };
+    const backup = { run: 1, archive: [], sessionId: null, trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '' };
 
     function resetBackup() {
         BACKUP_FILES.forEach(f => { backup[f] = []; });
         backup.headers = {};
+        backup.run = 1;
+        backup.archive = [];
     }
 
     function caughtUp(s) {
-        return !!s && !!s.backup && BACKUP_FILES.every(f => backup[f].length === s.backup[f]);
+        return !!s && !!s.backup && backup.run === (s.run || 1) && BACKUP_FILES.every(f => backup[f].length === s.backup[f]);
     }
 
-    function downloadText(filename, text) {
+    function advanceBackup(s) {
+        while (s && backup.run < (s.run || 1)) {
+            const done = (s.completedRuns || []).find(r => r.run === backup.run);
+            if (!done || !BACKUP_FILES.every(f => backup[f].length === done[f])) return;
+            backup.archive.push({ run: backup.run, info: done.info, trials: backup.trials, kinL: backup.kinL, kinR: backup.kinR, headers: backup.headers });
+            BACKUP_FILES.forEach(f => { backup[f] = []; });
+            backup.run++;
+        }
+    }
+
+    function backupRows() {
+        return backup.archive.concat([backup]).reduce((n, r) => n + BACKUP_FILES.reduce((m, f) => m + r[f].length, 0), 0);
+    }
+
+    function headsetRows(s) {
+        return (s.completedRuns || []).concat([s.backup]).reduce((n, r) => n + BACKUP_FILES.reduce((m, f) => m + r[f], 0), 0);
+    }
+
+    const downloads = { queue: [], timer: null, count: 0 };
+
+    function saveFile(filename, text) {
         const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
         const a = document.createElement('a');
         a.href = url;
@@ -770,17 +866,43 @@
         setTimeout(() => URL.revokeObjectURL(url), 10000);
     }
 
+    function pumpDownloads() {
+        if (downloads.timer) return;
+        while (downloads.queue.length && downloads.count < 4) {
+            saveFile(...downloads.queue.shift());
+            downloads.count++;
+        }
+        if (downloads.count >= 4) {
+            downloads.timer = setTimeout(() => {
+                downloads.timer = null;
+                downloads.count = 0;
+                pumpDownloads();
+            }, 1000);
+        }
+    }
+
+    function downloadText(filename, text) {
+        downloads.queue.push([filename, text]);
+        pumpDownloads();
+    }
+
     function saveBackup() {
         const s = receiver.headsetState;
         if (!s) return 0;
         const final = s.phase === 'complete' && s.backup && s.backup.final && s.backup.exportTs && caughtUp(s);
         const ts = final ? s.backup.exportTs : new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const prefix = s.participantId ? s.participantId + '_' : '';
         const files = [];
-        if (backup.trials.length) files.push([`${prefix}vr-session-data-${ts}.csv`, backup.headers.trials + backup.trials.join('')]);
-        if (backup.kinL.length) files.push([`${prefix}kinematics-LEFT-${ts}.csv`, backup.headers.kinL + backup.kinL.join('')]);
-        if (backup.kinR.length) files.push([`${prefix}kinematics-RIGHT-${ts}.csv`, backup.headers.kinR + backup.kinR.join('')]);
-        if (s.phase !== 'setup' && s.info) files.push([`${prefix}session-info-${ts}.csv`, s.info]);
+        const prefixOf = (run) => run === (s.run || 1) ? s.filePrefix : (s.completedRuns.find(r => r.run === run) || {}).prefix;
+        const addRun = (r, run, info) => {
+            const prefix = prefixOf(run);
+            if (r.trials.length) files.push([`${prefix}vr-session-data-${ts}.csv`, r.headers.trials + r.trials.join('')]);
+            if (r.kinL.length) files.push([`${prefix}kinematics-LEFT-${ts}.csv`, r.headers.kinL + r.kinL.join('')]);
+            if (r.kinR.length) files.push([`${prefix}kinematics-RIGHT-${ts}.csv`, r.headers.kinR + r.kinR.join('')]);
+            if (info) files.push([`${prefix}session-info-${ts}.csv`, info]);
+        };
+        backup.archive.forEach(r => addRun(r, r.run, r.info));
+        const current = backup.run === (s.run || 1);
+        addRun(backup, backup.run, current && s.phase !== 'setup' ? s.info : '');
         files.forEach(([name, text]) => downloadText(name, text));
         backup.saved = files.length ? `${files.length} files at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}` : 'Nothing to save';
         if (final) backup.autoSavedTs = s.backup.exportTs;
@@ -906,7 +1028,7 @@
                 this.lastSeq = null;
                 this.setStatus('connected', '');
                 this.updateRecentreButton();
-                resetBackup();
+                if (!backup.sessionId) resetBackup();
                 guideOnConnect();
                 this.sendSync();
             });
@@ -1003,15 +1125,17 @@
         },
 
         sendSync: function () {
-            this.sendToHost({ type: 'sync', have: { trials: backup.trials.length, kinL: backup.kinL.length, kinR: backup.kinR.length } });
+            this.sendToHost({ type: 'sync', run: backup.run, have: { trials: backup.trials.length, kinL: backup.kinL.length, kinR: backup.kinR.length } });
         },
 
         handleRows: function (d) {
             const lines = backup[d.file];
+            if (d.run !== undefined && d.run !== backup.run) return;
             if (!BACKUP_FILES.includes(d.file) || !Array.isArray(d.lines) || typeof d.header !== 'string') return;
             if (d.from !== lines.length || !d.lines.every(l => typeof l === 'string')) return;
             for (let i = 0; i < d.lines.length; i++) lines.push(d.lines[i]);
             backup.headers[d.file] = d.header;
+            advanceBackup(this.headsetState);
             noteSync();
             if (d.lines.length) {
                 this.sendSync();
@@ -1060,7 +1184,14 @@
                 if (data.type === 'rows') this.handleRows(data);
                 if (data.type === 'cmdResult') handleCmdResult(data);
                 if (data.type === 'state') {
+                    const previous = this.headsetState;
+                    if (backup.sessionId && data.sessionId !== backup.sessionId) {
+                        if (previous && backupRows() && backup.autoSavedTs !== previous.backup.exportTs) saveBackup();
+                        resetBackup();
+                    }
+                    backup.sessionId = data.sessionId;
                     this.headsetState = data;
+                    advanceBackup(data);
                     guideOnState(data);
                     checkAutoSave();
                 }
@@ -1150,12 +1281,13 @@
 
         setStatus: function (state, detail) {
             this.status = state;
-            const [word, color] = STATUS[state];
+            const off = breakOff();
+            const [word, color] = off ? ['Break: headset off', 'var(--warn)'] : STATUS[state];
             $('conn-state').textContent = word;
             $('conn-state').style.color = color;
             $('conn-dot').style.background = color;
-            $('conn-dot').hidden = state === 'connected';
-            $('conn-detail').textContent = detail || '';
+            $('conn-dot').hidden = off || state === 'connected';
+            $('conn-detail').textContent = off ? '' : detail || '';
         },
 
         updateBars: function (data) {
@@ -1172,7 +1304,7 @@
 
     function updateStale(now) {
         const age = now - lastFrameAt;
-        const stale = lastFrameAt > 0 && age > STALE_MS;
+        const stale = lastFrameAt > 0 && age > STALE_MS && !breakOff();
         stage.classList.toggle('stale', stale);
         $('data-age').hidden = !stale;
         if (stale) {
@@ -1196,7 +1328,8 @@
         error: () => 'Connection error. Retrying. If persistent: check internet, reload page.'
     };
     const INFO = {
-        conn: (rec) => CONN_INFO[receiver.status](rec),
+        conn: (rec) => breakOff() ? 'Headset off. Link drops are normal.' : CONN_INFO[receiver.status](rec),
+        run: () => 'Current run / runs in plan.',
         stream: (rec) => '3D view out of date.' + rec,
         trial: () => 'Completed / total, this run.',
         score: () => 'Points, this run.',
@@ -1221,9 +1354,16 @@
     const roRow = ([id, label, info]) => `<div class="ro-row"><span>${label}${infoBtn(info, label)}</span><span id="r-${id}">–</span></div>`;
     const infoState = { btn: null, pinned: false };
 
+    function breakOff() {
+        const s = receiver.headsetState;
+        if (!s || s.phase !== 'between') return false;
+        const link = guide.plan.runs[s.run - 1];
+        return !!link && link.off;
+    }
+
     function recordingNote() {
         const s = receiver.headsetState;
-        return s && ['running', 'pausing', 'paused'].includes(s.phase) ? RECORDING : '';
+        return s && ACTIVE_PHASES.includes(s.phase) ? RECORDING : '';
     }
 
     function renderInfo() {
@@ -1343,13 +1483,14 @@
         setReadout('error', stats.lastError || 'none');
         const hs = receiver.headsetState;
         [['bk-trials', 'trials'], ['bk-kinl', 'kinL'], ['bk-kinr', 'kinR']].forEach(([id, f]) => {
-            const total = hs && hs.backup ? hs.backup[f] : null;
-            setReadout(id, total === null ? String(backup[f].length) : `${backup[f].length} / ${total}`, total !== null && backup[f].length < total ? 'warn' : (total !== null ? 'good' : ''));
+            const have = backup.archive.concat([backup]).reduce((n, r) => n + r[f].length, 0);
+            const total = hs && hs.backup ? (hs.completedRuns || []).concat([hs.backup]).reduce((n, r) => n + r[f], 0) : null;
+            setReadout(id, total === null ? String(have) : `${have} / ${total}`, total !== null && have < total ? 'warn' : (total !== null ? 'good' : ''));
         });
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.1.1';
+    const APP_VERSION = '2.2.0';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -1359,7 +1500,9 @@
     let cmdSeq = 0;
     const guide = {
         expanded: null, lastCurrent: null, sub: null, lastCue: undefined,
-        form: { dom: null, cond: null, mode: null }, formDirty: false, busy: false,
+        form: { dom: null }, formDirty: false, busy: false,
+        plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
+        breakShown: false, betweenRun: null, removedTick: false, recalSkipped: false,
         msg: {}, stateAt: 0, lastPhase: null, phaseChangedAt: 0, lastTrial: null, trialChangedAt: 0,
         validAt: { L: 0, R: 0 }, summaryKey: '', summary: null
     };
@@ -1368,12 +1511,12 @@
         return new Promise((resolve) => {
             const id = 'o' + (++cmdSeq);
             if (!receiver.sendToHost({ type: 'cmd', name, value, id })) {
-                resolve({ ok: false, reason: 'Not connected' });
+                resolve({ ok: false, offline: true, reason: 'Not connected' });
                 return;
             }
             const timer = setTimeout(() => {
                 pendingCmds.delete(id);
-                resolve({ ok: false, reason: 'No response from headset' });
+                resolve({ ok: false, offline: true, reason: 'No response from headset' });
             }, 4000);
             pendingCmds.set(id, (r) => {
                 clearTimeout(timer);
@@ -1431,6 +1574,11 @@
         if (s.phase !== guide.lastPhase) {
             guide.lastPhase = s.phase;
             guide.phaseChangedAt = now;
+            guide.lastCue = undefined;
+            if (s.phase === 'between' || s.phase === 'complete') {
+                $('g-end-confirm').hidden = true;
+                $('g-unlock-confirm').hidden = true;
+            }
         }
         if (s.trialCount !== guide.lastTrial) {
             guide.lastTrial = s.trialCount;
@@ -1475,9 +1623,12 @@
     }
 
     function computeSummary(s) {
-        const key = [backup.trials.length, backup.kinL.length, backup.kinR.length, s.trialCount, s.recentreCount, s.pauses, s.sessionMs].join('/');
+        const key = [backup.archive.length, backup.trials.length, backup.kinL.length, backup.kinR.length, s.trialCount, s.recentreCount, s.pauses, s.sessionMs].join('/');
         if (guide.summaryKey === key) return guide.summary;
-        const rows = backup.trials.map(l => l.trimEnd().split(','));
+        const every = backup.archive.concat([backup]);
+        const earlier = s.completedRuns || [];
+        const sumEarlier = (field) => earlier.reduce((n, r) => n + r[field], 0);
+        const rows = every.flatMap(r => r.trials).map(l => l.trimEnd().split(','));
         const hits = rows.filter(r => r[5] !== 'SKIP');
         const by = (hand) => hits.filter(r => r[3] === hand);
         const L = by('LEFT'), R = by('RIGHT');
@@ -1489,7 +1640,7 @@
         const ms = (v) => Number.isFinite(v) ? `${Math.round(v)} ms` : '–';
         guide.summaryKey = key;
         guide.summary = [
-            ['Trials completed', `${rows.length} / ${s.totalTrials}`],
+            ['Trials completed', `${rows.length} / ${s.totalTrials * (s.run || 1)}`],
             ['Left hand use', pct(L.length, hits.length)],
             ['Right hand use', pct(R.length, hits.length)],
             ['Critical hits, left', String(L.filter(r => r[5] === 'critical').length)],
@@ -1499,11 +1650,11 @@
             ['Movement time, mean', ms(mean(mt))],
             ['Movement time, median', ms(median(mt))],
             ['Skips', String(rows.length - hits.length)],
-            ['Recentres', String(s.recentreCount)],
-            ['Pauses', String(s.pauses)],
-            ['Tracking valid, left', valid(backup.kinL)],
-            ['Tracking valid, right', valid(backup.kinR)],
-            ['Session duration', mmss(s.sessionMs)]
+            ['Recentres', String(s.recentreCount + sumEarlier('recentres'))],
+            ['Pauses', String(s.pauses + sumEarlier('pauses'))],
+            ['Tracking valid, left', valid(every.flatMap(r => r.kinL))],
+            ['Tracking valid, right', valid(every.flatMap(r => r.kinR))],
+            ['Session duration', mmss(s.sessionMs + sumEarlier('ms'))]
         ];
         return guide.summary;
     }
@@ -1513,21 +1664,22 @@
         const live = receiver.isLive();
         const versionOk = !!s && s.version === APP_VERSION;
         const calib = s && s.calib;
-        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && +guide.form.cond === s.condition && guide.form.mode === s.mode && guide.form.home === s.homeMode && $('g-id').value.trim() === s.participantId && $('g-exp').value.trim() === s.experimenter));
+        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && $('g-id').value.trim() === s.participantId && $('g-exp').value.trim() === s.experimenter));
         const done = {
             1: live && versionOk,
             2: !!(s && s.participantId && s.experimenter) && formMatches,
-            3: !!(s && s.recentred),
-            4: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
-            5: !!(s && s.phase !== 'setup'),
-            6: !!(s && s.phase === 'complete')
+            3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || (s.condition === s.plan.runs[0].condition && s.mode === s.plan.mode && s.homeMode === s.plan.home)),
+            4: !!(s && s.recentred),
+            5: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
+            6: !!(s && s.phase !== 'setup'),
+            7: !!(s && s.phase === 'complete')
         };
         let current;
         if (!s) current = 1;
-        else if (s.phase === 'complete') current = 7;
-        else if (s.phase !== 'setup') current = 6;
+        else if (s.phase === 'complete') current = 8;
+        else if (s.phase !== 'setup') current = 7;
         else if (!done[1]) current = 1;
-        else current = [2, 3, 4, 5].find(n => !done[n]) || 5;
+        else current = [2, 3, 4, 5, 6].find(n => !done[n]) || 6;
         return { s, live, versionOk, done, current, formMatches };
     }
 
@@ -1540,12 +1692,15 @@
 
     function syncCue(st, open) {
         const s = st.s;
-        if (!s || !st.live || s.phase !== 'setup') return;
+        if (!s || !st.live || (s.phase !== 'setup' && s.phase !== 'between')) return;
         let cue = null;
-        if (open === 4) {
+        if (s.phase === 'between') {
+            const pending = pendingRecal(s);
+            cue = pending === 'reach' ? 'reach' : pending === 'lap' ? 'lap' : null;
+        } else if (open === 5) {
             const sub = activeSub(s);
             cue = sub === 'reach' ? 'reach' : sub === 'lap' ? 'lap' : null;
-        } else if (open === 5) cue = 'ready';
+        } else if (open === 6) cue = 'ready';
         if (cue === guide.lastCue) return;
         guide.lastCue = cue;
         sendCmd('cue', cue);
@@ -1553,7 +1708,7 @@
 
     function prefillForm(s) {
         if (guide.formDirty || !s) return;
-        guide.form = { dom: s.dominantHand, cond: String(s.condition), mode: s.mode, home: s.homeMode };
+        guide.form = { dom: s.dominantHand };
         if (document.activeElement !== $('g-id')) $('g-id').value = s.participantId || '';
         if (document.activeElement !== $('g-exp')) $('g-exp').value = s.experimenter || '';
     }
@@ -1574,7 +1729,7 @@
             sec.classList.toggle('current', n === st.current);
             sec.classList.toggle('done', !!st.done[n]);
             sec.hidden = !inSetup && n !== st.current;
-            sec.querySelector('.step-head').disabled = !(inSetup ? n <= 5 : n === st.current);
+            sec.querySelector('.step-head').disabled = !(inSetup ? n <= 6 : n === st.current);
         });
         if (open !== guide.lastOpen) {
             guide.lastOpen = open;
@@ -1583,7 +1738,17 @@
             if (sec && slot.offsetHeight) slot.scrollTop = Math.max(0, sec.offsetTop - slot.offsetTop - $('g-alert').offsetHeight);
         }
         prefillForm(s);
+        prefillPlan(s);
+        if (s && s.phase === 'between' && guide.planDirty && st.live && !guide.planSending) sendPlanLive(7);
         syncCue(st, open);
+        renderPlan(st, open, inSetup);
+        const off = breakOff();
+        if (off !== guide.breakShown) {
+            guide.breakShown = off;
+            receiver.setStatus(receiver.status, '');
+        }
+        $('v-run-item').hidden = !s || (s.plannedRuns || 1) < 2;
+        if (s && (s.plannedRuns || 1) > 1) $('v-run').textContent = `${s.run} / ${s.plannedRuns}`;
 
         setChecks('g1-checks', [
             tick3(st.live, st.live ? 'Connected' : (s ? 'Reconnecting…' : 'Searching for headset…'), !s),
@@ -1600,15 +1765,12 @@
             setChecks('g2-checks', [
                 tick3(!!s.experimenter, s.experimenter ? `Experimenter: ${s.experimenter}` : 'Experimenter: not sent'),
                 tick3(!!s.participantId, s.participantId ? `Participant ID: ${s.participantId}` : 'Participant ID: not sent'),
-                tick3(!guide.formDirty || guide.form.dom === s.dominantHand, `Dominant hand: ${HAND_LABEL[s.dominantHand] || '–'}`, true),
-                tick3(!guide.formDirty || +guide.form.cond === s.condition, `Condition: ${COND_LABEL[s.condition] || '–'}`, true),
-                tick3(!guide.formDirty || guide.form.mode === s.mode, `Mode: ${MODE_LABEL[s.mode] || s.mode}`, true),
-                tick3(!guide.formDirty || guide.form.home === s.homeMode, `Home position: ${HOME_LABEL[s.homeMode] || '–'}`, true)
+                tick3(!guide.formDirty || guide.form.dom === s.dominantHand, `Dominant hand: ${HAND_LABEL[s.dominantHand] || '–'}`, true)
             ]);
         }
 
         $('g-recentre').disabled = !st.live;
-        setChecks('g3-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
+        setChecks('g4-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
 
         const c = s && s.calib;
         const sub = activeSub(s);
@@ -1618,12 +1780,12 @@
             b.disabled = locked || !st.live || guide.busy;
             b.textContent = `${c && c[k].done ? 'Redo' : 'Calibrate'} ${CALIB_LABEL[k]}`;
         });
-        setChecks('g4-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
-        setChecks('g4-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
+        setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
+        setChecks('g5-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
         const box = handsInBox();
         const boxAt = (name, h) => ['ok', `${name} at x ${fmt(h.x, 2)}, y ${fmt(h.y, 2)}, z ${fmt(h.z, 2)} m`];
         const boxLines = c && c.lap.done ? (c.lap.left ? [boxAt('Left box', c.lap.left), boxAt('Right box', c.lap.right)] : [boxAt('Home box', c.lap.home)]) : [];
-        setChecks('g4-lap', c && c.lap.done ? [...boxLines, tick3(box.L && box.R, box.L && box.R ? 'Both hands in box now' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside box now`, true)] : [['bad', 'Not calibrated']]);
+        setChecks('g5-lap', c && c.lap.done ? [...boxLines, tick3(box.L && box.R, box.L && box.R ? 'Both hands in box now' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside box now`, true)] : [['bad', 'Not calibrated']]);
 
         const tracked = !!(lastFrame && lastFrame.leftValid && lastFrame.rightValid);
         const inSync = now - (backup.syncedAt || 0) < 3000;
@@ -1633,6 +1795,7 @@
             tick3(!!(s && s.experimenter), 'Experimenter set'),
             tick3(!!(s && s.participantId), 'Participant ID set'),
             tick3(st.done[2], 'Setup received by headset'),
+            tick3(st.done[3], 'Run plan received by headset'),
             tick3(!!(c && c.reach.done), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
             tick3(!!(c && c.lap.done), 'Home calibrated')
@@ -1642,28 +1805,33 @@
             tick3(box.L && box.R, 'Both hands in home box', true),
             tick3(inSync, 'Laptop copy up to date', true)
         ];
-        setChecks('g5-required', required);
-        setChecks('g5-advisory', advisory);
+        setChecks('g6-required', required);
+        setChecks('g6-advisory', advisory);
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
         $('g-start').disabled = !reqOk || guide.busy || !inSetup;
-        $('g-start').textContent = reqOk && !advOk ? 'Start anyway' : 'Start';
+        $('g-start').textContent = reqOk && !advOk ? 'Start run 1 anyway' : 'Start run 1';
         $('g-start').classList.toggle('amber', reqOk && !advOk);
 
         if (s && s.phase !== 'setup') {
+            const between = s.phase === 'between';
+            $('g7-run').hidden = between;
+            $('g7-between').hidden = !between;
+            $('g7-head').textContent = between ? 'Between runs' : 'Running';
+            if (between) renderBetween(st, now);
             const total = s.totalTrials || 1;
-            $('g6-trial').textContent = `Trial ${s.trialCount} / ${s.totalTrials}`;
-            $('g6-phase').textContent = s.phase === 'pausing' ? 'Pausing after this trial…' : s.phase === 'paused' ? 'Paused' : '';
-            $('g6-bar').style.width = Math.min(100, 100 * s.trialCount / total) + '%';
+            $('g7-trial').textContent = `Trial ${s.trialCount} / ${s.totalTrials}`;
+            $('g7-phase').textContent = s.phase === 'pausing' ? 'Pausing after this trial…' : s.phase === 'paused' ? 'Paused' : '';
+            $('g7-bar').style.width = Math.min(100, 100 * s.trialCount / total) + '%';
             const elapsed = s.sessionMs + (s.phase === 'complete' ? 0 : now - guide.stateAt);
-            $('g6-elapsed').textContent = mmss(elapsed);
-            $('g6-eta').textContent = s.trialCount > 0 && s.phase !== 'complete' ? mmss(elapsed / s.trialCount * (s.totalTrials - s.trialCount)) : '–';
+            $('g7-elapsed').textContent = mmss(elapsed);
+            $('g7-eta').textContent = s.trialCount > 0 && s.phase !== 'complete' ? mmss(elapsed / s.trialCount * (s.totalTrials - s.trialCount)) : '–';
             const use = handUse();
-            $('g6-left').textContent = use.n ? `${use.L} (${Math.round(100 * use.L / use.n)}%)` : '0';
-            $('g6-right').textContent = use.n ? `${use.R} (${Math.round(100 * use.R / use.n)}%)` : '0';
+            $('g7-left').textContent = use.n ? `${use.L} (${Math.round(100 * use.L / use.n)}%)` : '0';
+            $('g7-right').textContent = use.n ? `${use.R} (${Math.round(100 * use.R / use.n)}%)` : '0';
             const pb = $('g-pause');
             pb.textContent = s.phase === 'pausing' ? 'Cancel pause' : s.phase === 'paused' ? 'Resume' : 'Pause';
-            const activeRun = ['running', 'pausing', 'paused'].includes(s.phase);
+            const activeRun = ACTIVE_PHASES.includes(s.phase);
             pb.disabled = !st.live || !activeRun;
             $('g-skip').disabled = !st.live || !(s.phase === 'running' || s.phase === 'pausing');
             $('g-save-headset').disabled = !st.live;
@@ -1682,13 +1850,13 @@
                 document.querySelectorAll('[data-ucalib], #u-exp-go, #u-id-go, #g-relock').forEach(b => { b.disabled = idle; });
                 if (document.activeElement !== $('u-exp')) $('u-exp').value = s.experimenter || '';
                 if (document.activeElement !== $('u-id')) $('u-id').value = s.participantId || '';
-                setChecks('g6-calib', c ? [['ok', `Reach radius ${fmt(c.reach.radius, 2)} m`], ['ok', `Height ${fmt(c.height.height, 2)} m`], ...boxLines] : []);
+                setChecks('g7-calib', c ? [['ok', `Reach radius ${fmt(c.reach.radius, 2)} m`], ['ok', `Height ${fmt(c.height.height, 2)} m`], ...boxLines] : []);
             }
             guide.unlockedShown = unlocked;
         }
 
         const alerts = [];
-        if (s && ['running', 'pausing', 'paused'].includes(s.phase)) {
+        if (s && ACTIVE_PHASES.includes(s.phase)) {
             if (receiver.status !== 'connected') alerts.push('Link lost. Recording continues.');
             else {
                 if (s.phase !== 'paused') {
@@ -1707,13 +1875,13 @@
         if (alertEl.textContent !== alerts.join(' · ')) alertEl.textContent = alerts.join(' · ');
 
         if (s && s.phase === 'complete') {
-            $('g7-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
+            $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
             const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs);
-            setChecks('g7-files', [
-                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Laptop copy catching up (${backup.kinL.length + backup.kinR.length + backup.trials.length} / ${(s.backup.kinL + s.backup.kinR + s.backup.trials)} rows). Saves when complete.`],
-                ['ok', 'Headset copy saved']
+            setChecks('g8-files', [
+                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows). Saves when complete.`],
+                s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…']
             ]);
-            const sumEl = $('g7-summary');
+            const sumEl = $('g8-summary');
             const rows = computeSummary(s);
             const key = JSON.stringify(rows);
             if (sumEl.dataset.key !== key) {
@@ -1726,8 +1894,288 @@
                 });
             }
         }
+        if (s && s.phase === 'complete') $('g-add-run').disabled = !st.live || guide.busy || !s.backup.final;
         updateHomeBoxes();
         $('btn-guide').classList.toggle('on', $('app').classList.contains('left-open'));
+    }
+
+    const MODE_TRIALS = { standard: 352, short: 110, fmode: 44, block: 110 };
+    const SEC_PER_TRIAL = 2.6;
+
+    function prefillPlan(s) {
+        if (guide.planDirty || !s) return;
+        guide.plan = {
+            mode: s.mode,
+            home: s.homeMode || 'one-box',
+            runs: s.plan ? s.plan.runs.map(r => Object.assign({}, r)) : [{ condition: s.condition === 2 ? 2 : 1, off: false, recal: false }]
+        };
+    }
+
+    function planCard(run, i, firstOpen, between) {
+        const locked = i < firstOpen;
+        const next = between && i === firstOpen;
+        const count = guide.plan.runs.length;
+        return `<div class="run-card ${run.condition === 2 ? 'boost' : ''} ${locked ? 'done' : ''} ${next ? 'next' : ''}" ${locked ? '' : 'draggable="true"'} data-card="${i}">
+            <div class="run-top"><span class="run-name">Run ${i + 1}</span>${!locked && count > 1 ? `<button tabindex="-1" class="run-x" data-plan-remove="${i}" aria-label="Remove run ${i + 1}">✕</button>` : ''}</div>
+            <div class="run-n">${MODE_TRIALS[guide.plan.mode]}<span>trials</span></div>
+            <div class="opts">
+                <button tabindex="-1" data-plan-reward="${i}" data-v="1" class="${run.condition === 1 ? 'on' : ''}" ${locked ? 'disabled' : ''}>No boost</button>
+                <button tabindex="-1" data-plan-reward="${i}" data-v="2" class="${run.condition === 2 ? 'on' : ''}" ${locked ? 'disabled' : ''}>Boost</button>
+            </div>
+            ${locked ? '<div class="run-state">Done</div>' : next ? '<div class="run-state next">Next</div>' : ''}
+        </div>`;
+    }
+
+    function planLink(run, i, firstOpen) {
+        const locked = i < firstOpen - 1;
+        return `<div class="run-link ${run.off ? 'off' : ''}">
+            <button tabindex="-1" data-plan-link="${i}" ${locked ? 'disabled' : ''}>${run.off ? 'Headset off' : 'Headset on'}</button>
+            <label class="${run.recal ? 'on' : ''}"><input type="checkbox" data-plan-recal="${i}" ${run.recal ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Recalibrate after this run</span></label>
+        </div>`;
+    }
+
+    function renderPlan(st, open, inSetup) {
+        const s = st.s;
+        const plan = guide.plan;
+        const between = !!s && s.phase === 'between';
+        const box = $('plan-builder');
+        box.hidden = !(between || (inSetup && open === 3));
+        const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
+        const sent = st.done[3];
+        setChecks('g3-checks', [
+            tick3(sent, `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_LABEL[plan.mode]} each`, true),
+            tick3(sent, plan.runs.map(r => COND_LABEL[r.condition]).join(', '), true),
+            tick3(sent, `Home: ${HOME_LABEL[plan.home]}`, true)
+        ]);
+        $('g-plan-send').disabled = !st.live || guide.busy || !inSetup;
+        const firstOpen = between ? s.run : 0;
+        const key = JSON.stringify([plan, firstOpen, between]);
+        if (key === guide.planKey) return;
+        guide.planKey = key;
+        const parts = [];
+        plan.runs.forEach((r, i) => {
+            parts.push(planCard(r, i, firstOpen, between));
+            if (i < plan.runs.length - 1) parts.push(planLink(r, i, firstOpen));
+        });
+        parts.push(`<button tabindex="-1" class="run-add" id="plan-add">+ Add run</button>`);
+        const settings = between ? '' : `<div class="plan-settings">
+            <div><div class="label">Length of each run</div><div class="opts">${Object.keys(MODE_LABEL).map(m => `<button tabindex="-1" data-plan-mode="${m}" class="${m === plan.mode ? 'on' : ''}">${MODE_LABEL[m]}</button>`).join('')}</div></div>
+            <div><div class="label">Home position</div><div class="opts">${Object.keys(HOME_LABEL).map(h => `<button tabindex="-1" data-plan-home="${h}" class="${h === plan.home ? 'on' : ''}">${HOME_LABEL[h]}</button>`).join('')}</div></div>
+        </div>`;
+        box.innerHTML = `${settings}
+            <h3 class="plan-title">${between ? 'Plan' : 'Runs'}</h3>
+            <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'} · ${trials.toLocaleString('en-GB')} trials <span>about ${Math.round(trials * SEC_PER_TRIAL / 60)} min, plus breaks</span></div>
+            <div id="plan-strip">${parts.join('')}</div>
+            <p class="plan-hint">${between ? 'Finished runs locked. Current break and later runs can still change.' : 'Drag a card to reorder. Click a link to switch headset on or off.'}</p>`;
+    }
+
+    function pendingRecal(s) {
+        const link = guide.plan.runs[s.run - 1];
+        if (!link || !link.recal || guide.recalSkipped) return null;
+        const redone = s.recalibrated || [];
+        return ['reach', 'height', 'lap'].find(k => !redone.includes(k)) || null;
+    }
+
+    function renderBetween(st, now) {
+        const s = st.s;
+        if (guide.betweenRun !== s.run) {
+            guide.betweenRun = s.run;
+            guide.removedTick = false;
+            guide.recalSkipped = false;
+            $('g7-b-removed').checked = false;
+        }
+        const link = guide.plan.runs[s.run - 1] || {};
+        const next = guide.plan.runs[s.run];
+        const off = !!link.off;
+        const copied = caughtUp(s);
+        const recentred = s.betweenRecentres > 0;
+        const redone = s.recalibrated || [];
+        const pending = pendingRecal(s);
+        const recalDone = !pending;
+        $('g7-b-title').textContent = `Run ${s.run} of ${s.plannedRuns} done`;
+        $('g7-b-next').textContent = next ? `Next: run ${s.run + 1}, ${COND_LABEL[next.condition]}, ${MODE_LABEL[s.mode]} trials` : 'No more runs in plan';
+        $('g7-b-break').hidden = !off;
+        $('g7-b-timer').textContent = mmss(s.betweenMs + now - guide.stateAt);
+        $('g7-b-off').hidden = !off;
+        setChecks('g7-b-copy', [copied ? ['ok', 'Laptop copy complete'] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows)`]]);
+        setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? 'In VR' : 'Not in VR. Enter VR on headset.')]);
+        setChecks('g7-b-recentred', [tick3(recentred, recentred ? 'Recentred' : off ? 'Recentre required' : 'Recentre recommended', !off), ...($('recentre-note').textContent && !recentred ? [['warn', $('recentre-note').textContent]] : [])]);
+        $('g7-b-recentre').disabled = !st.live || (off && !s.inVR);
+        $('g7-b-recentre').classList.toggle('g-primary', !recentred);
+        $('g7-b-recal').hidden = !link.recal;
+        $('g7-b-say').hidden = !pending;
+        if (pending) $('g7-b-say').textContent = document.querySelector(`#guide .sub[data-sub="${pending}"] .say`).textContent;
+        setChecks('g7-b-recal-status', [tick3(recalDone, redone.length ? `Redone: ${redone.map(k => CALIB_LABEL[k]).join(', ')}` : guide.recalSkipped ? 'Skipped' : 'Not redone', true)]);
+        document.querySelectorAll('[data-bcalib], #g7-b-skip, #g7-b-finish').forEach(b => { b.disabled = !st.live || guide.busy; });
+        $('g7-b-add').disabled = guide.busy;
+        const start = $('g7-b-start');
+        start.textContent = next ? `Start run ${s.run + 1}` : 'Start next run';
+        start.disabled = !st.live || guide.busy || s.closing || !next || !recalDone || (off && !(guide.removedTick && s.inVR && recentred));
+    }
+
+    async function sendPlanSetup() {
+        const plan = guide.plan;
+        guide.busy = true;
+        setMsg(3, 'Sending…', 'busy');
+        for (const [name, value] of [['setMode', plan.mode], ['setHomeMode', plan.home], ['setCondition', plan.runs[0].condition], ['setPlan', { runs: plan.runs }]]) {
+            const r = await sendCmd(name, value);
+            if (!r.ok) {
+                guide.busy = false;
+                setMsg(3, `Headset refused: ${r.reason}`, 'bad');
+                renderGuide();
+                return;
+            }
+        }
+        guide.busy = false;
+        guide.planDirty = false;
+        setMsg(3, 'Received by headset', 'ok');
+        renderGuide();
+    }
+
+    async function sendPlanLive(step) {
+        const seq = ++guide.planSeq;
+        guide.planSending = true;
+        const r = await sendCmd('setPlan', { runs: guide.plan.runs });
+        guide.planSending = false;
+        if (seq === guide.planSeq) {
+            if (r.offline) {
+                setMsg(step, 'Plan not sent. Retries when headset returns.', 'busy');
+            } else {
+                guide.planDirty = false;
+                if (!r.ok) setMsg(step, `Headset refused: ${r.reason}`, 'bad');
+                else if (guide.msg[step] && guide.msg[step].kind === 'busy') setMsg(step, 'Plan sent', 'ok');
+            }
+        }
+        renderGuide();
+        return r;
+    }
+
+    function editPlan(change) {
+        if (guide.busy) {
+            guide.planKey = '';
+            renderGuide();
+            return;
+        }
+        change(guide.plan);
+        guide.planDirty = true;
+        renderGuide();
+    }
+
+    function moveRun(plan, from, to) {
+        const rewards = plan.runs.map(r => r.condition);
+        rewards.splice(to, 0, rewards.splice(from, 1)[0]);
+        plan.runs.forEach((r, i) => { r.condition = rewards[i]; });
+    }
+
+    function removeRun(plan, index) {
+        const s = receiver.headsetState;
+        plan.runs.splice(index, 1);
+        const last = plan.runs.length - 1;
+        if (!(s && s.phase === 'between' && last === s.run - 1)) {
+            plan.runs[last].off = false;
+            plan.runs[last].recal = false;
+        }
+    }
+
+    function newRun() {
+        const runs = guide.plan.runs;
+        return { condition: runs[runs.length - 1].condition === 2 ? 1 : 2, off: false, recal: false };
+    }
+
+    async function startNextRun() {
+        const s = receiver.headsetState;
+        const next = s && guide.plan.runs[s.run];
+        if (!next) return;
+        guide.busy = true;
+        setMsg(7, 'Sending…', 'busy');
+        guide.planSeq++;
+        let started = await sendCmd('setPlan', { runs: guide.plan.runs });
+        if (started.ok) {
+            guide.planDirty = false;
+            started = await sendCmd('setCondition', next.condition);
+        }
+        if (started.ok) started = await sendCmd('nextRun');
+        guide.busy = false;
+        setMsg(7, started.ok ? `Run ${s.run + 1} started` : `Headset refused: ${started.reason}`, started.ok ? 'ok' : 'bad');
+        renderGuide();
+    }
+
+    async function addRunAfterFinish() {
+        const runs = guide.plan.runs.concat([newRun()]);
+        guide.busy = true;
+        setMsg(8, 'Sending…', 'busy');
+        const r = await sendCmd('setPlan', { runs });
+        guide.busy = false;
+        if (!r.ok) {
+            setMsg(8, `Headset refused: ${r.reason}`, 'bad');
+            renderGuide();
+            return;
+        }
+        guide.plan.runs = runs;
+        await runGuideCmd(8, 'reopenSession', undefined, 'Run added');
+    }
+
+    function calibrateCmd(step, k) {
+        const label = CALIB_LABEL[k];
+        return runGuideCmd(step, 'calibrate', k, `${label[0].toUpperCase() + label.slice(1)} calibrated`);
+    }
+
+    function setupPlan() {
+        const box = $('plan-builder');
+        box.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            const d = b.dataset;
+            if (d.planMode) editPlan(p => { p.mode = d.planMode; });
+            else if (d.planHome) editPlan(p => { p.home = d.planHome; });
+            else if (d.planReward !== undefined) editPlan(p => { p.runs[+d.planReward].condition = +d.v; });
+            else if (d.planLink !== undefined) editPlan(p => { const r = p.runs[+d.planLink]; r.off = !r.off; });
+            else if (d.planRemove !== undefined) editPlan(p => removeRun(p, +d.planRemove));
+            else if (b.id === 'plan-add') editPlan(p => { p.runs.push(newRun()); });
+        });
+        box.addEventListener('change', (e) => {
+            const d = e.target.dataset;
+            if (d.planRecal !== undefined) {
+                e.target.blur();
+                editPlan(p => { p.runs[+d.planRecal].recal = e.target.checked; });
+            }
+        });
+        box.addEventListener('dragstart', (e) => {
+            const c = e.target.closest('[data-card]');
+            if (!c) return;
+            guide.dragFrom = +c.dataset.card;
+            c.classList.add('drag');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        box.addEventListener('dragover', (e) => {
+            const c = e.target.closest('[data-card]');
+            if (!c || c.classList.contains('done') || guide.dragFrom === null) return;
+            e.preventDefault();
+            box.querySelectorAll('.run-card.over').forEach(x => x.classList.remove('over'));
+            c.classList.add('over');
+        });
+        box.addEventListener('drop', (e) => {
+            const c = e.target.closest('[data-card]');
+            if (!c || c.classList.contains('done') || guide.dragFrom === null) return;
+            e.preventDefault();
+            const from = guide.dragFrom;
+            const to = +c.dataset.card;
+            guide.dragFrom = null;
+            editPlan(p => moveRun(p, from, to));
+        });
+        box.addEventListener('dragend', () => {
+            guide.dragFrom = null;
+            box.querySelectorAll('.run-card.drag, .run-card.over').forEach(x => x.classList.remove('drag', 'over'));
+        });
+        $('g-plan-send').addEventListener('click', sendPlanSetup);
+        $('g7-b-removed').addEventListener('change', (e) => { e.target.blur(); guide.removedTick = e.target.checked; renderGuide(); });
+        $('g7-b-recentre').addEventListener('click', () => receiver.requestRecentre());
+        document.querySelectorAll('[data-bcalib]').forEach(b => b.addEventListener('click', () => calibrateCmd(7, b.dataset.bcalib)));
+        $('g7-b-skip').addEventListener('click', () => { guide.recalSkipped = true; renderGuide(); });
+        $('g7-b-start').addEventListener('click', startNextRun);
+        $('g7-b-add').addEventListener('click', () => editPlan(p => { p.runs.push(newRun()); }));
+        $('g7-b-finish').addEventListener('click', () => runGuideCmd(7, 'finishSession', undefined, 'Session finished'));
+        $('g-add-run').addEventListener('click', addRunAfterFinish);
     }
 
     async function runGuideCmd(step, name, value, okText) {
@@ -1743,15 +2191,15 @@
     async function confirmSetup() {
         const exp = $('g-exp').value.trim();
         if (!exp) { setMsg(2, 'Enter experimenter name', 'bad'); return; }
-        if (exp.includes(',')) { setMsg(2, 'Experimenter name: no commas (breaks the CSV)', 'bad'); return; }
+        if (/[,"]/.test(exp)) { setMsg(2, 'Experimenter name: no commas or quotes (breaks the CSV)', 'bad'); return; }
         const id = $('g-id').value.trim();
         if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID: 1–32 letters, digits, _ or -', 'bad'); return; }
         if (/left|right/i.test(id)) { setMsg(2, 'Participant ID: no "left" or "right". 3D viewer reads those words in filenames.', 'bad'); return; }
         const f = guide.form;
-        if (!f.dom || !f.cond || !f.mode || !f.home) { setMsg(2, 'Choose dominant hand, condition, mode, home position', 'bad'); return; }
+        if (!f.dom) { setMsg(2, 'Choose dominant hand', 'bad'); return; }
         guide.busy = true;
         setMsg(2, 'Sending…', 'busy');
-        for (const [name, value] of [['setDominant', f.dom], ['setCondition', +f.cond], ['setMode', f.mode], ['setHomeMode', f.home], ['setExperimenter', exp], ['setParticipant', id]]) {
+        for (const [name, value] of [['setDominant', f.dom], ['setExperimenter', exp], ['setParticipant', id]]) {
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
@@ -1780,7 +2228,7 @@
             e.stopPropagation();
             const k = b.dataset.calib;
             guide.sub = k;
-            runGuideCmd(4, 'calibrate', k, `${CALIB_LABEL[k][0].toUpperCase() + CALIB_LABEL[k].slice(1)} calibrated`).then(r => {
+            calibrateCmd(5, k).then(r => {
                 if (r.ok) {
                     const order = ['reach', 'height', 'lap'];
                     const next = order[order.indexOf(k) + 1];
@@ -1789,35 +2237,32 @@
                 }
             });
         }));
-        $('g-start').addEventListener('click', () => runGuideCmd(5, 'start', undefined, 'Started'));
+        $('g-start').addEventListener('click', () => runGuideCmd(6, 'start', undefined, 'Started'));
         $('g-pause').addEventListener('click', () => {
             const s = receiver.headsetState;
             if (!s) return;
-            if (s.phase === 'running') runGuideCmd(6, 'pause', undefined, 'Pause requested');
-            else runGuideCmd(6, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
+            if (s.phase === 'running') runGuideCmd(7, 'pause', undefined, 'Pause requested');
+            else runGuideCmd(7, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
         });
-        $('g-skip').addEventListener('click', () => runGuideCmd(6, 'skip', undefined, 'Target skipped'));
-        $('g-save-headset').addEventListener('click', () => runGuideCmd(6, 'saveOnHeadset', undefined, 'Headset copy saved'));
+        $('g-skip').addEventListener('click', () => runGuideCmd(7, 'skip', undefined, 'Target skipped'));
+        $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, 'Headset copy saved'));
         $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
         $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
-        $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(6, 'endEarly', undefined, 'Session ended'); });
+        $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(7, 'endEarly', undefined, 'Run ended'); });
         $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
         $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
-        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(6, 'unlockSetup', undefined, 'Unlocked. Relocks on resume.'); });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Unlocked. Relocks on resume.'); });
         document.querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
             const condition = b.dataset.u === 'setCondition';
-            runGuideCmd(6, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, condition ? 'Condition changed' : 'Dominant hand changed');
+            runGuideCmd(7, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, condition ? 'Condition changed' : 'Dominant hand changed');
         }));
-        document.querySelectorAll('[data-ucalib]').forEach(b => b.addEventListener('click', () => {
-            const label = CALIB_LABEL[b.dataset.ucalib];
-            runGuideCmd(6, 'calibrate', b.dataset.ucalib, `${label[0].toUpperCase() + label.slice(1)} calibrated`);
-        }));
+        document.querySelectorAll('[data-ucalib]').forEach(b => b.addEventListener('click', () => calibrateCmd(7, b.dataset.ucalib)));
         [['u-exp', 'setExperimenter', 'Experimenter changed'], ['u-id', 'setParticipant', 'Participant ID changed']].forEach(([id, name, okText]) => {
-            const send = () => { $(id).blur(); runGuideCmd(6, name, $(id).value.trim(), okText); };
+            const send = () => { $(id).blur(); runGuideCmd(7, name, $(id).value.trim(), okText); };
             $(id + '-go').addEventListener('click', send);
             $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
         });
-        $('g-relock').addEventListener('click', () => runGuideCmd(6, 'relockSetup', undefined, 'Setup relocked'));
+        $('g-relock').addEventListener('click', () => runGuideCmd(7, 'relockSetup', undefined, 'Setup relocked'));
         $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
         $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
@@ -1866,6 +2311,7 @@
     applySettings();
     receiver.init();
     setupGuide();
+    setupPlan();
     setupInfo();
     setLeftSlot(true);
     renderGuide();

@@ -60,7 +60,7 @@ const { ok, done } = counter('KEYBOARD-ONLY BROWSER');
   const trial = dl.find(d => d.suggestedFilename().startsWith('vr-session-data-'));
   const f = path.join(OUT, trial.suggestedFilename()); await trial.saveAs(f);
   const lines = fs.readFileSync(f, 'utf8').trimEnd().split('\n');
-  ok(lines.length === 45 && lines.slice(1).every(l => l.split(',').length === 10 && l.endsWith(',')), 'trial file: 44 rows, ParticipantID column empty');
+  ok(lines.length === 45 && lines.slice(1).every(l => l.split(',').length === 11 && l.endsWith(',,1')), 'trial file: 44 rows, ParticipantID column empty');
   ok(await E(() => !window.__km.isTracking), 'kinematics stopped at the export');
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');
   await b.close();

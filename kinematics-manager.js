@@ -26,6 +26,11 @@ AFRAME.registerComponent('kinematics-manager', {
         this.isTracking = false;
     },
 
+    resetForRun: function() {
+        this.leftHandData = [];
+        this.rightHandData = [];
+    },
+
     tick: function() {
         if (!this.isTracking) return;
 
@@ -142,7 +147,7 @@ AFRAME.registerComponent('kinematics-manager', {
     exportCSV: function(timestamp) {
         const ts = timestamp || new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const dataManager = document.querySelector('#data-manager')?.components?.['data-manager'];
-        const prefix = dataManager?.participantId ? dataManager.participantId + '_' : '';
+        const prefix = dataManager?.filePrefix ? dataManager.filePrefix() : '';
 
         if (this.leftHandData.length > 0) {
             this.exportHandData(this.leftHandData, 'LEFT', ts, prefix);
@@ -154,20 +159,7 @@ AFRAME.registerComponent('kinematics-manager', {
     },
 
     exportHandData: function(rows, hand, timestamp, prefix) {
-        const blob = new Blob([this.HEADER].concat(rows), { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-
-        const filename = `${prefix}kinematics-${hand}-${timestamp}.csv`;
-
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.style.display = 'none';
-
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        URL.revokeObjectURL(url);
+        const dataManager = document.querySelector('#data-manager').components['data-manager'];
+        dataManager.download(`${prefix}kinematics-${hand}-${timestamp}.csv`, [this.HEADER].concat(rows));
     }
 });

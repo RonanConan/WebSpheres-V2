@@ -178,6 +178,14 @@ AFRAME.registerComponent('score-manager', {
         this.dashboardContainer.setAttribute('scale', '1 1 1');
     },
 
+    resetForRun: function () {
+        this.score = 0;
+        this.currentStreak = 0;
+        this.lastMilestoneReached = 0;
+        if (this.isFireMode) this.exitFireMode({ playStreakBreak: () => {} });
+        this.updateDisplay();
+    },
+
     triggerPulseAnimation: function () {
         this.scoreTextEl.removeAttribute('animation__pulse');
         this.scoreTextEl.setAttribute('animation__pulse', {

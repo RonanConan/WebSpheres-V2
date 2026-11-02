@@ -153,7 +153,7 @@ recentreNow(c3);
 dm.recordTrial(3, 'LEFT', 10, 'normal', 300);
 ok(dm.recentreCount === 1 && dm.trialData.at(-1).recentreCount === 1, 'mid-session recentre counted and stamped on trial row');
 let csv = ''; globalThis.Blob = function (parts) { csv = parts.join(''); }; globalThis.URL = { createObjectURL: () => 'u', revokeObjectURL() {} }; dm.exportCSV();
-ok(csv.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID' && csv.split('\n')[1].split(',')[8] === '1' && csv.split('\n')[1].endsWith(',1,'), 'trial CSV: original 9 columns in order (RecentreCount 9th), ParticipantID appended last (empty without ID)');
+ok(csv.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run' && csv.split('\n')[1].split(',')[8] === '1' && csv.split('\n')[1].endsWith(',1,,1'), 'trial CSV: original 9 columns in order (RecentreCount 9th), ParticipantID then Run appended last');
 ok(csv.split('\n')[0].split(',').length === csv.split('\n')[1].split(',').length, 'header/row column counts match');
 
 let cur = xr.getReferenceSpace(); sceneEl.frame.nullPose = true; recentreNow(c3);

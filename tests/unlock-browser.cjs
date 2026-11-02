@@ -86,7 +86,7 @@ const { ok, done } = counter('UNLOCK BROWSER');
   console.log('HEADSET: SESSION INFO');
   const text = await info();
   ok(text.trim().split('\n').every(l => l.split(',').length === 2), 'every session info row still has two columns');
-  ok(text.trim().split('\n').at(-1).startsWith('SetupChanges,'), 'SetupChanges is the last row');
+  ok(text.trim().split('\n').some(l => l.startsWith('SetupChanges,') && l.includes('|Condition|')), 'SetupChanges row holds the log');
   ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
 
   console.log('OBSERVER: PANEL');
@@ -106,11 +106,11 @@ const { ok, done } = counter('UNLOCK BROWSER');
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const tick = (ms) => o.clock.runFor(ms || 300);
-  const STATE = { type: 'state', version: '2.1.1', phase: 'running', endReason: '', participantId: 'P01', experimenter: 'Jo Smith', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.2.0', phase: 'running', endReason: '', participantId: 'P01', experimenter: 'Jo Smith', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const state = async (over) => { await O((s) => window.__c.emit('data', JSON.stringify(s)), Object.assign({}, STATE, over)); await tick(); };
   const shown = (id) => O((i) => document.getElementById(i).checkVisibility(), id);
   const sent = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue').map(m => m.value === undefined ? m.name : `${m.name}:${m.value}`));
-  const msg = () => O(() => document.getElementById('g6-msg').textContent);
+  const msg = () => O(() => document.getElementById('g7-msg').textContent);
 
   await state({});
   ok(!(await shown('g-unlocked')) && await shown('g-unlock'), 'locked: panel hidden, Unlock setup shown');
@@ -119,7 +119,7 @@ const { ok, done } = counter('UNLOCK BROWSER');
   ok(await O(() => document.querySelector('[data-u="setDominant"][data-v="LEFT"]').classList.contains('on') && document.querySelector('[data-u="setCondition"][data-v="1"]').classList.contains('on')), 'current hand and condition highlighted');
   ok(await O(() => document.getElementById('u-exp').value === 'Jo Smith' && document.getElementById('u-id').value === 'P01'), 'current experimenter and ID filled in');
   ok(await O(() => !document.querySelector('#g-unlocked [data-g="mode"]') && !document.querySelector('#g-unlocked').textContent.includes('352')), 'no mode buttons in the panel');
-  const calib = await O(() => [...document.querySelectorAll('#g6-calib li')].map(li => li.children[1].textContent));
+  const calib = await O(() => [...document.querySelectorAll('#g7-calib li')].map(li => li.children[1].textContent));
   ok(calib.join('|') === 'Reach radius 0.48 m|Height 1.00 m|Home box at x 0.00, y 0.90, z -0.40 m', 'calibration values listed');
 
   await o.click('[data-u="setDominant"][data-v="RIGHT"]'); await tick(50);
@@ -144,7 +144,7 @@ const { ok, done } = counter('UNLOCK BROWSER');
   ok(!(await shown('g-unlocked')) && await shown('g-unlock'), 'relocked: panel hidden again');
 
   await state({ setupLocked: false, homeMode: 'per-hand', calib: Object.assign({}, STATE.calib, { lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 }, left: { x: -0.2, y: 0.9, z: -0.4 }, right: { x: 0.2, y: 0.9, z: -0.4 } } }) });
-  const calib2 = await O(() => [...document.querySelectorAll('#g6-calib li')].map(li => li.children[1].textContent));
+  const calib2 = await O(() => [...document.querySelectorAll('#g7-calib li')].map(li => li.children[1].textContent));
   ok(calib2.includes('Left box at x -0.20, y 0.90, z -0.40 m') && calib2.includes('Right box at x 0.20, y 0.90, z -0.40 m'), 'per-hand: both boxes listed');
 
   await state({ phase: 'complete', endReason: 'finished', setupLocked: true, backup: { trials: 0, kinL: 0, kinR: 0, final: true, exportTs: 'x' } });

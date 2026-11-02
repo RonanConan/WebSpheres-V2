@@ -3,7 +3,7 @@ const { serve, launch } = require('./harness.cjs');
 const OUT = process.argv[2] || path.join(os.tmpdir(), 'webspheres-guide-shots');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const BASE = {
-  type: 'state', version: '2.1.1', phase: 'setup', endReason: '', participantId: '', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.2.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'G05_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -34,13 +34,17 @@ const kin = Array.from({ length: 300 }, (_, i) => `${i * 11},0.1,1,-0.3,0,0.9,-0
     const fr = (o) => p.evaluate((f) => window.__c.emit('data', JSON.stringify(f)), Object.assign({}, FRAME, o || {}));
     await st({ version: '1.9.0' }); await fr();
     await shot('1-version-mismatch');
-    await st({ version: '2.1.1' }); await fr();
+    await st({ version: '2.2.0' }); await fr();
     await p.fill('#g-exp', 'Jo Smith');
     await p.fill('#g-id', 'G05');
-    await p.click('[data-g="dom"][data-v="RIGHT"]'); await p.click('[data-g="cond"][data-v="2"]'); await p.click('[data-g="mode"][data-v="fmode"]');
+    await p.click('[data-g="dom"][data-v="RIGHT"]'); 
     await shot('2-participant');
     await p.click('#g-confirm'); await sleep(100);
-    await st({ experimenter: 'Jo Smith', participantId: 'G05', dominantHand: 'RIGHT', condition: 2, mode: 'fmode', totalTrials: 44 }); await fr();
+    await st({ experimenter: 'Jo Smith', participantId: 'G05', dominantHand: 'RIGHT' }); await fr();
+    await p.click('[data-plan-mode="fmode"]'); await p.click('#plan-add'); await p.click('[data-plan-link="0"]');
+    await shot('3-run-plan');
+    await p.click('#g-plan-send'); await sleep(100);
+    await st({ condition: 2, mode: 'fmode', totalTrials: 44, plannedRuns: 2, run: 1, plan: { mode: 'fmode', home: 'one-box', runs: [{ condition: 2, off: true, recal: false }, { condition: 1, off: false, recal: false }] } }); await fr();
     await shot('3-position');
     await st({ recentred: true, calib: Object.assign({}, S.calib, { reach: { done: true, hand: 'RIGHT', distance: 0.62, radius: 0.496 } }) }); await fr();
     await p.evaluate(() => { window.__obs.guide.sub = 'height'; });
@@ -48,7 +52,7 @@ const kin = Array.from({ length: 300 }, (_, i) => `${i * 11},0.1,1,-0.3,0,0.9,-0
     await st({ calib: { reach: S.calib.reach, height: { done: true, height: 0.98 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } } }); await fr({ leftValid: false, left: null });
     await shot('5-check');
     await st({ phase: 'running', setupLocked: true, trialCount: 18, sessionMs: 75000, backup: { trials: 18, kinL: 300, kinR: 300, final: false, exportTs: '' } });
-    await p.evaluate(([t, k]) => { const c = window.__c; const th = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID\n'; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: th, lines: t })); ['kinL', 'kinR'].forEach(f => c.emit('data', JSON.stringify({ type: 'rows', file: f, from: 0, header: 'Timestamp\n', lines: k }))); }, [trials, kin]);
+    await p.evaluate(([t, k]) => { const c = window.__c; const th = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run\n'; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: th, lines: t })); ['kinL', 'kinR'].forEach(f => c.emit('data', JSON.stringify({ type: 'rows', file: f, from: 0, header: 'Timestamp\n', lines: k }))); }, [trials, kin]);
     for (let i = 0; i < 9; i++) { await fr({ leftValid: false, left: null, trialCount: 18 }); await sleep(450); }
     await shot('6-running-alert');
     await st({ phase: 'complete', endReason: 'finished', trialCount: 18, sessionMs: 80000, recentreCount: 1, pauses: 1, backup: { trials: 18, kinL: 300, kinR: 300, final: true, exportTs: '2026-10-22T13-30-00' }, info: 'Key,Value\n' });
