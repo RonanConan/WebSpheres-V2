@@ -19,7 +19,10 @@ const connectObserver = async (o) => {
   await o.waitForFunction(() => window.__peers && window.__peers.length > 0 && window.__obs);
   await o.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); c.open = true; c.emit('open'); });
 };
-const read = async (d, dir) => { const f = path.join(dir, d.suggestedFilename()); await d.saveAs(f); return { name: d.suggestedFilename(), text: fs.readFileSync(f, 'utf8') }; };
+const { openDownload } = require('./unzip.cjs');
+const read = (d, dir) => openDownload(d, dir);
+const readEverything = async (list, dir) => (await Promise.all(list.map(d => read(d, dir)))).flat();
+const readAll = async (list, dir) => (await readEverything(list, dir)).filter(f => !f.name.includes('notes-'));
 
 (async () => {
   const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-backup-'));
@@ -106,7 +109,7 @@ const read = async (d, dir) => { const f = path.join(dir, d.suggestedFilename())
   const partialFrom = o.dl.length;
   await o.evaluate(() => document.getElementById('save-backup').click());
   await sleep(800);
-  const partial = await Promise.all(o.dl.slice(partialFrom).map(d => read(d, OUT)));
+  const partial = await readAll(o.dl.slice(partialFrom), OUT);
   ok(partial.length === 4 && partial.every(f => f.name.startsWith('B12_')), 'Save files to laptop mid-session: 4 partial files (' + partial.map(f => f.name).join(', ') + ')');
 
   console.log(' finish');
@@ -116,18 +119,19 @@ const read = async (d, dir) => { const f = path.join(dir, d.suggestedFilename())
   await host.waitForFunction(() => window.__km.isTracking === false, null, { timeout: 5000 });
   const fs0 = Date.now();
   while (Date.now() - fs0 < 20000) {
-    const n = o.dl.filter(d => !partial.some(p => p.name === d.suggestedFilename())).length;
-    if (n - partialFrom >= 0 && o.dl.length >= partialFrom + 8) break;
+    if (o.dl.length >= partialFrom + 2) break;
     await sleep(200);
   }
   await sleep(1500);
-  const obsFinal = await Promise.all(o.dl.slice(partialFrom + 4).map(d => read(d, OUT)));
+  const obsFinal = await readAll(o.dl.slice(partialFrom + 1), OUT);
   const exportTs = await H(() => window.__dm.lastExportTimestamp);
-  const hostFiles = await Promise.all(host.dl.filter(d => d.suggestedFilename().includes(exportTs)).map(d => read(d, OUT)));
+  const hostFiles = await readAll(host.dl.filter(d => d.suggestedFilename().includes(exportTs)), OUT);
   ok(hostFiles.length === 4, 'headset saved its own 4 files (' + hostFiles.map(f => f.name).join(', ') + ')');
   ok(obsFinal.length === 4, 'laptop auto-saved exactly once on completion (' + obsFinal.map(f => f.name).join(', ') + ')');
   const byName = Object.fromEntries(obsFinal.map(f => [f.name, f.text]));
   ok(hostFiles.every(f => f.name in byName), 'laptop filenames match the headset\'s exactly');
+  const notesOf = async (list) => (await readEverything(list, OUT)).filter(f => f.name.includes('notes-')).map(f => f.name + f.text).join();
+  ok(await notesOf(o.dl.slice(partialFrom + 1)) === await notesOf(host.dl.filter(d => d.suggestedFilename().includes(exportTs))), 'notes file identical on both devices');
   for (const f of hostFiles) {
     const same = byName[f.name] === f.text;
     ok(same, `${f.name}: byte-identical (${f.text.length} bytes${same ? '' : ', laptop ' + (byName[f.name] || '').length})`);
@@ -137,7 +141,7 @@ const read = async (d, dir) => { const f = path.join(dir, d.suggestedFilename())
   ok(partial.every(pf => { const full = hostFiles.find(h => h.name.replace(/-\d{4}-\d\d-\d\dT[\d-]+\.csv$/, '') === pf.name.replace(/-\d{4}-\d\d-\d\dT[\d-]+\.csv$/, '')); return pf.name.includes('session-info') || (full && full.text.startsWith(pf.text)); }), 'mid-session partial files are exact prefixes of the final files');
   ok(chaos.dropped > 3 && chaos.dup > 3 && chaos.reordered > 3, `chaos actually applied: ${chaos.rows} batches, ${chaos.dropped} dropped, ${chaos.dup} duplicated, ${chaos.reordered} reordered`);
   await sleep(2500);
-  ok(o.dl.length === partialFrom + 8, 'no second auto-save');
+  ok(o.dl.length === partialFrom + 2, 'no second auto-save');
 
   console.log(' headset cost');
   const at = await H(() => window.__syncAt);

@@ -89,7 +89,7 @@ const LABELS = {
   await status('error', 'Connection error. Retrying. If persistent: check internet, reload page.');
 
   await E(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
-  await peer({ type: 'state', version: '2.2.0', phase: 'running', participantId: 'P1', experimenter: 'Jo', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+  await peer({ type: 'state', version: '2.5.0', phase: 'running', participantId: 'P1', experimenter: 'Jo', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await tick(50);
   await status('connected', 'Live data arriving.');
   ok(await E(() => document.getElementById('conn-dot').offsetParent === null), 'no dot when connected');
@@ -122,7 +122,7 @@ const LABELS = {
   await tick(260);
   h = await health();
   ok(h.text === 'Down: No live data. Recording continues.' && h.cls === 'bad', `Down (${h.text})`);
-  await peer({ type: 'state', version: '2.2.0', phase: 'setup', participantId: '', experimenter: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false, calib: null, recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+  await peer({ type: 'state', version: '2.5.0', phase: 'setup', participantId: '', experimenter: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false, calib: null, recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await E(() => window.__obs.receiver.setStatus('reconnecting', ''));
   await tick(260);
   h = await health();

@@ -1,6 +1,7 @@
 const fs = require('fs'), os = require('os'), path = require('path');
 const { launch, serve, counter } = require('./harness.cjs');
 const { openHost } = require('./host-page.cjs');
+const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('GUIDED E2E BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -111,18 +112,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await waitStep(8, 10000);
   await waitCue('All done - thank you!');
   ok((await o.evaluate(() => document.getElementById('g8-title').textContent)) === 'Session complete', 'finish: step 7 "Session complete", headset shows "All done - thank you!"');
-  await o.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Saved to laptop: 4 files'), null, { timeout: 15000 });
+  await o.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Saved to laptop:'), null, { timeout: 15000 });
   const exportTs = await H(() => window.__dm.lastExportTimestamp);
   const lap = odl.map(d => d.suggestedFilename());
-  ok(lap.length === 4 && lap.every(n => n.startsWith('G05_') && n.includes(exportTs)), 'laptop auto-saved 4 files with the headset\'s names (' + lap.join(', ') + ')');
-  const hostFiles = host.dl.filter(d => d.suggestedFilename().includes(exportTs));
-  let same = hostFiles.length === 4;
-  for (const d of hostFiles) {
-    const hf = path.join(OUT, 'h-' + d.suggestedFilename()); await d.saveAs(hf);
-    const od = odl.find(x => x.suggestedFilename() === d.suggestedFilename());
-    const of = path.join(OUT, 'o-' + d.suggestedFilename()); await od.saveAs(of);
-    if (fs.readFileSync(hf, 'utf8') !== fs.readFileSync(of, 'utf8')) same = false;
-  }
+  ok(lap.length === 1 && lap[0] === `G05_${exportTs}.zip`, 'laptop auto-saved one zip, named like the headset\'s (' + lap.join(', ') + ')');
+  const hostZip = host.dl.find(d => d.suggestedFilename() === lap[0]);
+  const hostFiles = hostZip ? await openDownload(hostZip, OUT) : [];
+  const lapFiles = await openDownload(odl[0], OUT);
+  const same = hostFiles.filter(f => f.path.startsWith('run1/')).length === 4 && hostFiles.length === lapFiles.length && hostFiles.every(f => lapFiles.some(x => x.path === f.path && x.text === f.text));
   ok(same, 'laptop files byte-identical to the headset\'s');
   const sum = await o.evaluate(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const r = {}; for (let i = 0; i < s.length; i += 2) r[s[i]] = s[i + 1]; return r; });
   ok(sum['Trials completed'] === '44 / 44' && sum['Pauses'] === '1' && +sum['Skips'] >= 1, `summary: ${sum['Trials completed']} trials, ${sum['Skips']} skips, ${sum['Pauses']} pause`);

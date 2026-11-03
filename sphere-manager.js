@@ -431,6 +431,12 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'setPlan':
                 return this.setPlan(value);
+            case 'resumeAt':
+                if (phase !== 'setup') return { ok: false, reason: 'Resume only before start' };
+                if (!Number.isInteger(value) || value < 2 || value > dataManager.plannedRuns()) return { ok: false, reason: 'Resume: no such run in plan' };
+                dataManager.runNumber = value;
+                dataManager.breakBefore = 'headset-reload';
+                return { ok: true };
             case 'nextRun':
                 if (phase !== 'between') return { ok: false, reason: 'Next run only between runs' };
                 if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
@@ -495,7 +501,9 @@ AFRAME.registerComponent('sphere-manager', {
         if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'Plan: 1-20 runs' };
         if (runs.length < dataManager.runNumber) return { ok: false, reason: 'Plan: cannot remove finished runs' };
         if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Plan: reward must be 1 or 2' };
-        dataManager.plan = { mode: this.mode, home: this.homeMode, runs: runs.map(r => ({ condition: r.condition, off: !!r.off, recal: !!r.recal })) };
+        const charts = Array.isArray(value.charts) ? value.charts.filter(c => typeof c === 'string').slice(0, 20) : [];
+        dataManager.plan = { mode: this.mode, home: this.homeMode, charts, runs: runs.map(r => ({ condition: r.condition, off: !!r.off, recal: !!r.recal })) };
+        if (this.phase === 'between' && !dataManager.runClosing) dataManager.saveForBreak();
         return { ok: true };
     },
 

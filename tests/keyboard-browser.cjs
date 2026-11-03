@@ -1,5 +1,6 @@
 const fs = require('fs'), os = require('os'), path = require('path');
 const { serve, launch, counter } = require('./harness.cjs');
+const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('KEYBOARD-ONLY BROWSER');
 
 (async () => {
@@ -55,11 +56,11 @@ const { ok, done } = counter('KEYBOARD-ONLY BROWSER');
   }
   ok(await E(() => window.__sm.phase === 'complete' && window.__sm.endReason === 'finished' && window.__dm.trialNumber === 44), 'session runs to the end (44 trials) on the keyboard alone');
   await p.waitForTimeout(1600);
-  const names = dl.map(d => d.suggestedFilename());
-  ok(names.length === 4 && ['vr-session-data-', 'kinematics-LEFT-', 'kinematics-RIGHT-', 'session-info-'].every(pre => names.some(n => n.startsWith(pre))), 'automatic export: 4 files, current names (no ID) (' + names.join(', ') + ')');
-  const trial = dl.find(d => d.suggestedFilename().startsWith('vr-session-data-'));
-  const f = path.join(OUT, trial.suggestedFilename()); await trial.saveAs(f);
-  const lines = fs.readFileSync(f, 'utf8').trimEnd().split('\n');
+  const zip = dl.map(d => d.suggestedFilename());
+  ok(zip.length === 1 && /^session-[\dT-]+\.zip$/.test(zip[0]), 'automatic export: one zip, no ID in its name (' + zip.join(', ') + ')');
+  const files = await openDownload(dl[0], OUT);
+  ok(files.length === 4 && ['vr-session-data-', 'kinematics-LEFT-', 'kinematics-RIGHT-', 'session-info-'].every(pre => files.some(x => x.path.startsWith('run1/' + pre))), 'zip holds 4 files, current names (no ID)');
+  const lines = files.find(x => x.name.startsWith('vr-session-data-')).text.trimEnd().split('\n');
   ok(lines.length === 45 && lines.slice(1).every(l => l.split(',').length === 11 && l.endsWith(',,1')), 'trial file: 44 rows, ParticipantID column empty');
   ok(await E(() => !window.__km.isTracking), 'kinematics stopped at the export');
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');

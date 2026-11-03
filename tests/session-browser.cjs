@@ -13,7 +13,7 @@ const { ok, done } = counter('SESSION BROWSER');
 
   console.log('SETUP PHASE');
   let s = await state();
-  ok(s && s.version === '2.2.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
+  ok(s && s.version === '2.5.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
   ok(s.calib && !s.calib.reach.done && !s.calib.height.done && !s.calib.lap.done && s.backup && s.backup.trials === 0, 'state carries calibration and backup counts');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
@@ -188,7 +188,7 @@ const { ok, done } = counter('SESSION BROWSER');
   s = await state();
   ok(s.phase === 'complete' && s.endReason === 'finished' && s.trialCount === 44, 'session ends at totalTrials (44 in F-mode) with "finished"');
   await p.waitForTimeout(1400);
-  ok(p.downloads.length === 4 && ['vr-session-data-', 'kinematics-LEFT-', 'kinematics-RIGHT-', 'session-info-'].every(pre => p.downloads.some(f => f.startsWith('P01_' + pre))), 'automatic export ran: trial, KL, KR and session info (' + p.downloads.join(', ') + ')');
+  ok(p.downloads.length === 1 && /^P01_[\dT-]+\.zip$/.test(p.downloads[0]), 'automatic export ran: one zip (' + p.downloads.join() + ')');
   const kinN = await E(() => window.__km.leftHandData.length);
   await p.waitForTimeout(300);
   ok(await E((n) => !window.__km.isTracking && window.__km.leftHandData.length === n, kinN), 'kinematics stop recording at the export');
@@ -201,7 +201,7 @@ const { ok, done } = counter('SESSION BROWSER');
   const nd = p.downloads.length;
   r = await cmd('saveOnHeadset');
   await p.waitForTimeout(500);
-  ok(r.result.ok && p.downloads.length === nd + 4, 'S / saveOnHeadset still exports after completion (4 files)');
+  ok(r.result.ok && p.downloads.length === nd + 1, 'S / saveOnHeadset still exports after completion (one zip)');
   ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
   await ctx.close();
 
@@ -222,7 +222,7 @@ const { ok, done } = counter('SESSION BROWSER');
   ok(r.result.ok && r.next.phase === 'complete' && r.next.endReason === 'ended-early', 'endEarly works while pausing → complete, "ended-early"');
   ok(await E2((n) => window.__dm.trialNumber === n && window.__sm.allSpheres.every(s => !s.getAttribute('visible')) && window.__sm.activeSphere === null, n0), 'visible target hidden, unfinished trial not recorded');
   await p.waitForTimeout(1400);
-  ok(p.downloads.length === 4 && await E2(() => !window.__km.isTracking), 'normal headset export ran (4 files incl. session info), kinematics stopped');
+  ok(p.downloads.length === 1 && await E2(() => !window.__km.isTracking), 'normal headset export ran (one zip), kinematics stopped');
   await ctx.close();
 
   ({ ctx, p } = await openHost(b));

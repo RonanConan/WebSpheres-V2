@@ -1,6 +1,7 @@
 const fs = require('fs'), os = require('os'), path = require('path');
 const { launch, serve, counter } = require('./harness.cjs');
 const { openHost } = require('./host-page.cjs');
+const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('RUNS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const PLAN2 = { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: true, recal: true }] };
@@ -82,14 +83,15 @@ async function headsetSuite(b) {
   s = await state();
   ok(s.phase === 'complete', 'last planned run ends the session');
   await p.waitForFunction(() => window.__dm.lastExportTimestamp, null, { timeout: 4000, polling: 20 });
-  for (let i = 0; i < 40 && p.downloads.length < 8; i++) await sleep(100);
+  for (let i = 0; i < 40 && p.downloads.length < 1; i++) await sleep(100);
   await sleep(300);
   const ts = await E(() => window.__dm.lastExportTimestamp);
-  const want = [1, 2].flatMap(n => ['vr-session-data', 'kinematics-LEFT', 'kinematics-RIGHT', 'session-info'].map(f => `P01_run${n}_${f}-${ts}.csv`));
-  ok(want.every(n => p.downloads.includes(n)) && p.downloads.length === 8, 'final export: 4 files per run (' + p.downloads.length + ')');
-  const trial2 = fs.readFileSync(await p.dl.find(d => d.suggestedFilename().startsWith('P01_run2_vr-session-data')).path(), 'utf8').trim().split('\n');
+  const want = [1, 2].flatMap(n => ['vr-session-data', 'kinematics-LEFT', 'kinematics-RIGHT', 'session-info'].map(f => `run${n}/P01_run${n}_${f}-${ts}.csv`));
+  const finalZip = await openDownload(p.dl.at(-1), fs.mkdtempSync(path.join(os.tmpdir(), 'ws-runs-h-')));
+  ok(p.dl.length === 1 && want.every(n => finalZip.some(x => x.path === n)) && finalZip.length === 8, 'final export: one zip, 4 files per run in folders (' + finalZip.length + ')');
+  const trial2 = finalZip.find(x => x.path.startsWith('run2/P01_run2_vr-session-data')).text.trim().split('\n');
   ok(trial2[0].endsWith(',ParticipantID,Run') && trial2.length === 45 && trial2[1].split(',')[0] === '1' && trial2.slice(1).every(l => l.endsWith(',P01,2')), 'run 2 trial file: numbering restarts, Run column is 2');
-  const trial1 = fs.readFileSync(await p.dl.find(d => d.suggestedFilename().startsWith('P01_run1_vr-session-data')).path(), 'utf8').trim().split('\n');
+  const trial1 = finalZip.find(x => x.path.startsWith('run1/P01_run1_vr-session-data')).text.trim().split('\n');
   ok(trial1.length === 45 && trial1.slice(1).every(l => l.endsWith(',P01,1')), 'run 1 trial file: Run column is 1');
 
   console.log('HEADSET: ADD A RUN AFTER FINISHING');
@@ -120,7 +122,7 @@ async function earlyEndSuite(b) {
   await p.waitForFunction(() => !window.__dm.runClosing, null, { timeout: 4000 });
   const f = await cmd('finishSession');
   await sleep(800);
-  ok(f.result.ok && p.downloads.length === 3, 'Finish session saves what exists (' + p.downloads.join(', ') + ')');
+  ok(f.result.ok && p.downloads.length === 1 && p.downloads[0].endsWith('.zip'), 'Finish session saves what exists (' + p.downloads.join(', ') + ')');
   await p.context().close();
 }
 
@@ -128,14 +130,14 @@ async function syncSuite(b) {
   const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
   const o = await ctx.newPage();
   const saved = [];
-  o.on('download', d => saved.push(d.suggestedFilename()));
+  o.on('download', d => saved.push(d));
   await serve(o);
   await o.goto('https://test.local/observer.html');
   await o.waitForFunction(() => window.__peers && window.__peers.length > 0 && window.__obs);
   await o.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
-  const BASE = { type: 'state', version: '2.2.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
+  const BASE = { type: 'state', version: '2.5.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
   const stateRun2 = Object.assign({}, BASE, { run: 2, backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, completedRuns: [{ run: 1, prefix: 'P1_run1_', trials: 2, kinL: 1, kinR: 1, info: 'Key,Value\nRun,1\n', ms: 1000, recentres: 1, pauses: 0 }] });
   const rows = (run, file, from, lines) => emit({ type: 'rows', run, file, from, header: 'H\n', lines });
   const bk = () => O(() => { const k = window.__obs.backup; return { run: k.run, archived: k.archive.length, t: k.trials.length, l: k.kinL.length, r: k.kinR.length }; });
@@ -169,9 +171,10 @@ async function syncSuite(b) {
   ok(k.run === 2 && k.archived === 1 && k.t === 1, 'same headset session: nothing re-sent after a reconnect');
   await emit(Object.assign({}, BASE, { sessionId: 'B', phase: 'setup', run: 1, plan: null, plannedRuns: 1, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, completedRuns: [] }));
   k = await bk();
-  ok(k.run === 1 && k.archived === 0 && k.t === 0, 'new headset session: laptop copy starts again');
-  await sleep(1500);
-  ok(['P1_run1_vr-session-data-', 'P1_run1_session-info-', 'P1_run2_vr-session-data-'].every(pre => saved.some(n => n.startsWith(pre))), 'headset page reloaded mid-session: earlier runs saved before the reset (' + saved.length + ' files)');
+  ok(k.run === 3 && k.archived === 2 && k.t === 0, 'new headset session mid-plan: laptop keeps both runs and waits for run 3');
+  await sleep(800);
+  const zipped = saved.length ? await openDownload(saved.at(-1), fs.mkdtempSync(path.join(os.tmpdir(), 'ws-runs-s-'))) : [];
+  ok(['run1/P1_run1_vr-session-data-', 'run1/P1_run1_session-info-', 'run2/P1_run2_vr-session-data-'].every(pre => zipped.some(x => x.path.startsWith(pre))), 'headset page reloaded mid-session: earlier runs saved at once (' + zipped.length + ' files)');
   await ctx.close();
 }
 
@@ -191,7 +194,7 @@ async function offlineSuite(b) {
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const runs = [{ condition: 1, off: true, recal: false }, { condition: 2, off: false, recal: false }];
-  const STATE = { type: 'state', version: '2.2.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.5.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
   const cmds = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue'));
   const dirty = () => O(() => window.__obs.guide.planDirty);
@@ -381,6 +384,8 @@ async function guidedSuite(b) {
   await finishRun(H);
   await waitText('g7-head', 'Between runs');
   await waitText('conn-state', 'Break: headset off');
+  await waitText('g7-b-copy', 'Headset copy saved', 10000);
+  ok(host.dl.length === 1 && host.dl[0].suggestedFilename().startsWith('G06_'), 'headset saved a zip when the headset-off break began');
   ok(await shown('#g7-b-off') && await shown('#g7-b-break') && await shown('#g7-b-recal'), 'break timer, headset steps and recalibration shown');
   ok(!(await O(() => document.querySelector('[data-plan-link="1"]').disabled)), 'current break still editable');
   ok(await O(() => document.querySelector('[data-plan-link="0"]').disabled), 'earlier break locked');
@@ -424,20 +429,15 @@ async function guidedSuite(b) {
   console.log('GUIDED: FINISH');
   await finishRun(H);
   await waitStep(8, 10000);
-  await waitText('g8-files', 'Saved to laptop: 12 files', 20000);
-  for (let i = 0; i < 40 && (odl.length < 12 || host.dl.length < 12); i++) await sleep(100);
-  await sleep(500);
-  const names = odl.map(d => d.suggestedFilename());
+  await waitText('g8-files', 'Saved to laptop:', 20000);
+  for (let i = 0; i < 40 && (odl.length < 1 || host.dl.length < 2); i++) await sleep(100);
+  await sleep(300);
   const ts = await H(() => window.__dm.lastExportTimestamp);
-  ok(names.length === 12 && [1, 2, 3].every(n => names.some(x => x === `G06_run${n}_vr-session-data-${ts}.csv`) && names.some(x => x === `G06_run${n}_session-info-${ts}.csv`)), 'laptop saved 4 files per run with the headset names');
-  let same = true;
-  for (const d of host.dl.filter(x => x.suggestedFilename().includes(ts))) {
-    const hf = path.join(OUT, 'h-' + d.suggestedFilename()); await d.saveAs(hf);
-    const od = odl.find(x => x.suggestedFilename() === d.suggestedFilename());
-    const of = path.join(OUT, 'o-' + d.suggestedFilename()); await od.saveAs(of);
-    if (fs.readFileSync(hf, 'utf8') !== fs.readFileSync(of, 'utf8')) same = false;
-  }
-  ok(same && host.dl.length === 12, 'laptop files byte-identical to the headset files across all runs');
+  ok(odl.length === 1 && odl[0].suggestedFilename() === `G06_${ts}.zip` && host.dl.at(-1).suggestedFilename() === `G06_${ts}.zip`, 'one final zip on each device, same name');
+  const lapFiles = await openDownload(odl[0], OUT);
+  const hostFiles = await openDownload(host.dl.at(-1), OUT);
+  ok(lapFiles.filter(x => x.path.startsWith('run')).length === 12 && [1, 2, 3].every(n => lapFiles.some(x => x.path === `run${n}/G06_run${n}_vr-session-data-${ts}.csv`) && lapFiles.some(x => x.path === `run${n}/G06_run${n}_session-info-${ts}.csv`)), 'laptop zip: 4 files per run in folders');
+  ok(hostFiles.length === lapFiles.length && hostFiles.every(f => lapFiles.some(x => x.path === f.path && x.text === f.text)), 'laptop files byte-identical to the headset files across all runs');
   const sum = await O(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const r = {}; for (let i = 0; i < s.length; i += 2) r[s[i]] = s[i + 1]; return r; });
   ok(sum['Trials completed'] === '132 / 132', `summary covers all runs (${sum['Trials completed']})`);
 

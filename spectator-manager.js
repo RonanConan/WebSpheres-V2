@@ -1,4 +1,4 @@
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.5.0';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -266,6 +266,9 @@ AFRAME.registerComponent('spectator-manager', {
             result = { ok: true };
         } else if (data.name === 'cue') {
             result = this.requestCue(data.value);
+        } else if (data.name === 'addNote') {
+            const dm = document.querySelector('#data-manager')?.components?.['data-manager'];
+            result = dm?.addNote ? dm.addNote(data.value) : { ok: false, reason: 'Experiment not ready' };
         } else {
             const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
             result = sm?.runCommand ? sm.runCommand(data.name, data.value) : { ok: false, reason: 'Experiment not ready' };
@@ -288,8 +291,12 @@ AFRAME.registerComponent('spectator-manager', {
             plannedRuns: dataM?.plannedRuns ? dataM.plannedRuns() : 1,
             plan: dataM?.plan ?? null,
             closing: dataM?.runClosing ?? false,
-            saving: (dataM?.downloadQueue?.length ?? 0) > 0,
+            saving: dataM?.isSaving ? dataM.isSaving() : false,
             filePrefix: dataM?.filePrefix ? dataM.filePrefix() : '',
+            sessionPrefix: dataM?.sessionPrefix ? dataM.sessionPrefix() : '',
+            headsetCopyRun: dataM?.breakSavedRun ?? 0,
+            notesCsv: dataM?.notesCsv ? dataM.notesCsv() : '',
+            noteMarks: (dataM?.notes ?? []).map(n => ({ run: n.run, time: n.time, type: n.type })),
             betweenMs: sm?.phase === 'between' && dataM?.sessionEndTime ? Date.now() - dataM.sessionEndTime : 0,
             betweenRecentres: dataM?.betweenRecentres ?? 0,
             recalibrated: dataM?.recalibrated ?? [],

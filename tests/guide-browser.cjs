@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.2.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.5.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -56,8 +56,8 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('warn:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.2.0, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.2.0' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.0, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.5.0' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -147,10 +147,10 @@ const KH = 'Timestamp,HandX\n';
   ok(req.length === 9 && req.every(r => r.startsWith('ok:')), 'all 9 required checks ✓ (' + req.map(r => r.split(':')[1]).join(', ') + ')');
   ok((await checks('g6-advisory')).every(r => r.startsWith('ok:')) && (await text('g-start')) === 'Start run 1' && await E(() => !document.getElementById('g-start').disabled), 'advisory ✓ → "Start" enabled');
   await frame({ leftValid: false, left: null }); await tick();
-  ok((await checks('g6-advisory'))[0] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start run 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
+  ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start run 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.2.0', participantId: '' }); await tick();
+  await setState({ version: '2.5.0', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });
@@ -164,7 +164,7 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 7 && await E(() => [1, 2, 3, 4, 5].every(n => document.querySelector(`[data-open="${n}"]`).disabled)), 'running → step 6; setup steps locked');
   ok((await text('g7-trial')) === 'Trial 5 / 44' && Math.abs(parseFloat(await E(() => document.getElementById('g7-bar').style.width)) - 100 * 5 / 44) < 0.01, 'trial n / N with progress bar');
   ok((await text('g7-elapsed')) === '1:00' && ['7:48', '7:49', '7:50'].includes(await text('g7-eta')), `elapsed and estimated remaining (mean trial time × trials left) (${await text('g7-elapsed')} / ${await text('g7-eta')})`);
-  ok((await text('g7-left')) === '3 (60%)' && (await text('g7-right')) === '2 (40%)', 'live hand use from the backup (SKIP rows excluded)');
+  ok(await E(() => !document.getElementById('g7-left') && !document.getElementById('g7-right')), 'hand use not shown live during the run');
   await E(() => { window.__c.sent.length = 0; });
   await click('#g-pause'); await tick(100);
   ok((await cmds()).join() === 'pause', 'Pause sends pause');
@@ -217,16 +217,19 @@ const KH = 'Timestamp,HandX\n';
   await E(([th, t, kh, kl, kr]) => { const c = window.__c; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: th, lines: t })); c.emit('data', JSON.stringify({ type: 'rows', file: 'kinL', from: 0, header: kh, lines: kl })); c.emit('data', JSON.stringify({ type: 'rows', file: 'kinR', from: 0, header: kh, lines: kr })); }, [TH, TRIALS, KH, KL, KR]);
   await setState({ phase: 'complete', endReason: 'finished', trialCount: 6, recentreCount: 2, pauses: 1, sessionMs: 125000, backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T13-00-00' }, info: 'Key,Value\nParticipantID,P21\n' });
   await tick(500);
+  await new Promise(r => setTimeout(r, 500));
+  await tick(300);
   ok(await openStep() === 8 && (await text('g8-title')) === 'Session complete', 'opens automatically on completion: "Session complete"');
-  ok(dls.length === 4 && dls.every(n => n.startsWith('P21_') && n.includes('2026-10-22T13-00-00')), 'auto-saved the 4 files with the headset\'s names (' + dls.join(', ') + ')');
+  ok(dls.length === 1 && dls[0] === 'P21_2026-10-22T13-00-00.zip', 'auto-saved one zip, named for the session (' + dls.join(', ') + ')');
   const files = await checks('g8-files');
-  ok(files[0].startsWith('ok:Saved to laptop: 4 files') && files[1] === 'ok:Headset copy saved' && (await text('guide')).includes('Chrome may ask to allow multiple downloads. Choose Allow.'), 'file status, headset copy and the Chrome note');
+  ok(files[0].startsWith('ok:Saved to laptop: 4 files in zip') && files[1] === 'ok:Headset copy saved' && files[2] === 'ok:Laptop copy complete. No need to plug in headset.', 'file status: laptop zip, headset copy, nothing missing');
   const sum = await E(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const o = {}; for (let i = 0; i < s.length; i += 2) o[s[i]] = s[i + 1]; return o; });
-  const want = { 'Trials completed': '6 / 44', 'Left hand use': '3 (60%)', 'Right hand use': '2 (40%)', 'Critical hits, left': '1', 'Critical hits, right': '1', 'Decision time, mean': '400 ms', 'Decision time, median': '400 ms', 'Movement time, mean': '960 ms', 'Movement time, median': '900 ms', 'Skips': '1', 'Recentres': '2', 'Pauses': '1', 'Tracking valid, left': '75%', 'Tracking valid, right': '80%', 'Session duration': '2:05' };
+  const want = { 'Trials completed': '6 / 44', 'Left hand use': '3 (60%)', 'Right hand use': '2 (40%)', 'Critical hits, left': '1', 'Critical hits, right': '1', 'Decision time, mean': '400 ms', 'Decision time, median': '400 ms', 'Total time, mean': '960 ms', 'Total time, median': '900 ms', 'Skips': '1', 'Recentres': '2', 'Pauses': '1', 'Tracking valid, left': '75%', 'Tracking valid, right': '80%', 'Session duration': '2:05' };
   const bad = Object.entries(want).filter(([k, v]) => sum[k] !== v);
   ok(bad.length === 0, 'finish summary matches the hand-computed sample' + (bad.length ? ' — differs: ' + bad.map(([k, v]) => `${k} "${sum[k]}" ≠ "${v}"`).join('; ') : ''));
-  await click('#g-save-again'); await tick(1200);
-  ok(dls.length === 8, 'Save again downloads the 4 files again');
+  await click('#g-save-again');
+  await new Promise(r => setTimeout(r, 500));
+  ok(dls.length === 2 && (await text('g-save-again')) === 'Download zip again', 'Download zip again saves the zip again');
   await setState({ endReason: 'ended-early' }); await tick();
   ok((await text('g8-title')) === 'Session ended early', '"Session ended early" title');
   await click('#g-new'); await tick(100);

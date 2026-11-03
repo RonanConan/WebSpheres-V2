@@ -5,6 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="zip-writer.js"></script>
+    <script src="workspace-shape.js"></script>
+    <script src="results-charts.js"></script>
+    <script src="workspace-view.js"></script>
     <script type="importmap">
     {
         "imports": {
@@ -84,6 +88,10 @@
         .g-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
         #g-alert { padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; }
         #g-alert[hidden] { display: none; }
+        .g-banner { padding: 0.6rem 1rem; border-bottom: 1px solid var(--warn); line-height: 1.35; }
+        .g-banner[hidden] { display: none; }
+        .g-banner .g-actions { margin-top: 0.5rem; }
+        #g-resume { position: sticky; top: 0; z-index: 2; background: var(--bg); }
         .step { border-bottom: 1px solid var(--line); }
         .step-head { width: 100%; display: flex; align-items: center; gap: 0.75rem; text-align: left; background: transparent; border: 0; min-height: 3.1rem; padding: 0 1rem; font-size: 1.1rem; }
         .step-head:disabled { opacity: 0.4; cursor: default; }
@@ -138,6 +146,82 @@
         .ro-summary .bad { color: var(--err); }
         .ro-tech summary { padding: 0.5rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
         #v-run-item[hidden] { display: none; }
+        .plan-charts { margin-top: 1.5rem; }
+        .plan-charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0 1.5rem; }
+        .chart-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 40px; cursor: pointer; line-height: 1.3; }
+        .chart-tick input { width: 1.15rem; height: 1.15rem; flex: none; margin: 0; accent-color: var(--accent); }
+        #results { position: absolute; inset: 0; padding: 1rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
+        #results[hidden] { display: none; }
+        .res-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
+        .res-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+        #ws-settings { margin: 0 0 0.8rem; border: 1px solid var(--line); }
+        #ws-settings summary { cursor: pointer; padding: 0.5rem 0.7rem; font-weight: 600; }
+        #ws-settings-body { padding: 0 0.7rem 0.7rem; }
+        .ws-note { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.5rem; }
+        .ws-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(23rem, 1fr)); gap: 0.9rem 1.6rem; }
+        .ws-group h3 { margin: 0 0 0.35rem; font-size: 0.9rem; font-weight: 600; }
+        .ws-option { display: grid; grid-template-columns: 5.2rem 1fr; gap: 0.1rem 0.6rem; align-items: start; padding: 0.3rem 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+        .ws-option button { grid-row: span 2; }
+        .ws-option button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ws-con { color: var(--muted); }
+        #ws3d { margin-bottom: 1rem; }
+        #ws3d-park { display: none; }
+        .ws3d-bar { display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; margin-bottom: 0.6rem; }
+        .ws3d-bar .label { margin-bottom: 0.3rem; }
+        .ws3d-bar button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ws3d-ticks { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
+        .ws3d-ticks label { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+        .ws3d-main { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 1rem; }
+        .ws3d-stage { position: relative; height: 34rem; border: 1px solid var(--line); }
+        .res-chart canvas#ws3d-canvas { width: 100%; height: 100%; }
+        #ws3d-status { position: absolute; left: 0.7rem; top: 0.5rem; color: var(--warn); font-weight: 600; }
+        #ws3d-hint { position: absolute; right: 0.7rem; top: 0.5rem; color: var(--muted); font-size: 0.85rem; pointer-events: none; }
+        #ws3d-table { width: 100%; border-collapse: collapse; align-self: start; font-size: 0.95rem; }
+        #ws3d-table th { color: var(--muted); font-weight: 500; text-align: right; padding: 0.2rem 0 0.4rem 0.5rem; font-size: 0.85rem; }
+        #ws3d-table td { padding: 0.25rem 0 0.25rem 0.5rem; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+        #ws3d-table td:first-child { text-align: left; font-weight: 400; padding-left: 0; }
+        #ws3d-table tr.total td { border-top: 1px solid var(--line); }
+        #ws3d-table tr.minor td { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+        #res-showing { font-size: 1rem; font-weight: 600; margin: 0.4rem 0 0.8rem; }
+        .res-save { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 0.6rem 0 1rem; }
+        #res-msg { color: var(--muted); font-size: 0.9rem; }
+        #res-warning { color: var(--warn); font-weight: 600; margin-bottom: 0.6rem; }
+        #res-warning:empty { display: none; }
+        .res-chart { margin: 1.4rem 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+        .res-chart canvas { display: block; width: 100%; }
+        .res-chart.failed { color: var(--warn); font-weight: 600; }
+        #chart-tip { position: fixed; z-index: 20; max-width: 22rem; padding: 0.4rem 0.6rem; background: #0f131b; border: 1px solid var(--accent); font-size: 0.9rem; pointer-events: none; }
+        #chart-tip[hidden] { display: none; }
+        .q-lights { margin: 0.7rem 0; border-top: 1px solid var(--line); }
+        .q-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
+        .q-name { flex: 1; font-size: 0.95rem; }
+        .q-val { font: 600 1.15rem var(--mono); }
+        .q-row.ok .q-val, .q-row.ok .ck { color: var(--ok); }
+        .q-row.warn .q-val, .q-row.warn .ck { color: var(--warn); }
+        .q-row.bad { background: rgba(255, 92, 92, 0.14); }
+        .q-row.bad .q-val, .q-row.bad .ck { color: var(--err); }
+        .q-row.off .q-val, .q-row.off .ck, .q-row.off .q-name { color: var(--muted); }
+        #g7-notes { margin-top: 0.8rem; padding-top: 0.2rem; border-top: 1px solid var(--line); }
+        #g-note-text { width: 100%; min-height: 44px; padding: 0 0.6rem; font: inherit; color: var(--text); background: #0f131b; border: 1px solid var(--line); border-radius: 0; margin-top: 0.5rem; }
+        #g-note-text:focus { outline: none; border-color: var(--accent); }
+        .rep-run { margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line); max-width: 56rem; }
+        .rep-run h3 { margin: 0 0 0.6rem; font-size: 1rem; }
+        .rep-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.25rem 1.2rem; margin-bottom: 0.8rem; font-size: 0.9rem; }
+        .rep-facts > div { display: flex; justify-content: space-between; gap: 0.6rem; }
+        .rep-facts span:first-child { color: var(--muted); }
+        .rep-facts span:last-child { font-family: var(--mono); font-weight: 600; }
+        .rep-line { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr) 5.5rem; align-items: center; gap: 0.6rem; margin: 0.28rem 0; font-size: 0.85rem; }
+        .rep-line > span:last-child { text-align: right; font-family: var(--mono); font-weight: 600; }
+        .rep-strip { display: flex; gap: 2px; height: 1rem; }
+        .rep-cell { flex: 1 1 0; min-width: 0; border-radius: 1px; background: #232a38; }
+        .rep-cell.ok { background: var(--ok); opacity: 0.55; }
+        .rep-cell.warn { background: var(--warn); }
+        .rep-cell.bad { background: var(--err); }
+        .rep-marks { position: relative; height: 0.9rem; }
+        .rep-mark { position: absolute; top: 0; width: 2px; height: 0.9rem; background: var(--text); }
+        .rep-mark.recentre { background: var(--accent); }
+        .rep-axis { display: flex; justify-content: space-between; color: var(--muted); font: 0.75rem var(--mono); }
+        .rep-key { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
         #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
         #plan-builder[hidden] { display: none; }
         .plan-settings { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin-bottom: 1.5rem; }
@@ -190,6 +274,12 @@
         <div id="guide">
             <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide guide</button></div>
             <div id="g-alert" hidden></div>
+            <div class="g-banner" id="g-resume" hidden>
+                <div id="g-resume-text"></div>
+                <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-resume-go">Continue</button><button tabindex="-1" id="g-resume-new">New session</button></div>
+                <p class="g-msg" id="g-resume-msg"></p>
+            </div>
+            <div id="g-recovery"></div>
             <section class="step" data-step="1">
                 <button tabindex="-1" class="step-head" data-open="1"><span class="step-mark">1</span><span>Connect</span></button>
                 <div class="step-body">
@@ -272,9 +362,8 @@
                     <div class="sum">
                         <span>Elapsed</span><span id="g7-elapsed">–</span>
                         <span>Remaining (est.)</span><span id="g7-eta">–</span>
-                        <span>Left hand</span><span id="g7-left">–</span>
-                        <span>Right hand</span><span id="g7-right">–</span>
                     </div>
+                    <div class="q-lights" id="g7-quality"></div>
                     <div class="g-actions">
                         <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
                         <button tabindex="-1" id="g-skip">Skip target</button>
@@ -330,6 +419,14 @@
                         <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g7-b-start">Start next run</button></div>
                         <div class="g-actions"><button tabindex="-1" id="g7-b-add">Add run</button><button tabindex="-1" class="g-danger" id="g7-b-finish">Finish session</button></div>
                     </div>
+                    <div id="g7-notes">
+                        <div class="g-actions"><button tabindex="-1" id="g-note-spoke">Spoke to participant</button><button tabindex="-1" id="g-note-add">Add note</button></div>
+                        <div id="g-note-box" hidden>
+                            <input id="g-note-text" type="text" maxlength="300" autocomplete="off" aria-label="Note text">
+                            <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-note-save">Save note</button><button tabindex="-1" id="g-note-cancel">Cancel</button></div>
+                        </div>
+                        <p class="g-note" id="g-note-status"></p>
+                    </div>
                     <p class="g-msg" id="g7-msg"></p>
                 </div>
             </section>
@@ -338,8 +435,7 @@
                 <div class="step-body">
                     <div class="g-big-line" id="g8-title">–</div>
                     <ul class="checks" id="g8-files"></ul>
-                    <p class="g-note">Chrome may ask to allow multiple downloads. Choose Allow.</p>
-                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Save again</button></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Download zip again</button><button tabindex="-1" id="g-results">Results</button></div>
                     <div class="sum" id="g8-summary"></div>
                     <div class="g-actions"><button tabindex="-1" id="g-add-run">Add run</button><button tabindex="-1" id="g-new">New session</button></div>
                     <p class="g-msg" id="g8-msg"></p>
@@ -369,13 +465,39 @@
     </header>
     <main id="stage">
         <canvas id="scene"></canvas>
-        <section id="plan-builder" hidden></section>
+        <section id="plan-builder" hidden><div id="plan-body"></div><div id="run-report" hidden></div></section>
+        <section id="results" hidden>
+            <div class="res-head"><h2>Results</h2><button tabindex="-1" id="res-close">Close</button></div>
+            <div id="res-warning"></div>
+            <div id="res-showing"></div>
+            <div class="plan-charts-grid" id="res-ticks"></div>
+            <div class="res-save"><button tabindex="-1" class="g-primary" id="res-save">Save figures</button><span id="res-msg"></span></div>
+            <details id="ws-settings"><summary>Workspace shape settings</summary><div id="ws-settings-body"></div></details>
+            <div id="res-charts"></div>
+            <div id="ws3d-park"><div id="ws3d">
+                <div class="ws3d-bar">
+                    <div><div class="label">Run</div><div class="opts" id="ws3d-runs"></div></div>
+                    <div><div class="label">View</div><div class="opts" id="ws3d-views"></div></div>
+                    <div><div class="label">Show</div><div class="ws3d-ticks">
+                        <label><input type="checkbox" data-ws-show="left" checked>Left</label>
+                        <label><input type="checkbox" data-ws-show="right" checked>Right</label>
+                        <label><input type="checkbox" data-ws-show="overlap" checked>Overlap</label>
+                        <label><input type="checkbox" data-ws-show="paths" checked>Paths</label>
+                        <label><input type="checkbox" data-ws-show="surfaces" checked>Surfaces</label>
+                    </div></div>
+                </div>
+                <div class="ws3d-main">
+                    <div class="ws3d-stage"><canvas id="ws3d-canvas"></canvas><div id="ws3d-status"></div><div id="ws3d-hint">Drag to rotate. Scroll to zoom. Right-drag to pan.</div></div>
+                    <table id="ws3d-table"></table>
+                </div>
+            </div></div>
+        </section>
         <section class="drawer" id="drawer-readouts">
             <div class="drawer-head"><h2>Status</h2><button tabindex="-1" data-close>Close</button></div>
             <div id="readout-rows"></div>
             <div class="set-row">
                 <button tabindex="-1" id="save-backup">Save laptop copy</button>
-                <div class="set-note">Saves all laptop files so far. Chrome may ask to allow multiple downloads. Choose Allow.</div>
+                <div class="set-note">Saves all laptop files so far as one zip.</div>
             </div>
         </section>
         <section class="drawer" id="drawer-settings">
@@ -407,6 +529,7 @@
         </section>
     </main>
     <div id="info-pop" hidden></div>
+    <div id="chart-tip" hidden></div>
     <footer id="bottombar">
         <div class="group">
             <button tabindex="-1" data-view="orbit">Orbit</button>
@@ -821,13 +944,67 @@
     let lastFrameAt = 0;
     let lastFrame = null;
     const BACKUP_FILES = ['trials', 'kinL', 'kinR'];
-    const backup = { run: 1, archive: [], sessionId: null, trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '' };
+    const backup = { run: 1, archive: [], sessionId: null, storeId: null, stored: new Set(), storing: new Set(), storeFailures: new Set(), storedNotes: '', storeRetryAt: 0, storeFailed: false, zipping: 0, trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '', savedLoose: false };
+
+    const quality = { runs: {} };
+
+    function qualityRun(run) {
+        if (!quality.runs[run]) quality.runs[run] = { secs: [], lastT: 0, base: null, count: null, dist: null, red: {}, redAt: {}, recentres: [] };
+        return quality.runs[run];
+    }
+
+    function qualityAddRows(file, lines) {
+        if (file !== 'kinL' && file !== 'kinR') return;
+        const q = qualityRun(backup.run);
+        const left = file === 'kinL';
+        lines.forEach(line => {
+            const c = line.split(',');
+            if (c.length < 26) return;
+            const t = +c[0];
+            if (!Number.isFinite(t)) return;
+            const sec = Math.floor(t / 1000);
+            const b = q.secs[sec] || (q.secs[sec] = { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0 });
+            if (c[7] !== '') {
+                if (left) { b.lt++; if (c[10] === '1') b.lv++; }
+                else { b.rt++; if (c[10] === '1') b.rv++; }
+            }
+            if (!left) return;
+            b.frames++;
+            q.lastT = Math.max(q.lastT, t);
+            const head = [+c[18], +c[19], +c[20]];
+            if (head.some(v => !Number.isFinite(v)) || head.every(v => v === 0)) return;
+            if (q.base === null || q.count !== c[25]) {
+                if (q.base !== null) q.recentres.push(t);
+                q.base = head;
+                q.count = c[25];
+            }
+            q.dist = 100 * Math.hypot(head[0] - q.base[0], head[1] - q.base[1], head[2] - q.base[2]);
+            b.head = Math.max(b.head, q.dist);
+        });
+    }
 
     function resetBackup() {
+        quality.runs = {};
+        guide.notesEarlier = '';
+        guide.noteQueue = [];
+        guide.lastNote = '';
+        guide.results.parsed = new Map();
+        guide.results.chartsSet = false;
         BACKUP_FILES.forEach(f => { backup[f] = []; });
         backup.headers = {};
         backup.run = 1;
         backup.archive = [];
+        backup.storeId = null;
+        resetStored();
+    }
+
+    function resetStored() {
+        backup.stored = new Set();
+        backup.storing = new Set();
+        backup.storeFailures = new Set();
+        backup.storedNotes = '';
+        backup.storeRetryAt = 0;
+        backup.storeFailed = false;
     }
 
     function caughtUp(s) {
@@ -838,7 +1015,7 @@
         while (s && backup.run < (s.run || 1)) {
             const done = (s.completedRuns || []).find(r => r.run === backup.run);
             if (!done || !BACKUP_FILES.every(f => backup[f].length === done[f])) return;
-            backup.archive.push({ run: backup.run, info: done.info, trials: backup.trials, kinL: backup.kinL, kinR: backup.kinR, headers: backup.headers });
+            backup.archive.push({ run: backup.run, prefix: done.prefix, info: done.info, ms: done.ms, recentres: done.recentres, pauses: done.pauses, trials: backup.trials, kinL: backup.kinL, kinR: backup.kinR, headers: backup.headers });
             BACKUP_FILES.forEach(f => { backup[f] = []; });
             backup.run++;
         }
@@ -854,8 +1031,8 @@
 
     const downloads = { queue: [], timer: null, count: 0 };
 
-    function saveFile(filename, text) {
-        const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+    function saveBlob(filename, blob) {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
@@ -869,7 +1046,8 @@
     function pumpDownloads() {
         if (downloads.timer) return;
         while (downloads.queue.length && downloads.count < 4) {
-            saveFile(...downloads.queue.shift());
+            const [filename, parts] = downloads.queue.shift();
+            saveBlob(filename, new Blob(parts, { type: 'text/csv' }));
             downloads.count++;
         }
         if (downloads.count >= 4) {
@@ -881,31 +1059,153 @@
         }
     }
 
-    function downloadText(filename, text) {
-        downloads.queue.push([filename, text]);
+    function downloadText(filename, parts) {
+        downloads.queue.push([filename, parts]);
         pumpDownloads();
     }
 
-    function saveBackup() {
-        const s = receiver.headsetState;
+    function saveZipOrLoose(zipName, files) {
+        const zipped = typeof WebSpheresZip === 'undefined'
+            ? Promise.reject(new Error('Zip unavailable'))
+            : WebSpheresZip.make(files);
+        return zipped.then(blob => {
+            saveBlob(zipName, blob);
+            return 'in zip';
+        }).catch(() => {
+            files.forEach(f => downloadText(f.path.split('/').pop(), f.parts));
+            return 'loose';
+        });
+    }
+
+    const runStore = {
+        NAME: 'webspheres-laptop-copy',
+        forgotten: new Set(),
+        open: function () {
+            if (!this.opening) {
+                this.opening = new Promise((resolve, reject) => {
+                    const q = indexedDB.open(this.NAME, 1);
+                    q.onupgradeneeded = () => {
+                        q.result.createObjectStore('sessions', { keyPath: 'id' });
+                        q.result.createObjectStore('runs', { keyPath: 'key' });
+                    };
+                    q.onsuccess = () => resolve(q.result);
+                    q.onerror = () => reject(q.error);
+                });
+            }
+            return this.opening;
+        },
+        run: async function (mode, work) {
+            const db = await this.open();
+            return new Promise((resolve, reject) => {
+                const t = db.transaction(['sessions', 'runs'], mode);
+                const request = work(t);
+                t.oncomplete = () => resolve(request ? request.result : undefined);
+                t.onerror = t.onabort = () => reject(t.error);
+            });
+        },
+        saveSession: function (session) {
+            return this.run('readwrite', (t) => { t.objectStore('sessions').put(session); });
+        },
+        saveRun: function (session, record) {
+            return this.run('readwrite', (t) => {
+                t.objectStore('sessions').put(session);
+                t.objectStore('runs').put(record);
+            });
+        },
+        sessions: function () {
+            return this.run('readonly', (t) => t.objectStore('sessions').getAll());
+        },
+        keysOf: function (id) {
+            return IDBKeyRange.bound(`${id}:`, `${id}:\uffff`);
+        },
+        runsOf: async function (id) {
+            const runs = await this.run('readonly', (t) => t.objectStore('runs').getAll(this.keysOf(id)));
+            return runs.sort((a, b) => a.run - b.run);
+        },
+        forget: function (id) {
+            this.forgotten.add(id);
+            return this.run('readwrite', (t) => {
+                t.objectStore('sessions').delete(id);
+                t.objectStore('runs').delete(this.keysOf(id));
+            });
+        }
+    };
+
+    function sessionNotes(s) {
+        return guide.notesEarlier + (s.notesCsv || '');
+    }
+
+    function sessionRecord(s, runs) {
+        return { id: backup.storeId, participantId: s.participantId, sessionPrefix: s.sessionPrefix, runs, notes: sessionNotes(s), updatedAt: Date.now() };
+    }
+
+    function storeRun(s, r, run, prefix, info) {
+        const id = backup.storeId;
+        const { stored, storing, storeFailures } = backup;
+        if (!id || stored.has(run) || storing.has(run) || runStore.forgotten.has(id) || Date.now() < backup.storeRetryAt) return;
+        storing.add(run);
+        const record = { key: `${id}:${run}`, sessionId: id, run, prefix, info, savedAt: Date.now() };
+        BACKUP_FILES.forEach(f => { record[f] = r[f].length ? r.headers[f] + r[f].join('') : ''; });
+        backup.storedNotes = sessionNotes(s);
+        runStore.saveRun(sessionRecord(s, stored.size + storing.size), record).then(() => {
+            storing.delete(run);
+            stored.add(run);
+            storeFailures.delete(run);
+            backup.storeFailed = storeFailures.size > 0;
+        }).catch(() => {
+            storing.delete(run);
+            storeFailures.add(run);
+            backup.storeFailed = true;
+            backup.storeRetryAt = Date.now() + 30000;
+        });
+    }
+
+    function storeFinishedRuns(s) {
+        if (!s.sessionId || s.phase === 'setup') return;
+        if (!backup.storeId) backup.storeId = s.sessionId;
+        backup.archive.forEach(r => storeRun(s, r, r.run, r.prefix, r.info));
+        if ((s.phase === 'between' || s.phase === 'complete') && !s.closing && caughtUp(s)) storeRun(s, backup, s.run, s.filePrefix, s.info);
+        if (backup.stored.size && sessionNotes(s) !== backup.storedNotes && !runStore.forgotten.has(backup.storeId)) {
+            backup.storedNotes = sessionNotes(s);
+            runStore.saveSession(sessionRecord(s, backup.stored.size + backup.storing.size)).catch(() => { backup.storeFailed = true; });
+        }
+    }
+
+    function saveBackup(state) {
+        const s = state || receiver.headsetState;
         if (!s) return 0;
         const final = s.phase === 'complete' && s.backup && s.backup.final && s.backup.exportTs && caughtUp(s);
         const ts = final ? s.backup.exportTs : new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const files = [];
-        const prefixOf = (run) => run === (s.run || 1) ? s.filePrefix : (s.completedRuns.find(r => r.run === run) || {}).prefix;
-        const addRun = (r, run, info) => {
-            const prefix = prefixOf(run);
-            if (r.trials.length) files.push([`${prefix}vr-session-data-${ts}.csv`, r.headers.trials + r.trials.join('')]);
-            if (r.kinL.length) files.push([`${prefix}kinematics-LEFT-${ts}.csv`, r.headers.kinL + r.kinL.join('')]);
-            if (r.kinR.length) files.push([`${prefix}kinematics-RIGHT-${ts}.csv`, r.headers.kinR + r.kinR.join('')]);
-            if (info) files.push([`${prefix}session-info-${ts}.csv`, info]);
+        const prefixOf = (run) => run === (s.run || 1) ? s.filePrefix : ((s.completedRuns || []).find(r => r.run === run) || {}).prefix;
+        const addRun = (r, prefix, run, info) => {
+            const add = (name, parts) => files.push({ path: `run${run}/${prefix}${name}-${ts}.csv`, parts });
+            if (r.trials.length) add('vr-session-data', [r.headers.trials].concat(r.trials));
+            if (r.kinL.length) add('kinematics-LEFT', [r.headers.kinL].concat(r.kinL));
+            if (r.kinR.length) add('kinematics-RIGHT', [r.headers.kinR].concat(r.kinR));
+            if (info) add('session-info', [info]);
         };
-        backup.archive.forEach(r => addRun(r, r.run, r.info));
+        backup.archive.forEach(r => addRun(r, r.prefix, r.run, r.info));
         const current = backup.run === (s.run || 1);
-        addRun(backup, backup.run, current && s.phase !== 'setup' ? s.info : '');
-        files.forEach(([name, text]) => downloadText(name, text));
-        backup.saved = files.length ? `${files.length} files at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}` : 'Nothing to save';
+        addRun(backup, prefixOf(backup.run), backup.run, current && s.phase !== 'setup' ? s.info : '');
+        if (s.notesCsv) files.push({ path: `${s.sessionPrefix || ''}notes-${ts}.csv`, parts: [s.notesCsv] });
+        if (guide.notesEarlier) files.push({ path: `${s.sessionPrefix || ''}notes-before-reload-${ts}.csv`, parts: [guide.notesEarlier] });
+        if (!files.length) {
+            backup.saved = 'Nothing to save';
+            return 0;
+        }
         if (final) backup.autoSavedTs = s.backup.exportTs;
+        const storeId = backup.storeId;
+        backup.zipping++;
+        saveZipOrLoose(`${s.sessionPrefix || ''}${ts}.zip`, files).then((how) => {
+            backup.zipping--;
+            backup.saved = `${files.length} files ${how} at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}`;
+            backup.savedLoose = how === 'loose';
+            if (final && storeId && !backup.savedLoose) {
+                guide.recovery = guide.recovery.filter(r => r.id !== storeId);
+                runStore.forget(storeId).catch(() => {});
+            }
+        });
         return files.length;
     }
 
@@ -913,6 +1213,7 @@
         const s = receiver.headsetState;
         if (!s || s.phase !== 'complete' || !s.backup || !s.backup.final || !s.backup.exportTs) return;
         if (backup.autoSavedTs === s.backup.exportTs || !caughtUp(s)) return;
+        if (guide.noteQueue.length || guide.noteSending || guide.noteAwaitState) return;
         saveBackup();
     }
     const stats = { arrivals: [], connectedSince: 0, opens: 0, staleDropped: 0, lastError: '', lastRecentre: '', fps: 0, fpsFrames: 0, fpsT0: 0 };
@@ -1135,6 +1436,7 @@
             if (d.from !== lines.length || !d.lines.every(l => typeof l === 'string')) return;
             for (let i = 0; i < d.lines.length; i++) lines.push(d.lines[i]);
             backup.headers[d.file] = d.header;
+            qualityAddRows(d.file, d.lines);
             advanceBackup(this.headsetState);
             noteSync();
             if (d.lines.length) {
@@ -1185,13 +1487,11 @@
                 if (data.type === 'cmdResult') handleCmdResult(data);
                 if (data.type === 'state') {
                     const previous = this.headsetState;
-                    if (backup.sessionId && data.sessionId !== backup.sessionId) {
-                        if (previous && backupRows() && backup.autoSavedTs !== previous.backup.exportTs) saveBackup();
-                        resetBackup();
-                    }
+                    if (backup.sessionId && data.sessionId !== backup.sessionId) headsetReloaded(previous);
                     backup.sessionId = data.sessionId;
                     this.headsetState = data;
                     advanceBackup(data);
+                    storeFinishedRuns(data);
                     guideOnState(data);
                     checkAutoSave();
                 }
@@ -1330,6 +1630,10 @@
     const INFO = {
         conn: (rec) => breakOff() ? 'Headset off. Link drops are normal.' : CONN_INFO[receiver.status](rec),
         run: () => 'Current run / runs in plan.',
+        qtrack: () => '% frames tracked while target showing, last 30 s.',
+        qhead: () => 'Distance moved since run start or last recentre.',
+        qfps: () => 'Headset frames per second, last 30 s. Low = coarser data.',
+        qflow: () => 'Skipped targets and long gaps between trials.',
         stream: (rec) => '3D view out of date.' + rec,
         trial: () => 'Completed / total, this run.',
         score: () => 'Points, this run.',
@@ -1490,7 +1794,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.2.0';
+    const APP_VERSION = '2.5.0';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -1501,8 +1805,10 @@
     const guide = {
         expanded: null, lastCurrent: null, sub: null, lastCue: undefined,
         form: { dom: null }, formDirty: false, busy: false,
-        plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
-        breakShown: false, betweenRun: null, removedTick: false, recalSkipped: false,
+        plan: { mode: 'standard', home: 'one-box', charts: [], runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
+        breakShown: false, betweenRun: null, removedTick: false, recalSkipped: false, resume: null, recovery: [], recoveryKey: '',
+        results: { open: false, autoOpened: false, shape: null, shapeBuilt: false, charts: new Set(), chartsSet: false, drawnKey: '', drawToken: 0, parsed: new Map(), saving: false, ws: { view: null, failed: false, run: 0, viewName: 'Free', data: null } },
+        noteQueue: [], noteSending: false, noteAwaitState: false, noteSeq: 0, notePending: null, notesEarlier: '', lastNote: '', reportKey: '',
         msg: {}, stateAt: 0, lastPhase: null, phaseChangedAt: 0, lastTrial: null, trialChangedAt: 0,
         validAt: { L: 0, R: 0 }, summaryKey: '', summary: null
     };
@@ -1565,11 +1871,13 @@
     const fmt = (v, d) => Number.isFinite(+v) ? (+v).toFixed(d) : '–';
 
     function noteSync() {
-        if (caughtUp(receiver.headsetState)) backup.syncedAt = Date.now();
+        const s = receiver.headsetState;
+        if (s && s.backup && backup.run === (s.run || 1) && BACKUP_FILES.every(f => backup[f].length >= s.backup[f])) backup.syncedAt = Date.now();
     }
 
     function guideOnState(s) {
         const now = Date.now();
+        guide.noteAwaitState = false;
         guide.stateAt = now;
         if (s.phase !== guide.lastPhase) {
             guide.lastPhase = s.phase;
@@ -1611,23 +1919,11 @@
         return { L: inBox(f.left, f.leftValid, lap ? lap.left : f.homePos), R: inBox(f.right, f.rightValid, lap ? lap.right : f.homePos) };
     }
 
-    function handUse() {
-        let L = 0, R = 0;
-        backup.trials.forEach(line => {
-            const c = line.split(',');
-            if (c[5] === 'SKIP') return;
-            if (c[3] === 'LEFT') L++;
-            else if (c[3] === 'RIGHT') R++;
-        });
-        return { L, R, n: L + R };
-    }
-
     function computeSummary(s) {
         const key = [backup.archive.length, backup.trials.length, backup.kinL.length, backup.kinR.length, s.trialCount, s.recentreCount, s.pauses, s.sessionMs].join('/');
         if (guide.summaryKey === key) return guide.summary;
         const every = backup.archive.concat([backup]);
-        const earlier = s.completedRuns || [];
-        const sumEarlier = (field) => earlier.reduce((n, r) => n + r[field], 0);
+        const sumEarlier = (field) => backup.archive.reduce((n, r) => n + (r[field] || 0), 0);
         const rows = every.flatMap(r => r.trials).map(l => l.trimEnd().split(','));
         const hits = rows.filter(r => r[5] !== 'SKIP');
         const by = (hand) => hits.filter(r => r[3] === hand);
@@ -1647,8 +1943,8 @@
             ['Critical hits, right', String(R.filter(r => r[5] === 'critical').length)],
             ['Decision time, mean', ms(mean(dt))],
             ['Decision time, median', ms(median(dt))],
-            ['Movement time, mean', ms(mean(mt))],
-            ['Movement time, median', ms(median(mt))],
+            ['Total time, mean', ms(mean(mt))],
+            ['Total time, median', ms(median(mt))],
             ['Skips', String(rows.length - hits.length)],
             ['Recentres', String(s.recentreCount + sumEarlier('recentres'))],
             ['Pauses', String(s.pauses + sumEarlier('pauses'))],
@@ -1668,7 +1964,7 @@
         const done = {
             1: live && versionOk,
             2: !!(s && s.participantId && s.experimenter) && formMatches,
-            3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || (s.condition === s.plan.runs[0].condition && s.mode === s.plan.mode && s.homeMode === s.plan.home)),
+            3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || ((s.plan.runs[(s.run || 1) - 1] || {}).condition === s.condition && s.mode === s.plan.mode && s.homeMode === s.plan.home)),
             4: !!(s && s.recentred),
             5: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
             6: !!(s && s.phase !== 'setup'),
@@ -1742,6 +2038,7 @@
         if (s && s.phase === 'between' && guide.planDirty && st.live && !guide.planSending) sendPlanLive(7);
         syncCue(st, open);
         renderPlan(st, open, inSetup);
+        $('g7-head').textContent = s && s.phase === 'between' ? 'Between runs' : 'Running';
         const off = breakOff();
         if (off !== guide.breakShown) {
             guide.breakShown = off;
@@ -1796,11 +2093,13 @@
             tick3(!!(s && s.participantId), 'Participant ID set'),
             tick3(st.done[2], 'Setup received by headset'),
             tick3(st.done[3], 'Run plan received by headset'),
+            ...(guide.resume ? [tick3(false, 'Headset reloaded: choose Continue or New session')] : []),
             tick3(!!(c && c.reach.done), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
             tick3(!!(c && c.lap.done), 'Home calibrated')
         ];
         const advisory = [
+            tick3(!s || s.inVR !== false, s && s.inVR === false ? 'Not in VR. Enter VR on headset.' : 'In VR', true),
             tick3(tracked, 'Both hands tracked', true),
             tick3(box.L && box.R, 'Both hands in home box', true),
             tick3(inSync, 'Laptop copy up to date', true)
@@ -1810,14 +2109,13 @@
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
         $('g-start').disabled = !reqOk || guide.busy || !inSetup;
-        $('g-start').textContent = reqOk && !advOk ? 'Start run 1 anyway' : 'Start run 1';
+        $('g-start').textContent = `Start run ${(s && s.run) || 1}${reqOk && !advOk ? ' anyway' : ''}`;
         $('g-start').classList.toggle('amber', reqOk && !advOk);
 
         if (s && s.phase !== 'setup') {
             const between = s.phase === 'between';
             $('g7-run').hidden = between;
             $('g7-between').hidden = !between;
-            $('g7-head').textContent = between ? 'Between runs' : 'Running';
             if (between) renderBetween(st, now);
             const total = s.totalTrials || 1;
             $('g7-trial').textContent = `Trial ${s.trialCount} / ${s.totalTrials}`;
@@ -1826,9 +2124,6 @@
             const elapsed = s.sessionMs + (s.phase === 'complete' ? 0 : now - guide.stateAt);
             $('g7-elapsed').textContent = mmss(elapsed);
             $('g7-eta').textContent = s.trialCount > 0 && s.phase !== 'complete' ? mmss(elapsed / s.trialCount * (s.totalTrials - s.trialCount)) : '–';
-            const use = handUse();
-            $('g7-left').textContent = use.n ? `${use.L} (${Math.round(100 * use.L / use.n)}%)` : '0';
-            $('g7-right').textContent = use.n ? `${use.R} (${Math.round(100 * use.R / use.n)}%)` : '0';
             const pb = $('g-pause');
             pb.textContent = s.phase === 'pausing' ? 'Cancel pause' : s.phase === 'paused' ? 'Resume' : 'Pause';
             const activeRun = ACTIVE_PHASES.includes(s.phase);
@@ -1855,6 +2150,10 @@
             guide.unlockedShown = unlocked;
         }
 
+        const lights = s && ACTIVE_PHASES.includes(s.phase) ? renderQuality(st, now) : null;
+        if (s && s.phase === 'between') renderReport(s);
+        pumpNotes();
+        renderNotes(s);
         const alerts = [];
         if (s && ACTIVE_PHASES.includes(s.phase)) {
             if (receiver.status !== 'connected') alerts.push('Link lost. Recording continues.');
@@ -1866,6 +2165,9 @@
                     });
                 }
                 if (s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000) alerts.push('No new trial for 30 s');
+                QUALITY_LIGHTS.forEach(([k, name]) => {
+                    if (lights[k].kind === 'bad' && !(k === 'flow' && lights[k].text === 'No trial 30 s')) alerts.push(`${name}: ${lights[k].text}`);
+                });
                 const behind = now - (backup.syncedAt || now);
                 if (behind > 10000) alerts.push(`Laptop copy ${Math.floor(behind / 1000)} s behind`);
             }
@@ -1876,10 +2178,17 @@
 
         if (s && s.phase === 'complete') {
             $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
-            const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs);
+            const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs) && !backup.zipping;
+            const complete = caughtUp(s);
+            const laptopLine = saved ? [backup.savedLoose ? 'warn' : 'ok', `Saved to laptop: ${backup.saved}`]
+                : complete ? ['warn', 'Packing laptop zip…']
+                : st.live ? ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows). Saves when complete.`]
+                : ['bad', `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Reconnect, or get files from headset.`];
             setChecks('g8-files', [
-                saved ? ['ok', `Saved to laptop: ${backup.saved}`] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows). Saves when complete.`],
-                s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…']
+                laptopLine,
+                s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'],
+                ...(saved && complete ? [backup.savedLoose ? ['warn', 'Zip failed. Check Downloads for every file. Keep headset copy.'] : ['ok', 'Laptop copy complete. No need to plug in headset.']] : []),
+                ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts unavailable. Data not affected.']] : [])
             ]);
             const sumEl = $('g8-summary');
             const rows = computeSummary(s);
@@ -1894,7 +2203,10 @@
                 });
             }
         }
-        if (s && s.phase === 'complete') $('g-add-run').disabled = !st.live || guide.busy || !s.backup.final;
+        if (s && s.phase === 'complete') $('g-add-run').disabled = !st.live || guide.busy || !s.backup.final || backup.zipping > 0;
+        renderResume(st);
+        renderRecovery(s);
+        renderResults(st);
         updateHomeBoxes();
         $('btn-guide').classList.toggle('on', $('app').classList.contains('left-open'));
     }
@@ -1907,6 +2219,7 @@
         guide.plan = {
             mode: s.mode,
             home: s.homeMode || 'one-box',
+            charts: s.plan && s.plan.charts ? s.plan.charts.slice() : [],
             runs: s.plan ? s.plan.runs.map(r => Object.assign({}, r)) : [{ condition: s.condition === 2 ? 2 : 1, off: false, recal: false }]
         };
     }
@@ -1938,8 +2251,10 @@
         const s = st.s;
         const plan = guide.plan;
         const between = !!s && s.phase === 'between';
-        const box = $('plan-builder');
-        box.hidden = !(between || (inSetup && open === 3));
+        const builder = $('plan-builder');
+        const box = $('plan-body');
+        builder.hidden = !(between || (inSetup && open === 3));
+        $('run-report').hidden = !between;
         const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
         const sent = st.done[3];
         setChecks('g3-checks', [
@@ -1962,11 +2277,666 @@
             <div><div class="label">Length of each run</div><div class="opts">${Object.keys(MODE_LABEL).map(m => `<button tabindex="-1" data-plan-mode="${m}" class="${m === plan.mode ? 'on' : ''}">${MODE_LABEL[m]}</button>`).join('')}</div></div>
             <div><div class="label">Home position</div><div class="opts">${Object.keys(HOME_LABEL).map(h => `<button tabindex="-1" data-plan-home="${h}" class="${h === plan.home ? 'on' : ''}">${HOME_LABEL[h]}</button>`).join('')}</div></div>
         </div>`;
+        const charts = between || typeof ResultsCharts === 'undefined' ? '' : `<div class="plan-charts"><h3 class="plan-title">Results at end of session</h3><div class="plan-charts-grid">${ResultsCharts.IDS.map(id => `<label class="chart-tick"><input type="checkbox" data-plan-chart="${id}" ${plan.charts.includes(id) ? 'checked' : ''}><span>${ResultsCharts.titleOf(id)}</span></label>`).join('')}</div></div>`;
         box.innerHTML = `${settings}
             <h3 class="plan-title">${between ? 'Plan' : 'Runs'}</h3>
             <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'} · ${trials.toLocaleString('en-GB')} trials <span>about ${Math.round(trials * SEC_PER_TRIAL / 60)} min, plus breaks</span></div>
             <div id="plan-strip">${parts.join('')}</div>
-            <p class="plan-hint">${between ? 'Finished runs locked. Current break and later runs can still change.' : 'Drag a card to reorder. Click a link to switch headset on or off.'}</p>`;
+            <p class="plan-hint">${between ? 'Finished runs locked. Current break and later runs can still change.' : 'Drag a card to reorder. Click a link to switch headset on or off.'}</p>
+            ${charts}`;
+    }
+
+    function headsetReloaded(previous) {
+        if (previous && backupRows() && backup.autoSavedTs !== previous.backup.exportTs) saveBackup(previous);
+        if (previous && previous.notesCsv) guide.notesEarlier += previous.notesCsv;
+        if (guide.resume) return;
+        const notStarted = !!previous && previous.phase === 'setup' && previous.run > 1;
+        const midSession = previous && previous.plan && (notStarted || previous.phase === 'between' || ACTIVE_PHASES.includes(previous.phase));
+        if (!midSession) {
+            resetBackup();
+            guide.resume = null;
+            return;
+        }
+        if (BACKUP_FILES.some(f => backup[f].length)) {
+            const prefix = backup.run === previous.run ? previous.filePrefix : ((previous.completedRuns || []).find(r => r.run === backup.run) || {}).prefix;
+            const known = backup.run === previous.run ? { ms: previous.sessionMs, recentres: previous.recentreCount, pauses: previous.pauses } : ((previous.completedRuns || []).find(r => r.run === backup.run) || {});
+            backup.archive.push({ run: backup.run, prefix, info: backup.run === previous.run ? previous.info : '', ms: known.ms, recentres: known.recentres, pauses: known.pauses, trials: backup.trials, kinL: backup.kinL, kinR: backup.kinR, headers: backup.headers });
+        }
+        BACKUP_FILES.forEach(f => { backup[f] = []; });
+        backup.headers = {};
+        backup.run = notStarted ? previous.run : previous.run + 1;
+        guide.resume = { nextRun: backup.run, kept: backup.archive.length, plan: previous.plan, dominantHand: previous.dominantHand, experimenter: previous.experimenter, participantId: previous.participantId, mode: previous.mode, homeMode: previous.homeMode };
+    }
+
+    function renderResume(st) {
+        const r = guide.resume;
+        $('g-resume').hidden = !r;
+        if (!r) return;
+        const next = r.plan.runs[r.nextRun - 1];
+        $('g-resume-text').textContent = `Headset page reloaded. ${r.kept} ${r.kept === 1 ? 'run' : 'runs'} kept on laptop.${next ? '' : ' No more runs in plan.'}`;
+        $('g-resume-go').hidden = !next;
+        $('g-resume-go').textContent = `Continue with run ${r.nextRun}`;
+        $('g-resume-go').disabled = !st.live || guide.busy;
+    }
+
+    async function continueAfterReload() {
+        const r = guide.resume;
+        const next = r && r.plan.runs[r.nextRun - 1];
+        if (!next) return;
+        guide.busy = true;
+        $('g-resume-msg').textContent = 'Sending…';
+        const steps = [['setDominant', r.dominantHand], ['setExperimenter', r.experimenter], ['setParticipant', r.participantId], ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
+        for (const [name, value] of steps) {
+            const result = await sendCmd(name, value);
+            if (!result.ok) {
+                guide.busy = false;
+                $('g-resume-msg').textContent = `Headset refused: ${result.reason}`;
+                renderGuide();
+                return;
+            }
+        }
+        guide.busy = false;
+        guide.resume = null;
+        guide.planDirty = false;
+        $('g-resume-msg').textContent = '';
+        renderGuide();
+    }
+
+    function newAfterReload() {
+        resetBackup();
+        guide.resume = null;
+        guide.planDirty = false;
+        renderGuide();
+    }
+
+    function renderRecovery(s) {
+        const live = [backup.storeId, s && s.sessionId];
+        const rows = guide.recovery.filter(r => !live.includes(r.id));
+        const key = JSON.stringify(rows.map(r => r.id));
+        if (key === guide.recoveryKey) return;
+        guide.recoveryKey = key;
+        const box = $('g-recovery');
+        box.textContent = '';
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'g-banner';
+            const line = document.createElement('div');
+            line.textContent = `Unsaved session on this laptop: ${r.participantId || 'no ID'}, ${r.runs} ${r.runs === 1 ? 'run' : 'runs'}`;
+            const actions = document.createElement('div');
+            actions.className = 'g-actions';
+            const save = document.createElement('button');
+            save.tabIndex = -1;
+            save.className = 'g-primary';
+            save.textContent = 'Download zip';
+            const msg = document.createElement('p');
+            msg.className = 'g-msg';
+            save.addEventListener('click', () => recoverSession(r, msg));
+            const drop = document.createElement('button');
+            drop.tabIndex = -1;
+            drop.textContent = 'Discard';
+            drop.addEventListener('click', () => discardSession(r));
+            actions.append(save, drop);
+            row.append(line, actions, msg);
+            box.appendChild(row);
+        });
+    }
+
+    async function recoverSession(session, msg) {
+        const say = (kind, text) => {
+            msg.className = `g-msg ${kind}`;
+            msg.textContent = text;
+        };
+        const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        let runs;
+        say('busy', 'Reading…');
+        try {
+            runs = await runStore.runsOf(session.id);
+        } catch (e) {
+            say('bad', 'Could not read stored session. Try again.');
+            return;
+        }
+        const files = [];
+        runs.forEach(r => {
+            const add = (name, text) => { if (text) files.push({ path: `run${r.run}/${r.prefix}${name}-${ts}.csv`, parts: [text] }); };
+            add('vr-session-data', r.trials);
+            add('kinematics-LEFT', r.kinL);
+            add('kinematics-RIGHT', r.kinR);
+            add('session-info', r.info);
+        });
+        if (!files.length) {
+            say('bad', 'Nothing stored for this session.');
+            return;
+        }
+        if (session.notes) files.push({ path: `${session.sessionPrefix || ''}notes-${ts}.csv`, parts: [session.notes] });
+        const how = await saveZipOrLoose(`${session.sessionPrefix || ''}recovered-${ts}.zip`, files);
+        say('ok', `${files.length} ${files.length === 1 ? 'file' : 'files'} saved ${how}`);
+    }
+
+    function discardSession(session) {
+        guide.recovery = guide.recovery.filter(r => r.id !== session.id);
+        runStore.forget(session.id).catch(() => {});
+        renderGuide();
+    }
+
+    function setupRecovery() {
+        $('g-resume-go').addEventListener('click', continueAfterReload);
+        $('g-resume-new').addEventListener('click', newAfterReload);
+        if (typeof indexedDB === 'undefined') return;
+        runStore.sessions().then((sessions) => {
+            guide.recovery = sessions;
+            renderGuide();
+        }).catch(() => {});
+    }
+
+    const QUALITY_LIGHTS = [['trackL', 'Tracking left', 'qtrack'], ['trackR', 'Tracking right', 'qtrack'], ['head', 'Head stillness', 'qhead'], ['fps', 'Frame rate', 'qfps'], ['flow', 'Trial flow', 'qflow']];
+    const LIGHT_MARK = { ok: '✓', warn: '!', bad: '✗', off: '–' };
+    const trackKind = (pct) => pct < 85 ? 'bad' : pct < 95 ? 'warn' : 'ok';
+    const headKind = (cm) => cm > 10 ? 'bad' : cm > 5 ? 'warn' : 'ok';
+    const fpsKind = (fps) => fps < 70 ? 'bad' : fps < 80 ? 'warn' : 'ok';
+
+    function qualityNow(s, now) {
+        const off = { kind: 'off', text: '–' };
+        const out = { trackL: off, trackR: off, head: off, fps: off, flow: off };
+        const fresh = backup.run === (s.run || 1) && now - (backup.syncedAt || 0) < 5000;
+        const q = quality.runs[backup.run];
+        if (fresh && q) {
+            const lastSec = Math.floor(q.lastT / 1000);
+            const firstSec = Math.max(0, lastSec - 29);
+            const sum = { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0 };
+            for (let i = firstSec; i <= lastSec; i++) {
+                const b = q.secs[i];
+                if (b) Object.keys(sum).forEach(k => { sum[k] += b[k]; });
+            }
+            const tracked = (hit, all) => {
+                if (all < 30) return off;
+                const pct = 100 * hit / all;
+                return { kind: trackKind(pct), text: `${Math.floor(pct)}%` };
+            };
+            out.trackL = tracked(sum.lv, sum.lt);
+            out.trackR = tracked(sum.rv, sum.rt);
+            if (q.dist !== null) out.head = { kind: headKind(q.dist), text: `${q.dist.toFixed(1)} cm` };
+            const span = q.lastT / 1000 - firstSec;
+            if (span >= 5) {
+                const fps = sum.frames / span;
+                out.fps = { kind: fpsKind(fps), text: Math.round(fps).toString() };
+            }
+        }
+        if (s.phase === 'running' || s.phase === 'pausing') {
+            const skips = backup.run === (s.run || 1) ? backup.trials.slice(-22).filter(l => l.split(',')[5] === 'SKIP').length : 0;
+            const stalled = s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000;
+            if (stalled) out.flow = { kind: 'bad', text: 'No trial 30 s' };
+            else if (skips >= 3) out.flow = { kind: 'bad', text: `${skips} skips` };
+            else if (skips >= 1) out.flow = { kind: 'warn', text: skips === 1 ? '1 skip' : `${skips} skips` };
+            else out.flow = { kind: 'ok', text: 'OK' };
+        }
+        return out;
+    }
+
+    function renderQuality(st, now) {
+        const s = st.s;
+        const lights = qualityNow(s, now);
+        const showing = st.live ? lights : Object.fromEntries(QUALITY_LIGHTS.map(([k]) => [k, { kind: 'off', text: '–' }]));
+        QUALITY_LIGHTS.forEach(([k]) => {
+            const row = document.querySelector(`#g7-quality [data-q="${k}"]`);
+            const { kind, text } = showing[k];
+            if (row.dataset.kind !== kind) {
+                row.dataset.kind = kind;
+                row.className = `q-row ${kind}`;
+                row.querySelector('.ck').textContent = LIGHT_MARK[kind];
+            }
+            const val = row.querySelector('.q-val');
+            if (val.textContent !== text) val.textContent = text;
+        });
+        if (st.live) logRedLights(s, lights, now);
+        return lights;
+    }
+
+    function logRedLights(s, lights, now) {
+        const q = qualityRun(s.run || 1);
+        QUALITY_LIGHTS.forEach(([k, name]) => {
+            const kind = lights[k].kind;
+            if (kind === 'off') return;
+            if (kind !== 'bad') {
+                q.red[k] = false;
+                return;
+            }
+            if (q.red[k]) return;
+            q.red[k] = true;
+            if (now - (q.redAt[k] || -Infinity) < 30000) return;
+            q.redAt[k] = now;
+            queueNote(noteStamp(s, now), 'alert', `${name} red: ${lights[k].text}`);
+        });
+    }
+
+    function noteStamp(s, now) {
+        const active = !!s && ACTIVE_PHASES.includes(s.phase);
+        return {
+            id: `n${now}-${++guide.noteSeq}`,
+            run: (s && s.run) || 1,
+            trial: s ? s.trialCount : 0,
+            time: s ? Math.round(s.sessionMs + (active ? now - guide.stateAt : 0)) : 0,
+            dateTime: new Date(now).toISOString(),
+            estimated: !receiver.isLive() || now - guide.stateAt > 3000
+        };
+    }
+
+    function queueNote(stamp, type, text) {
+        guide.noteQueue.push(Object.assign({}, stamp, { type, text }));
+        if (type === 'note') guide.lastNote = `Last note: run ${stamp.run}, trial ${stamp.trial}, ${new Date(stamp.dateTime).toLocaleTimeString()}${stamp.estimated ? ' (time estimated)' : ''}`;
+        pumpNotes();
+    }
+
+    async function pumpNotes() {
+        if (guide.noteSending || !guide.noteQueue.length || !receiver.isLive()) return;
+        guide.noteSending = true;
+        const note = guide.noteQueue[0];
+        const r = await sendCmd('addNote', note);
+        guide.noteSending = false;
+        if (!r.offline && guide.noteQueue[0] === note) guide.noteQueue.shift();
+        if (r.ok) guide.noteAwaitState = true;
+        if (!r.ok && !r.offline) setMsg(7, `Headset refused: ${r.reason}`, 'bad');
+        pumpNotes();
+    }
+
+    function renderNotes(s) {
+        const waiting = guide.noteQueue.length;
+        const canNote = !!s && s.phase !== 'setup' && s.phase !== 'complete';
+        $('g7-notes').hidden = !canNote;
+        const text = `${guide.lastNote}${waiting ? `${guide.lastNote ? ' · ' : ''}${waiting} waiting to send` : ''}`;
+        if ($('g-note-status').textContent !== text) $('g-note-status').textContent = text;
+    }
+
+    function setupNotes() {
+        const box = $('g7-quality');
+        QUALITY_LIGHTS.forEach(([k, name, info]) => {
+            const row = document.createElement('div');
+            row.className = 'q-row off';
+            row.dataset.q = k;
+            row.dataset.kind = 'off';
+            row.innerHTML = `<span class="ck">–</span><span class="q-name">${name}${infoBtn(info, name)}</span><span class="q-val">–</span>`;
+            box.appendChild(row);
+        });
+        const closeBox = () => {
+            guide.notePending = null;
+            $('g-note-box').hidden = true;
+            $('g-note-text').value = '';
+        };
+        const saveNote = () => {
+            const text = $('g-note-text').value.trim();
+            if (!text || !guide.notePending) return;
+            queueNote(guide.notePending, 'note', text);
+            closeBox();
+            $('g-note-text').blur();
+            renderGuide();
+        };
+        $('g-note-spoke').addEventListener('click', () => {
+            queueNote(noteStamp(receiver.headsetState, Date.now()), 'note', 'Spoke to participant');
+            renderGuide();
+        });
+        $('g-note-add').addEventListener('click', () => {
+            guide.notePending = noteStamp(receiver.headsetState, Date.now());
+            $('g-note-box').hidden = false;
+            $('g-note-text').focus();
+        });
+        $('g-note-save').addEventListener('click', saveNote);
+        $('g-note-cancel').addEventListener('click', closeBox);
+        $('g-note-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveNote(); } });
+    }
+
+    function reportStrip(label, kinds, tips, summary) {
+        const cells = kinds.map((k, i) => `<div class="rep-cell ${k}" title="${tips[i]}"></div>`).join('');
+        return `<div class="rep-line"><span>${label}</span><div class="rep-strip">${cells}</div><span>${summary}</span></div>`;
+    }
+
+    function qualityLines(run, trials) {
+        const q = quality.runs[run];
+        const ms = q ? q.lastT : 0;
+        const secs = q ? q.secs : [];
+        const binSec = Math.max(1, Math.ceil(ms / 1000 / 60));
+        const bins = Math.max(1, Math.ceil(ms / 1000 / binSec));
+        const empty = () => Array.from({ length: bins }, () => ({ frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0, skips: 0 }));
+        const out = empty();
+        secs.forEach((b, sec) => {
+            if (!b) return;
+            const o = out[Math.min(bins - 1, Math.floor(sec / binSec))];
+            ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { o[k] += b[k]; });
+            o.head = Math.max(o.head, b.head);
+        });
+        const rows = trials.map(l => l.split(','));
+        rows.forEach(c => {
+            if (c[5] === 'SKIP') out[Math.min(bins - 1, Math.floor(+c[1] / 1000 / binSec))].skips++;
+        });
+        const when = (i) => `${mmss(i * binSec * 1000)}–${mmss((i + 1) * binSec * 1000)}`;
+        const pct = (hit, all) => all ? 100 * hit / all : null;
+        const total = out.reduce((t, o) => { ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { t[k] += o[k]; }); t.head = Math.max(t.head, o.head); return t; }, { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0 });
+        const show = (v) => v === null ? '–' : `${Math.floor(v)}%`;
+        const skips = rows.filter(c => c[5] === 'SKIP').length;
+        const track = (hitKey, allKey) => [out.map(o => { const p = pct(o[hitKey], o[allKey]); return p === null ? '' : trackKind(p); }), out.map((o, i) => { const p = pct(o[hitKey], o[allKey]); return `${when(i)}: ${p === null ? 'no target' : Math.floor(p) + '%'}`; })];
+        const [lk, lt] = track('lv', 'lt');
+        const [rk, rt] = track('rv', 'rt');
+        const headK = out.map(o => o.frames ? headKind(o.head) : '');
+        const headT = out.map((o, i) => `${when(i)}: ${o.head.toFixed(1)} cm`);
+        const binFps = (o, i) => o.frames / Math.max(0.001, Math.min(binSec, ms / 1000 - i * binSec));
+        const fpsK = out.map((o, i) => o.frames ? fpsKind(binFps(o, i)) : '');
+        const fpsT = out.map((o, i) => `${when(i)}: ${Math.round(binFps(o, i))} frames/s`);
+        const flowK = out.map(o => o.skips >= 3 ? 'bad' : o.skips ? 'warn' : (o.frames ? 'ok' : ''));
+        const flowT = out.map((o, i) => `${when(i)}: ${o.skips} ${o.skips === 1 ? 'skip' : 'skips'}`);
+        return {
+            ms, skips, rows: rows.length, duration: mmss(ms),
+            lines: [
+                { label: 'Tracking left', kinds: lk, tips: lt, summary: show(pct(total.lv, total.lt)) },
+                { label: 'Tracking right', kinds: rk, tips: rt, summary: show(pct(total.rv, total.rt)) },
+                { label: 'Head stillness', kinds: headK, tips: headT, summary: `${total.head.toFixed(1)} cm` },
+                { label: 'Frame rate', kinds: fpsK, tips: fpsT, summary: ms ? `${Math.round(1000 * total.frames / ms)}/s` : '–' },
+                { label: 'Trial flow', kinds: flowK, tips: flowT, summary: `${skips} ${skips === 1 ? 'skip' : 'skips'}` }
+            ]
+        };
+    }
+
+    function reportBlock(s, run, trials) {
+        const q = quality.runs[run];
+        const earlier = backup.archive.find(r => r.run === run);
+        const pauses = earlier ? earlier.pauses || 0 : s.pauses;
+        const recentres = earlier ? earlier.recentres || 0 : s.recentreCount;
+        const { ms, skips, rows, lines } = qualityLines(run, trials);
+        const marks = (s.noteMarks || []).filter(n => n.run === run && ms > 0).map(n => `<div class="rep-mark" style="left:${Math.min(100, 100 * n.time / ms)}%" title="${n.type} at ${mmss(n.time)}"></div>`)
+            .concat(((q && q.recentres) || []).filter(() => ms > 0).map(t => `<div class="rep-mark recentre" style="left:${Math.min(100, 100 * t / ms)}%" title="Recentre at ${mmss(t)}"></div>`)).join('');
+        const facts = [['Duration', mmss(ms)], ['Trials', String(rows)], ['Skips', String(skips)], ['Pauses', String(pauses)], ['Recentres', String(recentres)], ['Notes', String((s.noteMarks || []).filter(n => n.run === run).length)]];
+        return `<div class="rep-run" data-report-run="${run}">
+            <h3>${runLabel(run, earlier ? earlier.info : s.info)}</h3>
+            <div class="rep-facts">${facts.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('')}</div>
+            <div class="rep-line"><span>Notes, recentres</span><div class="rep-marks">${marks}</div><span></span></div>
+            ${lines.map(l => reportStrip(l.label, l.kinds, l.tips, l.summary)).join('')}
+            <div class="rep-line"><span></span><div class="rep-axis"><span>0:00</span><span>${mmss(ms)}</span></div><span></span></div>
+        </div>`;
+    }
+
+    function renderReport(s) {
+        const blocks = backup.archive.map(r => [r.run, r.trials]);
+        if (backup.run === s.run) blocks.push([s.run, backup.trials]);
+        const key = JSON.stringify([blocks.map(b => b[0]), backupRows(), (s.noteMarks || []).length, s.recentreCount, guide.plan.runs.map(r => r.condition)]);
+        if (key === guide.reportKey) return;
+        guide.reportKey = key;
+        $('run-report').innerHTML = `${blocks.slice().reverse().map(([run, trials]) => reportBlock(s, run, trials)).join('')}
+            <p class="rep-key">Green: within limits. Amber: over amber limit. Red: over red limit. Grey: no data. Hover a cell for its value.</p>`;
+    }
+
+    function runLabel(run, info) {
+        const planned = guide.plan.runs[run - 1];
+        const final = (/^Condition,(\d)/m.exec(info || '') || [])[1] || (planned && planned.condition);
+        const changes = [...(info || '').matchAll(/(\d+)\|(\d+)\|Condition\|(\d)\|(\d)/g)];
+        if (!changes.length) return `Run ${run}: ${COND_LABEL[final] || '–'}`;
+        if (changes.length > 1) return `Run ${run}: condition changed ${changes.length}×, ended ${COND_LABEL[final]}`;
+        return `Run ${run}: ${COND_LABEL[changes[0][3]]} to trial ${changes[0][2]}, then ${COND_LABEL[changes[0][4]]}`;
+    }
+
+    function resultsData(s) {
+        const every = backup.archive.map(r => ({ r, run: r.run, info: r.info }));
+        if (BACKUP_FILES.some(f => backup[f].length) || !every.length) every.push({ r: backup, run: backup.run, info: s.info });
+        const runs = every.map(({ r, run, info }) => {
+            const key = `${run}:${r.trials.length}:${r.kinL.length}:${r.kinR.length}`;
+            let parsed = guide.results.parsed.get(key);
+            if (!parsed) {
+                parsed = ResultsCharts.parseRun({ run, label: runLabel(run, info), kinL: r.kinL, kinR: r.kinR, trials: r.trials, quality: qualityLines(run, r.trials) });
+                guide.results.parsed.set(key, parsed);
+            }
+            return parsed;
+        });
+        return {
+            runs,
+            session: `${s.participantId || 'No ID'} · ${new Date().toLocaleDateString('en-GB')}`,
+            dominant: HAND_LABEL[s.dominantHand] || '–',
+            dominantCode: s.dominantHand,
+            homeHalf: s.homeMode === 'per-hand' ? 0.1 : 0.4
+        };
+    }
+
+    function initResultsCharts(s) {
+        const res = guide.results;
+        if (res.chartsSet) return;
+        res.chartsSet = true;
+        res.charts = new Set((s.plan && s.plan.charts) || []);
+        if (!res.shape) res.shape = Object.assign({}, ResultsCharts.SHAPE_DEFAULT);
+        buildShapeSettings();
+        const box = $('res-ticks');
+        box.innerHTML = ResultsCharts.IDS.map(id => `<label class="chart-tick"><input type="checkbox" data-res-chart="${id}"><span>${ResultsCharts.titleOf(id)}</span></label>`).join('');
+    }
+
+    function buildShapeSettings() {
+        const res = guide.results;
+        if (res.shapeBuilt) return;
+        res.shapeBuilt = true;
+        const groups = ResultsCharts.SHAPE_OPTIONS.map(g => `<div class="ws-group"><h3>${g.title}</h3>${g.options.map(o => `<div class="ws-option"><button tabindex="-1" data-shape="${g.key}" data-v="${o.value}">${o.value} cm${o.value === ResultsCharts.SHAPE_DEFAULT[g.key] ? '*' : ''}</button><span>+ ${o.pro}</span><span class="ws-con">− ${o.con}</span></div>`).join('')}</div>`).join('');
+        $('ws-settings-body').innerHTML = `<p class="ws-note">These settings change how the workspace shape is drawn and measured. Use the same settings when comparing runs.</p><p class="ws-note">Gap filling: empty space between hand paths, up to this width, counts as workspace. Smoothing: rounds the edge of the shape. * Default.</p><div class="ws-groups">${groups}</div><div class="g-actions"><button tabindex="-1" id="ws-defaults">Back to defaults</button></div>`;
+    }
+
+    function renderResults(st) {
+        if (typeof ResultsCharts === 'undefined') {
+            $('results').hidden = true;
+            $('g-results').hidden = true;
+            return;
+        }
+        const s = st.s;
+        const res = guide.results;
+        const complete = !!s && s.phase === 'complete';
+        if (!complete) {
+            res.open = false;
+            res.autoOpened = false;
+            res.drawnKey = '';
+            res.drawToken++;
+        } else {
+            initResultsCharts(s);
+            if (!res.autoOpened && res.charts.size) {
+                res.autoOpened = true;
+                res.open = true;
+            }
+        }
+        $('results').hidden = !res.open;
+        $('g-results').classList.toggle('on', res.open);
+        if (!complete || !res.open) {
+            $('chart-tip').hidden = true;
+            return;
+        }
+        document.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('on', +b.dataset.v === res.shape[b.dataset.shape]));
+        document.querySelectorAll('[data-res-chart]').forEach(b => { b.checked = res.charts.has(b.dataset.resChart); });
+        $('res-showing').textContent = `Workspace shape. 3D: gaps filled up to ${res.shape.gap3D} cm, smoothing ${res.shape.smooth3D} cm. 2D: gaps filled up to ${res.shape.gap2D} cm, smoothing ${res.shape.smooth2D} cm.`;
+        $('res-warning').textContent = caughtUp(s) ? '' : `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Charts use what has arrived.`;
+        const selected = ResultsCharts.IDS.filter(id => res.charts.has(id));
+        const save = $('res-save');
+        save.disabled = !selected.length || res.saving;
+        save.textContent = selected.length ? `Save figures (${selected.length})` : 'Save figures';
+        const key = JSON.stringify([selected, res.shape, backupRows(), Math.round($('results').clientWidth)]);
+        if (key === res.drawnKey) return;
+        res.drawnKey = key;
+        drawResults(selected);
+    }
+
+    function showWorkspace3D() {
+        const res = guide.results;
+        const ws = res.ws;
+        if (!ws.data) return;
+        const runs = ws.data.runs;
+        if (ws.run >= runs.length) ws.run = runs.length - 1;
+        $('ws3d-runs').innerHTML = runs.map((r, i) => `<button tabindex="-1" data-ws-run="${i}" class="${i === ws.run ? 'on' : ''}">${r.label}</button>`).join('');
+        if (!ws.view && !ws.failed && typeof WorkspaceView !== 'undefined') {
+            try {
+                ws.view = WorkspaceView.create(THREE, OrbitControls, $('ws3d-canvas'));
+            } catch (e) {
+                ws.failed = true;
+            }
+        }
+        $('ws3d-views').innerHTML = (typeof WorkspaceView === 'undefined' ? [] : WorkspaceView.VIEWS).map(v => `<button tabindex="-1" data-ws-view="${v}" class="${v === ws.viewName ? 'on' : ''}">${v}</button>`).join('');
+        $('ws3d-hint').hidden = !ws.view;
+        $('ws3d-status').textContent = ws.view ? '' : '3D view unavailable. Use the 2D figure below. Data not affected.';
+        const run = runs[ws.run];
+        const solid = ResultsCharts.shape3D(run, res.shape);
+        const top = ResultsCharts.shape2D(run, 'top', res.shape);
+        if (ws.view && solid) ws.view.show(ResultsCharts.view3D(run, res.shape), ResultsCharts.limits3D(ws.data, res.shape));
+        const n = (v) => Math.round(v).toLocaleString('en-GB');
+        const pct = (a, b) => `${(50 * (a + b)).toFixed(1)}%`;
+        const row = (name, vol, area, cls) => `<tr class="${cls || ''}"><td>${name}</td><td>${vol}</td><td>${area}</td></tr>`;
+        $('ws3d-table').innerHTML = `<tr><th></th><th>Volume (cm³)</th><th>Area from above (cm²)</th></tr>`
+            + row('Left', solid ? n(solid.left.volume) : '–', n(top.left.area))
+            + row('Right', solid ? n(solid.right.volume) : '–', n(top.right.area))
+            + row('Overlap', solid ? n(solid.overlap.volume) : '–', n(top.overlap))
+            + row('Total', solid ? n(solid.total) : '–', n(top.total), 'total')
+            + row('Hand positions outside shape', solid ? pct(solid.left.outside, solid.right.outside) : '–', pct(top.left.outside, top.right.outside), 'minor');
+    }
+
+    function drawResults(selected) {
+        const res = guide.results;
+        const token = ++res.drawToken;
+        const opts = { shape: res.shape };
+        const holder = $('res-charts');
+        const width = Math.max(600, Math.min(1400, $('results').clientWidth - 50));
+        let data = null;
+        $('chart-tip').hidden = true;
+        const step = (i) => setTimeout(() => {
+            if (token !== res.drawToken) return;
+            if (!i) {
+                $('ws3d-park').appendChild($('ws3d'));
+                holder.textContent = '';
+            }
+            if (i >= selected.length) return;
+            const id = selected[i];
+            const wrap = document.createElement('div');
+            wrap.className = 'res-chart';
+            wrap.dataset.chart = id;
+            try {
+                data = data || resultsData(receiver.headsetState);
+                if (id === 'workspaceMap') {
+                    wrap.appendChild($('ws3d'));
+                    holder.appendChild(wrap);
+                    res.ws.data = data;
+                    try {
+                        showWorkspace3D();
+                    } catch (e) {
+                        $('ws3d-status').textContent = '3D view could not draw. Data not affected.';
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.hits = ResultsCharts.render(canvas, id, data, opts, 'dark', width, 2);
+                canvas.dataset.width = width;
+                wrap.appendChild(canvas);
+            } catch (e) {
+                $('ws3d-park').appendChild($('ws3d'));
+                wrap.classList.add('failed');
+                wrap.textContent = `${ResultsCharts.titleOf(id)}: could not draw. Data not affected.`;
+            }
+            holder.appendChild(wrap);
+            step(i + 1);
+        });
+        step(0);
+    }
+
+    function canvasBytes(canvas) {
+        return new Promise((resolve, reject) => canvas.toBlob((blob) => {
+            if (!blob) reject(new Error('No image'));
+            else blob.arrayBuffer().then(b => resolve(new Uint8Array(b)), reject);
+        }, 'image/png'));
+    }
+
+    async function saveFigures() {
+        const s = receiver.headsetState;
+        const res = guide.results;
+        const selected = ResultsCharts.IDS.filter(id => res.charts.has(id));
+        if (!s || !selected.length || res.saving) return;
+        res.saving = true;
+        $('res-msg').textContent = 'Saving figures…';
+        renderGuide();
+        const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const opts = { shape: res.shape };
+        const slug = (id) => ResultsCharts.titleOf(id).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const prefix = s.sessionPrefix || '';
+        let note = '';
+        try {
+            const data = resultsData(s);
+            const files = [];
+            for (const id of selected) {
+                const canvas = document.createElement('canvas');
+                ResultsCharts.render(canvas, id, data, opts, 'light', 1200, 2);
+                files.push({ path: `${prefix}${slug(id)}-${ts}.png`, parts: [await canvasBytes(canvas)] });
+            }
+            if (selected.includes('workspaceMap') && res.ws.view) {
+                try {
+                    const views = data.runs.map(r => ResultsCharts.view3D(r, res.shape)).filter(v => v.solid);
+                    const shots = await res.ws.view.snapshot(views, ResultsCharts.limits3D(data, res.shape), 2400, 1500);
+                    shots.forEach((bytes, i) => files.push({ path: `${prefix}workspace-3d-run${data.runs[i].run}-${ts}.png`, parts: [bytes] }));
+                } catch (e) {
+                    note = ' 3D image not saved.';
+                }
+            }
+            const how = await saveZipOrLoose(`${prefix}figures-${ts}.zip`, files);
+            $('res-msg').textContent = `${files.length} ${files.length === 1 ? 'figure' : 'figures'} saved ${how}.${note}`;
+        } catch (e) {
+            $('res-msg').textContent = 'Figures not saved. Try again.';
+        }
+        res.saving = false;
+        renderGuide();
+    }
+
+    function setupResults() {
+        const res = guide.results;
+        const panel = $('results');
+        $('g-results').addEventListener('click', () => { res.open = !res.open; renderGuide(); });
+        $('res-close').addEventListener('click', () => { res.open = false; renderGuide(); });
+        $('res-save').addEventListener('click', saveFigures);
+        panel.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            b.blur();
+            if (b.dataset.shape) res.shape[b.dataset.shape] = +b.dataset.v;
+            else if (b.id === 'ws-defaults') res.shape = Object.assign({}, ResultsCharts.SHAPE_DEFAULT);
+            else if (b.dataset.wsRun !== undefined) {
+                res.ws.run = +b.dataset.wsRun;
+                try {
+                    showWorkspace3D();
+                } catch (err) {
+                    $('ws3d-status').textContent = '3D view could not draw. Data not affected.';
+                }
+                return;
+            } else if (b.dataset.wsView) {
+                res.ws.viewName = b.dataset.wsView;
+                document.querySelectorAll('[data-ws-view]').forEach(v => v.classList.toggle('on', v === b));
+                if (res.ws.view) res.ws.view.setView(b.dataset.wsView);
+                return;
+            } else return;
+            renderGuide();
+        });
+        panel.addEventListener('change', (e) => {
+            const show = e.target.dataset.wsShow;
+            if (show) {
+                e.target.blur();
+                if (res.ws.view) res.ws.view.setShow(show, e.target.checked);
+                return;
+            }
+            const id = e.target.dataset.resChart;
+            if (!id) return;
+            e.target.blur();
+            if (e.target.checked) res.charts.add(id);
+            else res.charts.delete(id);
+            renderGuide();
+        });
+        const tip = $('chart-tip');
+        panel.addEventListener('mousemove', (e) => {
+            const canvas = e.target.closest('canvas');
+            if (!canvas || !canvas.hits) {
+                tip.hidden = true;
+                return;
+            }
+            const box = canvas.getBoundingClientRect();
+            const scale = +canvas.dataset.width / box.width;
+            const x = (e.clientX - box.left) * scale;
+            const y = (e.clientY - box.top) * scale;
+            const hit = canvas.hits.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+            tip.hidden = !hit;
+            if (!hit) return;
+            tip.textContent = hit.text;
+            tip.style.left = `${Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 8)}px`;
+            tip.style.top = `${Math.max(8, e.clientY - tip.offsetHeight - 8)}px`;
+        });
+        panel.addEventListener('mouseleave', () => { tip.hidden = true; });
+        document.addEventListener('scroll', () => { tip.hidden = true; }, true);
     }
 
     function pendingRecal(s) {
@@ -1997,7 +2967,11 @@
         $('g7-b-break').hidden = !off;
         $('g7-b-timer').textContent = mmss(s.betweenMs + now - guide.stateAt);
         $('g7-b-off').hidden = !off;
-        setChecks('g7-b-copy', [copied ? ['ok', 'Laptop copy complete'] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows)`]]);
+        setChecks('g7-b-copy', [
+            copied ? ['ok', 'Laptop copy complete'] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows)`],
+            ...(backup.storeFailed ? [['warn', 'Browser storage failed. Laptop copy in memory only.']] : []),
+            ...(off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
+        ]);
         setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? 'In VR' : 'Not in VR. Enter VR on headset.')]);
         setChecks('g7-b-recentred', [tick3(recentred, recentred ? 'Recentred' : off ? 'Recentre required' : 'Recentre recommended', !off), ...($('recentre-note').textContent && !recentred ? [['warn', $('recentre-note').textContent]] : [])]);
         $('g7-b-recentre').disabled = !st.live || (off && !s.inVR);
@@ -2017,7 +2991,7 @@
         const plan = guide.plan;
         guide.busy = true;
         setMsg(3, 'Sending…', 'busy');
-        for (const [name, value] of [['setMode', plan.mode], ['setHomeMode', plan.home], ['setCondition', plan.runs[0].condition], ['setPlan', { runs: plan.runs }]]) {
+        for (const [name, value] of [['setMode', plan.mode], ['setHomeMode', plan.home], ['setCondition', plan.runs[0].condition], ['setPlan', planPayload()]]) {
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
@@ -2035,7 +3009,7 @@
     async function sendPlanLive(step) {
         const seq = ++guide.planSeq;
         guide.planSending = true;
-        const r = await sendCmd('setPlan', { runs: guide.plan.runs });
+        const r = await sendCmd('setPlan', planPayload());
         guide.planSending = false;
         if (seq === guide.planSeq) {
             if (r.offline) {
@@ -2059,6 +3033,10 @@
         change(guide.plan);
         guide.planDirty = true;
         renderGuide();
+    }
+
+    function planPayload() {
+        return { runs: guide.plan.runs, charts: guide.plan.charts };
     }
 
     function moveRun(plan, from, to) {
@@ -2089,7 +3067,7 @@
         guide.busy = true;
         setMsg(7, 'Sending…', 'busy');
         guide.planSeq++;
-        let started = await sendCmd('setPlan', { runs: guide.plan.runs });
+        let started = await sendCmd('setPlan', planPayload());
         if (started.ok) {
             guide.planDirty = false;
             started = await sendCmd('setCondition', next.condition);
@@ -2104,7 +3082,7 @@
         const runs = guide.plan.runs.concat([newRun()]);
         guide.busy = true;
         setMsg(8, 'Sending…', 'busy');
-        const r = await sendCmd('setPlan', { runs });
+        const r = await sendCmd('setPlan', Object.assign(planPayload(), { runs }));
         guide.busy = false;
         if (!r.ok) {
             setMsg(8, `Headset refused: ${r.reason}`, 'bad');
@@ -2112,6 +3090,8 @@
             return;
         }
         guide.plan.runs = runs;
+        runStore.forgotten.delete(backup.storeId);
+        resetStored();
         await runGuideCmd(8, 'reopenSession', undefined, 'Run added');
     }
 
@@ -2138,6 +3118,13 @@
             if (d.planRecal !== undefined) {
                 e.target.blur();
                 editPlan(p => { p.runs[+d.planRecal].recal = e.target.checked; });
+            }
+            if (d.planChart !== undefined) {
+                e.target.blur();
+                editPlan(p => {
+                    p.charts = p.charts.filter(c => c !== d.planChart);
+                    if (e.target.checked) p.charts.push(d.planChart);
+                });
             }
         });
         box.addEventListener('dragstart', (e) => {
@@ -2312,6 +3299,9 @@
     receiver.init();
     setupGuide();
     setupPlan();
+    setupResults();
+    setupNotes();
+    setupRecovery();
     setupInfo();
     setLeftSlot(true);
     renderGuide();

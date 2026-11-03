@@ -1,4 +1,6 @@
 AFRAME.registerComponent('data-manager', {
+    NOTES_HEADER: 'Run,Trial,RunTimeMs,ReceivedRunTimeMs,DateTime,Type,Text,Old,New,Estimated\n',
+
     TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run\n',
 
     init: function() {
@@ -27,6 +29,10 @@ AFRAME.registerComponent('data-manager', {
         this.recalibrated = [];
         this.recalibratedBefore = [];
         this.betweenRecentres = 0;
+        this.zipping = 0;
+        this.breakSavedRun = 0;
+        this.notes = [];
+        this.noteIds = new Set();
         this.setupManualExport();
     },
 
@@ -50,6 +56,7 @@ AFRAME.registerComponent('data-manager', {
     logSetupChange: function (field, before, after) {
         const clean = (v) => String(v).replace(/[;|,\r\n]/g, ' ');
         this.setupChanges.push(`${this.sessionTime()}|${this.trialNumber}|${field}|${clean(before)}|${clean(after)}`);
+        this.notes.push({ run: this.runNumber, trial: this.trialNumber, time: this.sessionTime(), received: this.sessionTime(), dateTime: new Date().toISOString(), type: 'setup', text: field, old: String(before), new: String(after), estimated: false });
     },
 
     scheduleFinalExport: function() {
@@ -63,8 +70,39 @@ AFRAME.registerComponent('data-manager', {
             this.frozenInfo = this.buildSessionInfo();
             const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
             if (!sphereManager || sphereManager.phase === 'complete') this.exportAll();
+            else this.saveForBreak();
             sphereManager?.markStateChanged();
         }, 1000);
+    },
+
+    addNote: function(note) {
+        if (!note || typeof note.id !== 'string' || typeof note.text !== 'string' || !note.text.trim() || note.text.length > 500) return { ok: false, reason: 'Note: 1-500 characters' };
+        if (note.type !== 'note' && note.type !== 'alert') return { ok: false, reason: 'Note: unknown type' };
+        if (this.noteIds.has(note.id)) return { ok: true };
+        this.noteIds.add(note.id);
+        this.notes.push({ run: Number(note.run) || this.runNumber, trial: Number(note.trial) || 0, time: Math.round(Number(note.time)) || 0, received: this.sessionTime(), dateTime: String(note.dateTime || ''), type: note.type, text: note.text.trim(), old: '', new: '', estimated: !!note.estimated });
+        return { ok: true };
+    },
+
+    notesCsv: function() {
+        if (!this.notes.length) return '';
+        const field = (v) => /[",\r\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+        return this.NOTES_HEADER + this.notes.map(n => [n.run, n.trial, n.time, n.received, n.dateTime, n.type, field(n.text), field(n.old), field(n.new), n.estimated ? 1 : 0].join(',') + '\n').join('');
+    },
+
+    saveForBreak: function() {
+        const link = this.plan?.runs[this.runNumber - 1];
+        if (!link?.off || this.breakSavedRun === this.runNumber) return;
+        this.breakSavedRun = this.runNumber;
+        this.exportAll();
+    },
+
+    isSaving: function() {
+        return this.zipping > 0 || (this.downloadQueue?.length ?? 0) > 0;
+    },
+
+    sessionPrefix: function() {
+        return this.participantId ? this.participantId + '_' : 'session-';
     },
 
     plannedRuns: function() {
@@ -200,37 +238,54 @@ AFRAME.registerComponent('data-manager', {
         }
     },
 
+    downloadBlob: function(filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+
     download: function(filename, parts) {
-        this.queueDownload(() => {
-            const blob = new Blob(parts, { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        });
+        this.queueDownload(() => this.downloadBlob(filename, new Blob(parts, { type: 'text/csv' })));
+    },
+
+    saveFiles: function(files, zipName) {
+        if (!files.length) return;
+        const sphereManager = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        const loose = () => files.forEach(f => this.download(f.name, f.parts));
+        const finish = () => {
+            this.zipping--;
+            sphereManager?.markStateChanged();
+        };
+        this.zipping++;
+        const zipped = typeof WebSpheresZip === 'undefined'
+            ? Promise.reject(new Error('Zip unavailable'))
+            : WebSpheresZip.make(files.map(f => ({ path: f.run ? `run${f.run}/${f.name}` : f.name, parts: f.parts })));
+        zipped.then(blob => this.downloadBlob(zipName, blob)).catch(loose).then(finish);
     },
 
     exportAll: function() {
         const timestamp = this.fileTimestamp();
         const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
         this.lastExportTimestamp = timestamp;
-        this.completedRuns.forEach(r => {
-            const prefix = this.runPrefix(r.participantId, r.run);
-            if (r.trials.length) this.download(`${prefix}vr-session-data-${timestamp}.csv`, [this.TRIAL_HEADER + r.trials.map(t => this.formatTrialRow(t)).join('')]);
-            if (r.kinL.length) kinematicsManager.exportHandData(r.kinL, 'LEFT', timestamp, prefix);
-            if (r.kinR.length) kinematicsManager.exportHandData(r.kinR, 'RIGHT', timestamp, prefix);
-            this.download(`${prefix}session-info-${timestamp}.csv`, [r.info]);
-        });
-        this.exportCSV(timestamp);
-        kinematicsManager.exportCSV(timestamp);
-        if (this.sessionStartTime > 0) {
-            this.download(`${this.filePrefix()}session-info-${timestamp}.csv`, [this.sessionInfo()]);
-        }
+        const files = [];
+        const addRun = (run, prefix, trials, kinL, kinR, info) => {
+            const add = (name, parts) => files.push({ run, name: `${prefix}${name}-${timestamp}.csv`, parts });
+            if (trials.length) add('vr-session-data', [this.TRIAL_HEADER].concat(trials.map(t => this.formatTrialRow(t))));
+            if (kinL.length) add('kinematics-LEFT', [kinematicsManager.HEADER].concat(kinL));
+            if (kinR.length) add('kinematics-RIGHT', [kinematicsManager.HEADER].concat(kinR));
+            if (info) add('session-info', [info]);
+        };
+        this.completedRuns.forEach(r => addRun(r.run, this.runPrefix(r.participantId, r.run), r.trials, r.kinL, r.kinR, r.info));
+        addRun(this.runNumber, this.filePrefix(), this.trialData, kinematicsManager.leftHandData, kinematicsManager.rightHandData, this.sessionStartTime > 0 ? this.sessionInfo() : '');
+        const notes = this.notesCsv();
+        if (notes) files.push({ run: 0, name: `${this.sessionPrefix()}notes-${timestamp}.csv`, parts: [notes] });
+        this.saveFiles(files, `${this.sessionPrefix()}${timestamp}.zip`);
     },
     
     setupManualExport: function() {
