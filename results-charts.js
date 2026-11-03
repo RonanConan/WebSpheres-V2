@@ -432,6 +432,7 @@ const ResultsCharts = (() => {
 
     const SESSION_H = 420;
     const LINE_H = 240;
+    const QUALITY_RUN_H = 195;
     const PANEL_MAX = 720;
     const TARGET_TITLE = 'Target (1 = far left, 11 = far right)';
 
@@ -651,12 +652,11 @@ const ResultsCharts = (() => {
         },
         quality: {
             title: 'Data quality timeline',
-            height: (width, data) => 66 + data.runs.length * 222,
+            height: (width, data) => 66 + data.runs.length * QUALITY_RUN_H,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Data quality timeline', ['Each block is one slice of the run. Coloured blocks show problems. Hover for the value.']);
-                legend(ctx, width, 38, theme, [{ label: 'Within limits', color: theme.ok }, { label: 'Over amber limit', color: theme.warn }, { label: 'Over red limit', color: theme.bad }, { label: 'No data', color: theme.none }]);
+                const top = header(ctx, width, data, theme, 'Data quality timeline', ['Each block is one slice of the run. Amber and red blocks show problems. Hover for the value.']);
                 data.runs.forEach((run, i) => {
-                    const y0 = top + 6 + i * 222;
+                    const y0 = top + 6 + i * QUALITY_RUN_H;
                     text(ctx, run.label, 0, y0 + 14, theme.text, 14, 'left', 600);
                     const q = run.quality;
                     if (!q || !q.lines.length) {
@@ -695,6 +695,7 @@ const ResultsCharts = (() => {
         const height = Math.ceil(chart.height(inner, data, opts)) + PAD * 2;
         canvas.width = Math.round(width * scale);
         canvas.height = Math.round(height * scale);
+        canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
         const ctx = canvas.getContext('2d');
         ctx.setTransform(scale, 0, 0, scale, 0, 0);

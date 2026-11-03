@@ -16,6 +16,10 @@ AFRAME.registerComponent('data-manager', {
         this.experimenter = '';
         this.sessionEndTime = 0;
         this.lastExportTimestamp = '';
+        this.xrModes = [];
+        this.el.sceneEl?.addEventListener?.('enter-vr', () => {
+            if (this.sessionStartTime > 0 && !this.sessionEndTime) this.noteXrMode();
+        });
         this.pauses = [];
         this.setupUnlocks = [];
         this.setupChanges = [];
@@ -211,7 +215,8 @@ AFRAME.registerComponent('data-manager', {
             ['PlannedRuns', this.plannedRuns()],
             ['Plan', this.planText()],
             ['BreakBefore', this.breakBefore],
-            ['RecalibratedBefore', this.recalibratedBefore.join(';')]
+            ['RecalibratedBefore', this.recalibratedBefore.join(';')],
+            ['XRMode', this.xrModes.join(';')]
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
     },
@@ -333,6 +338,18 @@ AFRAME.registerComponent('data-manager', {
     
     startSession: function(startTime) {
         this.sessionStartTime = startTime || Date.now();
+        this.xrModes = [];
+        this.noteXrMode();
+    },
+
+    xrMode: function() {
+        const scene = this.el.sceneEl;
+        return scene?.is?.('ar-mode') ? 'ar' : scene?.is?.('vr-mode') ? 'vr' : '';
+    },
+
+    noteXrMode: function() {
+        const mode = this.xrMode();
+        if (mode && !this.xrModes.includes(mode)) this.xrModes.push(mode);
     },
     
     logRecentre: function() {

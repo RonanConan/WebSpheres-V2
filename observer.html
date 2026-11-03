@@ -31,7 +31,7 @@
         html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
         #app { display: grid; grid-template-columns: 0 minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; }
         #app.left-open { grid-template-columns: 380px minmax(0, 1fr); }
-        #left-slot { grid-column: 1; grid-row: 1 / 4; display: none; background: var(--bar); border-right: 1px solid var(--line); overflow-y: auto; }
+        #left-slot { grid-column: 1; grid-row: 1 / 4; display: none; background: var(--bar); border-right: 1px solid var(--line); overflow-y: auto; overflow-anchor: none; }
         #app.left-open #left-slot { display: block; }
         #topbar, #bottombar { grid-column: 2; display: flex; align-items: center; background: var(--bar); overflow: hidden; white-space: nowrap; }
         #topbar { grid-row: 1; flex-wrap: wrap; gap: 0.4rem 1.6rem; padding: 0.55rem 1.1rem; border-bottom: 1px solid var(--line); }
@@ -86,12 +86,13 @@
         #guide { min-height: 100%; }
         .g-head { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 1rem; border-bottom: 1px solid var(--line); }
         .g-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-        #g-alert { padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; }
-        #g-alert[hidden] { display: none; }
+        #g-alert { position: sticky; top: 0; z-index: 2; box-sizing: border-box; height: 3.9rem; padding: 0.6rem 1rem; background: var(--bar); color: #1a1000; font-weight: 700; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        #g-alert.on { background: var(--warn); }
+        #g-unlocked { scroll-margin-top: 3.9rem; }
         .g-banner { padding: 0.6rem 1rem; border-bottom: 1px solid var(--warn); line-height: 1.35; }
         .g-banner[hidden] { display: none; }
         .g-banner .g-actions { margin-top: 0.5rem; }
-        #g-resume { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+        #g-resume { position: sticky; top: 3.9rem; z-index: 2; background: var(--bg); }
         .step { border-bottom: 1px solid var(--line); }
         .step-head { width: 100%; display: flex; align-items: center; gap: 0.75rem; text-align: left; background: transparent; border: 0; min-height: 3.1rem; padding: 0 1rem; font-size: 1.1rem; }
         .step-head:disabled { opacity: 0.4; cursor: default; }
@@ -106,6 +107,7 @@
         .checks li { display: flex; gap: 0.6rem; padding: 0.22rem 0; line-height: 1.35; }
         .ck { flex: none; width: 1.2rem; font-weight: 700; text-align: center; }
         .ck.ok { color: var(--ok); } .ck.warn { color: var(--warn); } .ck.bad { color: var(--err); }
+        .checks li:has(.ck.info) { color: var(--muted); }
         .g-row { margin: 0.8rem 0; }
         .g-row .label { margin-bottom: 0.35rem; }
         .g-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
@@ -188,8 +190,9 @@
         #res-warning { color: var(--warn); font-weight: 600; margin-bottom: 0.6rem; }
         #res-warning:empty { display: none; }
         .res-chart { margin: 1.4rem 0; padding-top: 1rem; border-top: 1px solid var(--line); }
-        .res-chart canvas { display: block; width: 100%; }
+        .res-chart canvas { display: block; }
         .res-chart.failed { color: var(--warn); font-weight: 600; }
+        #results > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
         #chart-tip { position: fixed; z-index: 20; max-width: 22rem; padding: 0.4rem 0.6rem; background: #0f131b; border: 1px solid var(--accent); font-size: 0.9rem; pointer-events: none; }
         #chart-tip[hidden] { display: none; }
         .q-lights { margin: 0.7rem 0; border-top: 1px solid var(--line); }
@@ -221,7 +224,6 @@
         .rep-mark { position: absolute; top: 0; width: 2px; height: 0.9rem; background: var(--text); }
         .rep-mark.recentre { background: var(--accent); }
         .rep-axis { display: flex; justify-content: space-between; color: var(--muted); font: 0.75rem var(--mono); }
-        .rep-key { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
         #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
         #plan-builder[hidden] { display: none; }
         .plan-settings { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin-bottom: 1.5rem; }
@@ -273,7 +275,7 @@
     <aside id="left-slot">
         <div id="guide">
             <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide guide</button></div>
-            <div id="g-alert" hidden></div>
+            <div id="g-alert"></div>
             <div class="g-banner" id="g-resume" hidden>
                 <div id="g-resume-text"></div>
                 <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-resume-go">Continue</button><button tabindex="-1" id="g-resume-new">New session</button></div>
@@ -334,7 +336,7 @@
                     </div>
                     <div class="sub" data-sub="lap">
                         <div class="label">Home</div>
-                        <p class="say">“Rest both hands in your lap.”</p>
+                        <p class="say">“Rest both hands on your lap.”</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="lap">Calibrate home</button></div>
                         <ul class="checks" id="g5-lap"></ul>
                     </div>
@@ -949,7 +951,7 @@
     const quality = { runs: {} };
 
     function qualityRun(run) {
-        if (!quality.runs[run]) quality.runs[run] = { secs: [], lastT: 0, base: null, count: null, dist: null, red: {}, redAt: {}, recentres: [] };
+        if (!quality.runs[run]) quality.runs[run] = { secs: [], lastT: 0, count: null, red: {}, redAt: {}, recentres: [] };
         return quality.runs[run];
     }
 
@@ -963,7 +965,7 @@
             const t = +c[0];
             if (!Number.isFinite(t)) return;
             const sec = Math.floor(t / 1000);
-            const b = q.secs[sec] || (q.secs[sec] = { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0 });
+            const b = q.secs[sec] || (q.secs[sec] = { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0 });
             if (c[7] !== '') {
                 if (left) { b.lt++; if (c[10] === '1') b.lv++; }
                 else { b.rt++; if (c[10] === '1') b.rv++; }
@@ -971,15 +973,10 @@
             if (!left) return;
             b.frames++;
             q.lastT = Math.max(q.lastT, t);
-            const head = [+c[18], +c[19], +c[20]];
-            if (head.some(v => !Number.isFinite(v)) || head.every(v => v === 0)) return;
-            if (q.base === null || q.count !== c[25]) {
-                if (q.base !== null) q.recentres.push(t);
-                q.base = head;
+            if (q.count !== c[25]) {
+                if (q.count !== null) q.recentres.push(t);
                 q.count = c[25];
             }
-            q.dist = 100 * Math.hypot(head[0] - q.base[0], head[1] - q.base[1], head[2] - q.base[2]);
-            b.head = Math.max(b.head, q.dist);
         });
     }
 
@@ -1218,6 +1215,7 @@
     }
     const stats = { arrivals: [], connectedSince: 0, opens: 0, staleDropped: 0, lastError: '', lastRecentre: '', fps: 0, fpsFrames: 0, fpsT0: 0 };
     const time = () => new Date().toLocaleTimeString();
+    const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const noteError = (type) => { stats.lastError = type + ' at ' + time(); };
 
     const receiver = {
@@ -1469,6 +1467,7 @@
             if (data.ok) {
                 clearTrails();
                 this.setRecentreNote('Recentred ' + time(), 'ok');
+                stats.recentredAt = clock();
                 stats.lastRecentre = 'OK at ' + time();
             } else {
                 this.setRecentreNote('Recentre failed: ' + (data.reason || 'unknown'), 'fail');
@@ -1631,7 +1630,6 @@
         conn: (rec) => breakOff() ? 'Headset off. Link drops are normal.' : CONN_INFO[receiver.status](rec),
         run: () => 'Current run / runs in plan.',
         qtrack: () => '% frames tracked while target showing, last 30 s.',
-        qhead: () => 'Distance moved since run start or last recentre.',
         qfps: () => 'Headset frames per second, last 30 s. Low = coarser data.',
         qflow: () => 'Skipped targets and long gaps between trials.',
         stream: (rec) => '3D view out of date.' + rec,
@@ -1794,7 +1792,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.5.0';
+    const APP_VERSION = '2.5.1';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -1858,7 +1856,7 @@
             const li = document.createElement('li');
             const mark = document.createElement('span');
             mark.className = 'ck ' + kind;
-            mark.textContent = kind === 'ok' ? '✓' : kind === 'warn' ? '!' : '✗';
+            mark.textContent = kind === 'info' ? '' : kind === 'ok' ? '✓' : kind === 'warn' ? '!' : '✗';
             const label = document.createElement('span');
             label.textContent = text;
             li.append(mark, label);
@@ -1867,6 +1865,13 @@
     }
 
     const tick3 = (ok, text, warnInstead) => [ok ? 'ok' : (warnInstead ? 'warn' : 'bad'), text];
+    const NOT_IN_XR = 'Not in VR or AR. Enter on headset.';
+    const inXrLabel = (s) => s && s.xrMode === 'ar' ? 'In AR' : 'In VR';
+    const recentreLine = () => {
+        const note = $('recentre-note');
+        if (!note.textContent) return [];
+        return [note.className === 'ok' ? ['info', `Last recentre ${stats.recentredAt}`] : ['warn', note.textContent]];
+    };
     const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
     const fmt = (v, d) => Number.isFinite(+v) ? (+v).toFixed(d) : '–';
 
@@ -2051,7 +2056,7 @@
             tick3(st.live, st.live ? 'Connected' : (s ? 'Reconnecting…' : 'Searching for headset…'), !s),
             s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Hard-refresh both pages.`) : ['warn', 'Version checked on connection']
         ]);
-        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest. Enter VR. Connects automatically.';
+        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest. Enter VR or AR. Connects automatically.';
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
         const locked = !!(s && (s.setupLocked || s.phase !== 'setup'));
@@ -2067,7 +2072,7 @@
         }
 
         $('g-recentre').disabled = !st.live;
-        setChecks('g4-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...($('recentre-note').textContent ? [['warn', $('recentre-note').textContent]] : [])]);
+        setChecks('g4-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...recentreLine()]);
 
         const c = s && s.calib;
         const sub = activeSub(s);
@@ -2099,7 +2104,7 @@
             tick3(!!(c && c.lap.done), 'Home calibrated')
         ];
         const advisory = [
-            tick3(!s || s.inVR !== false, s && s.inVR === false ? 'Not in VR. Enter VR on headset.' : 'In VR', true),
+            tick3(!s || s.inVR !== false, s && s.inVR === false ? NOT_IN_XR : inXrLabel(s), true),
             tick3(tracked, 'Both hands tracked', true),
             tick3(box.L && box.R, 'Both hands in home box', true),
             tick3(inSync, 'Laptop copy up to date', true)
@@ -2169,12 +2174,15 @@
                     if (lights[k].kind === 'bad' && !(k === 'flow' && lights[k].text === 'No trial 30 s')) alerts.push(`${name}: ${lights[k].text}`);
                 });
                 const behind = now - (backup.syncedAt || now);
-                if (behind > 10000) alerts.push(`Laptop copy ${Math.floor(behind / 1000)} s behind`);
+                if (behind > 10000) alerts.unshift(`Laptop copy ${Math.floor(behind / 1000)} s behind`);
             }
         }
         const alertEl = $('g-alert');
-        alertEl.hidden = alerts.length === 0;
-        if (alertEl.textContent !== alerts.join(' · ')) alertEl.textContent = alerts.join(' · ');
+        alertEl.classList.toggle('on', alerts.length > 0);
+        if (alertEl.textContent !== alerts.join(' · ')) {
+            alertEl.textContent = alerts.join(' · ');
+            alertEl.title = alertEl.textContent;
+        }
 
         if (s && s.phase === 'complete') {
             $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
@@ -2428,15 +2436,14 @@
         }).catch(() => {});
     }
 
-    const QUALITY_LIGHTS = [['trackL', 'Tracking left', 'qtrack'], ['trackR', 'Tracking right', 'qtrack'], ['head', 'Head stillness', 'qhead'], ['fps', 'Frame rate', 'qfps'], ['flow', 'Trial flow', 'qflow']];
+    const QUALITY_LIGHTS = [['trackL', 'Tracking left', 'qtrack'], ['trackR', 'Tracking right', 'qtrack'], ['fps', 'Frame rate', 'qfps'], ['flow', 'Trial flow', 'qflow']];
     const LIGHT_MARK = { ok: '✓', warn: '!', bad: '✗', off: '–' };
     const trackKind = (pct) => pct < 85 ? 'bad' : pct < 95 ? 'warn' : 'ok';
-    const headKind = (cm) => cm > 10 ? 'bad' : cm > 5 ? 'warn' : 'ok';
     const fpsKind = (fps) => fps < 70 ? 'bad' : fps < 80 ? 'warn' : 'ok';
 
     function qualityNow(s, now) {
         const off = { kind: 'off', text: '–' };
-        const out = { trackL: off, trackR: off, head: off, fps: off, flow: off };
+        const out = { trackL: off, trackR: off, fps: off, flow: off };
         const fresh = backup.run === (s.run || 1) && now - (backup.syncedAt || 0) < 5000;
         const q = quality.runs[backup.run];
         if (fresh && q) {
@@ -2454,7 +2461,6 @@
             };
             out.trackL = tracked(sum.lv, sum.lt);
             out.trackR = tracked(sum.rv, sum.rt);
-            if (q.dist !== null) out.head = { kind: headKind(q.dist), text: `${q.dist.toFixed(1)} cm` };
             const span = q.lastT / 1000 - firstSec;
             if (span >= 5) {
                 const fps = sum.frames / span;
@@ -2588,47 +2594,58 @@
         return `<div class="rep-line"><span>${label}</span><div class="rep-strip">${cells}</div><span>${summary}</span></div>`;
     }
 
-    function qualityLines(run, trials) {
+    function trialStalls(rows, ms, info) {
+        const pauses = ((/^Pauses,(.*)$/m.exec(info || '') || [])[1] || '').split(';').filter(Boolean).map(p => p.split('-').map(Number));
+        const marks = [0, ...rows.map(c => +c[1]), ...pauses.flat().filter(Boolean), ms].sort((a, b) => a - b);
+        const stalls = [];
+        marks.forEach((from, i) => {
+            const to = marks[i + 1];
+            if (to - from > 30000 && !pauses.some(([start, end]) => from >= start && to <= (end || ms))) stalls.push([from + 30000, to]);
+        });
+        return stalls;
+    }
+
+    function qualityLines(run, trials, info) {
         const q = quality.runs[run];
         const ms = q ? q.lastT : 0;
         const secs = q ? q.secs : [];
         const binSec = Math.max(1, Math.ceil(ms / 1000 / 60));
         const bins = Math.max(1, Math.ceil(ms / 1000 / binSec));
-        const empty = () => Array.from({ length: bins }, () => ({ frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0, skips: 0 }));
+        const empty = () => Array.from({ length: bins }, () => ({ frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, skips: 0 }));
         const out = empty();
         secs.forEach((b, sec) => {
             if (!b) return;
             const o = out[Math.min(bins - 1, Math.floor(sec / binSec))];
             ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { o[k] += b[k]; });
-            o.head = Math.max(o.head, b.head);
         });
         const rows = trials.map(l => l.split(','));
         rows.forEach(c => {
             if (c[5] === 'SKIP') out[Math.min(bins - 1, Math.floor(+c[1] / 1000 / binSec))].skips++;
         });
+        const stalls = trialStalls(rows, ms, info);
+        stalls.forEach(([from, to]) => {
+            for (let i = Math.floor(from / 1000 / binSec); i <= Math.min(bins - 1, Math.floor(to / 1000 / binSec)); i++) out[i].stalled = true;
+        });
         const when = (i) => `${mmss(i * binSec * 1000)}–${mmss((i + 1) * binSec * 1000)}`;
         const pct = (hit, all) => all ? 100 * hit / all : null;
-        const total = out.reduce((t, o) => { ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { t[k] += o[k]; }); t.head = Math.max(t.head, o.head); return t; }, { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0, head: 0 });
+        const total = out.reduce((t, o) => { ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { t[k] += o[k]; }); return t; }, { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0 });
         const show = (v) => v === null ? '–' : `${Math.floor(v)}%`;
         const skips = rows.filter(c => c[5] === 'SKIP').length;
         const track = (hitKey, allKey) => [out.map(o => { const p = pct(o[hitKey], o[allKey]); return p === null ? '' : trackKind(p); }), out.map((o, i) => { const p = pct(o[hitKey], o[allKey]); return `${when(i)}: ${p === null ? 'no target' : Math.floor(p) + '%'}`; })];
         const [lk, lt] = track('lv', 'lt');
         const [rk, rt] = track('rv', 'rt');
-        const headK = out.map(o => o.frames ? headKind(o.head) : '');
-        const headT = out.map((o, i) => `${when(i)}: ${o.head.toFixed(1)} cm`);
         const binFps = (o, i) => o.frames / Math.max(0.001, Math.min(binSec, ms / 1000 - i * binSec));
         const fpsK = out.map((o, i) => o.frames ? fpsKind(binFps(o, i)) : '');
         const fpsT = out.map((o, i) => `${when(i)}: ${Math.round(binFps(o, i))} frames/s`);
-        const flowK = out.map(o => o.skips >= 3 ? 'bad' : o.skips ? 'warn' : (o.frames ? 'ok' : ''));
-        const flowT = out.map((o, i) => `${when(i)}: ${o.skips} ${o.skips === 1 ? 'skip' : 'skips'}`);
+        const flowK = out.map(o => o.stalled || o.skips >= 3 ? 'bad' : o.skips ? 'warn' : (o.frames ? 'ok' : ''));
+        const flowT = out.map((o, i) => `${when(i)}: ${o.skips} ${o.skips === 1 ? 'skip' : 'skips'}${o.stalled ? ', no trial for 30 s' : ''}`);
         return {
             ms, skips, rows: rows.length, duration: mmss(ms),
             lines: [
                 { label: 'Tracking left', kinds: lk, tips: lt, summary: show(pct(total.lv, total.lt)) },
                 { label: 'Tracking right', kinds: rk, tips: rt, summary: show(pct(total.rv, total.rt)) },
-                { label: 'Head stillness', kinds: headK, tips: headT, summary: `${total.head.toFixed(1)} cm` },
                 { label: 'Frame rate', kinds: fpsK, tips: fpsT, summary: ms ? `${Math.round(1000 * total.frames / ms)}/s` : '–' },
-                { label: 'Trial flow', kinds: flowK, tips: flowT, summary: `${skips} ${skips === 1 ? 'skip' : 'skips'}` }
+                { label: 'Trial flow', kinds: flowK, tips: flowT, summary: stalls.length ? `${stalls.length} ${stalls.length === 1 ? 'stall' : 'stalls'}` : `${skips} ${skips === 1 ? 'skip' : 'skips'}` }
             ]
         };
     }
@@ -2638,14 +2655,15 @@
         const earlier = backup.archive.find(r => r.run === run);
         const pauses = earlier ? earlier.pauses || 0 : s.pauses;
         const recentres = earlier ? earlier.recentres || 0 : s.recentreCount;
-        const { ms, skips, rows, lines } = qualityLines(run, trials);
-        const marks = (s.noteMarks || []).filter(n => n.run === run && ms > 0).map(n => `<div class="rep-mark" style="left:${Math.min(100, 100 * n.time / ms)}%" title="${n.type} at ${mmss(n.time)}"></div>`)
-            .concat(((q && q.recentres) || []).filter(() => ms > 0).map(t => `<div class="rep-mark recentre" style="left:${Math.min(100, 100 * t / ms)}%" title="Recentre at ${mmss(t)}"></div>`)).join('');
-        const facts = [['Duration', mmss(ms)], ['Trials', String(rows)], ['Skips', String(skips)], ['Pauses', String(pauses)], ['Recentres', String(recentres)], ['Notes', String((s.noteMarks || []).filter(n => n.run === run).length)]];
+        const { ms, skips, rows, lines } = qualityLines(run, trials, earlier ? earlier.info : s.info);
+        const notes = (s.noteMarks || []).filter(n => n.run === run && n.type === 'note').map(n => n.time);
+        const markRow = (label, times, cls, name, count) => `<div class="rep-line"><span>${label}</span><div class="rep-marks">${ms > 0 ? times.map(t => `<div class="rep-mark ${cls}" style="left:${Math.min(100, 100 * t / ms)}%" title="${name} at ${mmss(t)}"></div>`).join('') : ''}</div><span>${count}</span></div>`;
+        const facts = [['Duration', mmss(ms)], ['Trials', String(rows)], ['Skips', String(skips)], ['Pauses', String(pauses)], ['Recentres', String(recentres)], ['Notes', String(notes.length)]];
         return `<div class="rep-run" data-report-run="${run}">
             <h3>${runLabel(run, earlier ? earlier.info : s.info)}</h3>
             <div class="rep-facts">${facts.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('')}</div>
-            <div class="rep-line"><span>Notes, recentres</span><div class="rep-marks">${marks}</div><span></span></div>
+            ${markRow('Notes', notes, 'note', 'Note', notes.length)}
+            ${markRow('Recentres', (q && q.recentres) || [], 'recentre', 'Recentre', recentres)}
             ${lines.map(l => reportStrip(l.label, l.kinds, l.tips, l.summary)).join('')}
             <div class="rep-line"><span></span><div class="rep-axis"><span>0:00</span><span>${mmss(ms)}</span></div><span></span></div>
         </div>`;
@@ -2657,8 +2675,7 @@
         const key = JSON.stringify([blocks.map(b => b[0]), backupRows(), (s.noteMarks || []).length, s.recentreCount, guide.plan.runs.map(r => r.condition)]);
         if (key === guide.reportKey) return;
         guide.reportKey = key;
-        $('run-report').innerHTML = `${blocks.slice().reverse().map(([run, trials]) => reportBlock(s, run, trials)).join('')}
-            <p class="rep-key">Green: within limits. Amber: over amber limit. Red: over red limit. Grey: no data. Hover a cell for its value.</p>`;
+        $('run-report').innerHTML = blocks.slice().reverse().map(([run, trials]) => reportBlock(s, run, trials)).join('');
     }
 
     function runLabel(run, info) {
@@ -2677,7 +2694,7 @@
             const key = `${run}:${r.trials.length}:${r.kinL.length}:${r.kinR.length}`;
             let parsed = guide.results.parsed.get(key);
             if (!parsed) {
-                parsed = ResultsCharts.parseRun({ run, label: runLabel(run, info), kinL: r.kinL, kinR: r.kinR, trials: r.trials, quality: qualityLines(run, r.trials) });
+                parsed = ResultsCharts.parseRun({ run, label: runLabel(run, info), kinL: r.kinL, kinR: r.kinR, trials: r.trials, quality: qualityLines(run, r.trials, info) });
                 guide.results.parsed.set(key, parsed);
             }
             return parsed;
@@ -2972,8 +2989,8 @@
             ...(backup.storeFailed ? [['warn', 'Browser storage failed. Laptop copy in memory only.']] : []),
             ...(off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
         ]);
-        setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? 'In VR' : 'Not in VR. Enter VR on headset.')]);
-        setChecks('g7-b-recentred', [tick3(recentred, recentred ? 'Recentred' : off ? 'Recentre required' : 'Recentre recommended', !off), ...($('recentre-note').textContent && !recentred ? [['warn', $('recentre-note').textContent]] : [])]);
+        setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? inXrLabel(s) : NOT_IN_XR)]);
+        setChecks('g7-b-recentred', [tick3(recentred, recentred ? 'Recentred' : off ? 'Recentre required' : 'Recentre recommended', !off), ...(recentred ? [] : recentreLine())]);
         $('g7-b-recentre').disabled = !st.live || (off && !s.inVR);
         $('g7-b-recentre').classList.toggle('g-primary', !recentred);
         $('g7-b-recal').hidden = !link.recal;

@@ -4,7 +4,7 @@ const { openDownload, readZip } = require('./unzip.cjs');
 const { ok, done } = counter('CHARTS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-charts-'));
-const VERSION = '2.5.0';
+const VERSION = '2.5.1';
 const kin = (t, x, z, o) => {
   const a = Object.assign({ target: true, valid: 1, rec: 0, hx: 0, hz: -0.4, y: 1 }, o);
   return `${t},${x},${a.y},${z},${a.hx},0.9,${a.hz},${a.target ? '0.1,1.2,-0.5' : ',,'},${a.valid},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,${a.rec}\n`;
@@ -249,7 +249,11 @@ async function panelSuite(b) {
   const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial (across the whole session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial (across the whole session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in run (min:s)'] };
   Object.entries(axes).forEach(([id, want]) => ok(want.every(w => written[id].includes(w)), `${id}: axes titled`));
   ok(Object.values(written).flat().every(s => !/ball/i.test(s)), 'no specialist wording on any figure');
-  ok(written.quality.includes('Within limits') && written.times.includes('Movement time') && written.handChoice.includes('Hits'), 'legends and hit counts present');
+  ok(!written.quality.includes('Within limits') && written.times.includes('Movement time') && written.handChoice.includes('Hits'), 'legends and hit counts present; no limits legend on the timeline');
+  await o.setViewportSize({ width: 2560, height: 1440 }); await sleep(1500);
+  const shapes = await O(() => [...document.querySelectorAll('.res-chart canvas:not(#ws3d-canvas)')].map(c => { const r = c.getBoundingClientRect(); return { w: r.width, shown: r.width / r.height, drawn: c.width / c.height }; }));
+  ok(shapes.length > 0 && shapes.every(s => Math.abs(s.shown - s.drawn) < 0.01 && s.w <= 1400), `1440p: charts keep their shape, at most 1400 px wide (${shapes.length} charts, widest ${Math.max(...shapes.map(s => s.w))})`);
+  await o.setViewportSize({ width: 1440, height: 900 }); await sleep(1500);
   await o.click('#res-close'); await sleep(50);
   ok(!(await shown('#results')) && await shown('#g-results'), 'Close returns to the 3D view; Results button remains');
   await o.click('#g-results'); await sleep(350);

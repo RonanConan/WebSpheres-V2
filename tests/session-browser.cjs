@@ -13,7 +13,7 @@ const { ok, done } = counter('SESSION BROWSER');
 
   console.log('SETUP PHASE');
   let s = await state();
-  ok(s && s.version === '2.5.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
+  ok(s && s.version === '2.5.1' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
   ok(s.calib && !s.calib.reach.done && !s.calib.height.done && !s.calib.lap.done && s.backup && s.backup.trials === 0, 'state carries calibration and backup counts');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
@@ -159,6 +159,40 @@ const { ok, done } = counter('SESSION BROWSER');
   const ts = await E(() => window.__km.leftHandData.map(l => +l.split(',')[0]));
   const gaps = ts.slice(1).map((t, i) => t - ts[i]);
   ok(ts.length > 30 && gaps.every(g => g >= 0 && g < 250), `kinematics timestamps continuous across pauses (${ts.length} rows, max step ${Math.max(...gaps)} ms)`);
+
+  console.log('EXPERIMENTER VIEW TIMING');
+  const sentTarget = () => E(() => window.__conn.sent.slice(-40).map(s => JSON.parse(s)).filter(x => x.seq).at(-1).activeSphere);
+  await E(() => window.__hitLeft());
+  await until(() => window.__sm.currentState === 'cooldown' || window.__sm.currentState === 'invisible');
+  await p.waitForTimeout(100);
+  ok((await sentTarget()) === -1, 'hit: target gone from both views');
+  await E(() => window.__home(true));
+  await until(() => window.__sm.currentState === 'waiting-to-appear');
+  await p.waitForTimeout(200);
+  ok(await E(() => !window.__sm.activeSphere.object3D.visible) && (await sentTarget()) === -1, '500 ms wait: target chosen, not shown in either view');
+  await until(() => window.__sm.currentState === 'visible');
+  await p.waitForTimeout(150);
+  ok((await sentTarget()) === await E(() => window.__sm.allSpheres.indexOf(window.__sm.activeSphere)), 'target visible: same target in experimenter view');
+
+  console.log('AR OR VR SAVED');
+  const xr = await E(() => {
+    const sc = document.querySelector('a-scene'), dm = window.__dm, is = sc.is;
+    const line = () => dm.buildSessionInfo().split('\n').find(l => l.startsWith('XRMode,'));
+    sc.is = (x) => x === 'ar-mode';
+    dm.startSession(dm.sessionStartTime);
+    const ar = line();
+    sc.is = (x) => x === 'vr-mode';
+    sc.emit('enter-vr');
+    const both = line();
+    sc.is = () => false;
+    dm.startSession(dm.sessionStartTime);
+    const none = line();
+    sc.is = is;
+    return { ar, both, none, last: dm.buildSessionInfo().trim().split('\n').at(-1).split(',')[0] };
+  });
+  ok(xr.ar === 'XRMode,ar', 'run started in AR: saved as ar');
+  ok(xr.both === 'XRMode,ar;vr', 'switched mid-run: both saved, in order');
+  ok(xr.none === 'XRMode,' && xr.last === 'XRMode', 'not in a headset view: blank; row added at the end');
 
   console.log('SKIP, UNLOCK');
   r = await cmd('skip');

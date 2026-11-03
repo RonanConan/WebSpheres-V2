@@ -1,4 +1,4 @@
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -28,8 +28,7 @@ AFRAME.registerComponent('spectator-manager', {
         this.CUES = {
             lookAhead: 'Please look straight ahead',
             reach: 'Stretch one arm straight out',
-            lap: 'Rest both hands in the green box',
-            lapPerHand: 'Rest both hands in your lap',
+            lap: 'Rest both hands on your lap',
             ready: 'Get ready...',
             paused: 'Short break',
             done: 'All done - thank you!'
@@ -286,7 +285,8 @@ AFRAME.registerComponent('spectator-manager', {
             type: 'state',
             version: APP_VERSION,
             sessionId: this.sessionId,
-            inVR: !!this.el.sceneEl.is?.('vr-mode'),
+            inVR: !!(this.el.sceneEl.is?.('vr-mode') || this.el.sceneEl.is?.('ar-mode')),
+            xrMode: dataM?.xrMode ? dataM.xrMode() : '',
             run: dataM?.runNumber ?? 1,
             plannedRuns: dataM?.plannedRuns ? dataM.plannedRuns() : 1,
             plan: dataM?.plan ?? null,
@@ -412,8 +412,7 @@ AFRAME.registerComponent('spectator-manager', {
     },
 
     setCue: function (id) {
-        const perHand = document.querySelector('#sphere-manager')?.components?.['sphere-manager']?.homeMode === 'per-hand';
-        const text = id ? this.CUES[id === 'lap' && perHand ? 'lapPerHand' : id] : '';
+        const text = id ? this.CUES[id] : '';
         if (id && !text) return;
         this.cue = id || null;
         const box = document.querySelector('#participant-cue');
@@ -559,7 +558,7 @@ AFRAME.registerComponent('spectator-manager', {
         const homePos = homeEl?.getAttribute('position') || { x: 0, y: 0.9, z: -0.4 };
 
         let activeSphere = -1;
-        if (sm?.activeSphere) {
+        if (sm?.activeSphere?.object3D?.visible) {
             activeSphere = sm.allSpheres.indexOf(sm.activeSphere);
         }
 

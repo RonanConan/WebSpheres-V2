@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('QUALITY BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-quality-'));
-const VERSION = '2.5.0';
+const VERSION = '2.5.1';
 const row = (t, o) => {
   const a = Object.assign({ target: true, valid: 1, x: 0, y: 1.2, z: 0, rec: 0 }, o);
   return `${t},0.1,1,-0.3,0,0.9,-0.4,${a.target ? '0.1,1.2,-0.4' : ',,'},${a.valid},0,0,0,0,0,0,1,${a.x},${a.y},${a.z},0,0,0,1,${a.rec}\n`;
@@ -65,7 +65,6 @@ async function observerSuite(b) {
   ok(l.kind === 'ok' && l.text === '100%' && l.mark === '✓', 'tracking left: green, 100%, with a mark as well as colour');
   ok((await light('trackR')).text === '100%', 'tracking right: 100%');
   ok((await light('fps')).kind === 'ok' && Math.abs(+(await light('fps')).text - 90) <= 2, 'frame rate about 90 (' + (await light('fps')).text + ')');
-  ok((await light('head')).kind === 'ok' && (await light('head')).text === '0.0 cm', 'head still: 0.0 cm');
   ok((await light('flow')).text === 'OK', 'trial flow OK');
   ok(await O(() => !document.getElementById('g7-left') && !document.getElementById('g7-run').textContent.includes('Right hand')), 'hand use hidden during the run');
 
@@ -100,15 +99,11 @@ async function observerSuite(b) {
   await feed(32);
   ok((await light('trackL')).kind === 'ok', 'recovers to green');
 
-  console.log('HEAD STILLNESS');
-  await feed(1, { x: 0.07 });
-  ok((await light('head')).kind === 'warn' && (await light('head')).text === '7.0 cm', 'head 7 cm away: amber');
-  await feed(1, { x: 0.12 });
-  ok((await light('head')).kind === 'bad' && (await light('head')).text === '12.0 cm', 'head 12 cm away: red');
-  await feed(1, { x: 0.3, rec: 1 });
-  ok((await light('head')).kind === 'ok' && (await light('head')).text === '0.0 cm', 'recentre: new baseline, green');
-  await feed(1, { x: 0.3, y: 1.14, rec: 1 });
-  ok((await light('head')).kind === 'warn', 'height change counts too (' + (await light('head')).text + ')');
+  console.log('HEAD MOVEMENT');
+  await feed(1, { x: 0.3 });
+  ok(await O(() => !document.querySelector('#g7-quality [data-q="head"]') && !document.getElementById('guide').textContent.includes('Head stillness')), 'no head stillness light');
+  const headAlert = await alert(), headNotes = (await notes()).map(n => n.text);
+  ok(!/head/i.test(headAlert) && !headNotes.some(n => /head/i.test(n)), 'head 30 cm away: no alert, no note (alert "' + headAlert + '", notes ' + JSON.stringify(headNotes) + ')');
   await feed(1, { x: 0.3, rec: 1 });
 
   console.log('FRAME RATE');
@@ -137,7 +132,7 @@ async function observerSuite(b) {
   console.log('LINK LOST');
   await O(() => { window.__c.open = false; });
   await sleep(350);
-  ok((await light('trackL')).kind === 'off' && (await light('head')).kind === 'off' && (await light('flow')).kind === 'off' && (await light('trackL')).mark === '–', 'link lost: every light grey, never a stale green');
+  ok((await light('trackL')).kind === 'off' && (await light('flow')).kind === 'off' && (await light('trackL')).mark === '–', 'link lost: every light grey, never a stale green');
   await O(() => { window.__c.open = true; });
   await state({ trialCount: nT }); await sleep(350);
 
@@ -190,6 +185,9 @@ async function observerSuite(b) {
   await sleep(300);
   ok((await O(() => window.__obs.backup.autoSavedTs)) === 'HELD', 'saves once the queue is empty');
 
+  await feed(31);
+  await addTrial('normal');
+
   console.log('BETWEEN-RUN REPORT');
   const marks = [{ run: 1, time: 5000, type: 'note' }, { run: 1, time: 60000, type: 'alert' }];
   extra = { noteMarks: marks };
@@ -197,7 +195,7 @@ async function observerSuite(b) {
   await sleep(350);
   ok(await O(() => document.getElementById('run-report').checkVisibility() && !!document.querySelector('[data-report-run="1"]')), 'report shown between runs');
   const rep = await O(() => document.getElementById('run-report').textContent);
-  ok(['Duration', 'Skips', 'Pauses', 'Recentres', 'Tracking left', 'Tracking right', 'Head stillness', 'Frame rate', 'Trial flow'].every(w => rep.includes(w)), 'facts and all five timelines listed');
+  ok(['Duration', 'Skips', 'Pauses', 'Recentres', 'Tracking left', 'Tracking right', 'Frame rate', 'Trial flow'].every(w => rep.includes(w)) && !rep.includes('Head stillness'), 'facts and four timelines listed, no head stillness');
   ok(!/verdict|pass|fail/i.test(rep), 'facts only, no pass or fail');
   ok(!/\bLEFT\b|hand use|Left hand/i.test(rep), 'no hand-choice data in the report');
   const strip = await O(() => {
@@ -208,7 +206,20 @@ async function observerSuite(b) {
   ok(strip.n > 1 && strip.n <= 60, 'timeline has at most 60 cells (' + strip.n + ')');
   ok(strip.kinds.includes('ok') && (strip.kinds.includes('warn') || strip.kinds.includes('bad')), 'timeline shows when tracking dropped');
   ok(/^0:00–\d+:\d\d: \d+%$/.test(strip.title), 'hover gives time and value (' + strip.title + ')');
-  ok(await O(() => document.querySelectorAll('[data-report-run="1"] .rep-mark').length >= 3), 'notes, alerts and recentres marked');
+  const markRows = await O(() => Object.fromEntries([...document.querySelectorAll('[data-report-run="1"] .rep-line')].filter(l => l.querySelector('.rep-marks')).map(l => [l.children[0].textContent, [l.querySelectorAll('.rep-mark').length, l.children[2].textContent, l.querySelector('.rep-mark')?.title]])));
+  ok(JSON.stringify(Object.keys(markRows)) === '["Notes","Recentres"]', 'notes and recentres on separate rows');
+  ok(markRows.Notes[0] === 1 && markRows.Notes[1] === '1' && /^Note at /.test(markRows.Notes[2]), 'notes row: experimenter notes only, no alerts');
+  ok(markRows.Recentres[0] >= 1 && /^Recentre at /.test(markRows.Recentres[2]), 'recentres row: recentres only (' + markRows.Recentres[0] + ')');
+  ok(!/within limits|amber limit|red limit/i.test(rep), 'no colour legend under the timeline');
+  const flowLine = () => O(() => { const l = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Trial flow')); const cells = [...l.querySelectorAll('.rep-cell')]; return { stalled: cells.filter(c => c.title.includes('no trial for 30 s')).map(c => c.className), summary: l.children[2].textContent }; });
+  const flowStalled = await flowLine();
+  ok(flowStalled.stalled.length > 0 && flowStalled.stalled.every(c => c.includes('bad')) && /stall/.test(flowStalled.summary), 'trial stall: red on the timeline (' + flowStalled.summary + ')');
+  await state({ phase: 'between', sessionMs: Math.round(t), setupLocked: false, trialCount: nT, recentreCount: 2, pauses: 1, info: `Key,Value\nPauses,0-${Math.round(t)}\n` });
+  await sleep(350);
+  const flowPaused = await flowLine();
+  ok(flowPaused.stalled.length === 0 && !/stall/.test(flowPaused.summary), 'long gap inside a pause: not a stall (' + flowPaused.summary + ')');
+  await state({ phase: 'between', sessionMs: Math.round(t), setupLocked: false, trialCount: nT, recentreCount: 1, pauses: 1 });
+  await sleep(350);
   ok(await O(() => !!document.getElementById('plan-add') && document.getElementById('plan-builder').scrollHeight > 0), 'Add run still on the same screen');
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');
   await ctx.close();
@@ -235,13 +246,13 @@ async function headsetSuite(b) {
   ok(await E(() => window.__sounds === 0), 'adding a note makes no sound in the headset');
   ok((await cmd('addNote', note)).result.ok && (await E(() => window.__dm.notes.length)) === 1, 'a repeated send is stored once');
   for (const bad of [null, { id: 'x', type: 'note', text: '' }, { id: 'x', type: 'other', text: 'a' }, { type: 'note', text: 'a' }]) ok(!(await cmd('addNote', bad)).result.ok, 'bad note refused: ' + JSON.stringify(bad));
-  await cmd('addNote', { id: 'n2', type: 'alert', text: 'Head stillness red: 12.0 cm', run: 1, trial: 5, time: 2000, dateTime: '2026-11-02T10:00:01.000Z', estimated: true });
+  await cmd('addNote', { id: 'n2', type: 'alert', text: 'Frame rate red: 60', run: 1, trial: 5, time: 2000, dateTime: '2026-11-02T10:00:01.000Z', estimated: true });
   await cmd('unlockSetup');
   await cmd('setCondition', 2);
   const csv = (await E(() => window.__dm.notesCsv())).trimEnd().split('\n');
   ok(csv[0] === 'Run,Trial,RunTimeMs,ReceivedRunTimeMs,DateTime,Type,Text,Old,New,Estimated', 'notes header');
   ok(csv[1].startsWith('1,4,1234,') && csv[1].includes(',note,"Told, to sit ""still""",,,0'), 'note row, commas and quotes escaped');
-  ok(csv[2].includes(',alert,Head stillness red: 12.0 cm,,,1'), 'alert row, estimate marked');
+  ok(csv[2].includes(',alert,Frame rate red: 60,,,1'), 'alert row, estimate marked');
   ok(csv.some(l => l.includes(',setup,Setup,locked,unlocked,0')) && csv.some(l => l.includes(',setup,Condition,1,2,0')), 'setup changes in the same file, with old and new');
   await cmd('endEarly');
   await p.waitForFunction(() => window.__dm.lastExportTimestamp && !window.__dm.isSaving(), null, { timeout: 6000, polling: 20 });

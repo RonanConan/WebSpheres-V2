@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.5.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.5.1', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -56,8 +56,8 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('warn:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.0, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.5.0' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.1, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.5.1' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -113,6 +113,9 @@ const KH = 'Timestamp,HandX\n';
   await click('#g-recentre'); await tick(100);
   ok((await sent()).some(m => m.code === 'KeyR') && (await text('recentre-note')) === 'Recentring in 1.5 s…', 'Recentre button uses the look-ahead recentre');
   await E(() => window.__c.emit('data', JSON.stringify({ type: 'recentre', ok: true, reason: '' })));
+  await tick();
+  const recentredLine = await E(() => [...document.querySelectorAll('#g4-checks li')].map(li => [li.querySelector('.ck').textContent, li.textContent]).find(x => x[1].includes('Last recentre')) || null);
+  ok(recentredLine && recentredLine[0] === '' && /^Last recentre \d/.test(recentredLine[1]), 'recentre time: labelled, no warning mark (' + JSON.stringify(recentredLine) + ')');
   await setState({ recentred: true }); await tick();
   ok(await isDone(4) && await openStep() === 5, 'recentre reported → step 3 ✓, step 4 opens');
 
@@ -150,7 +153,7 @@ const KH = 'Timestamp,HandX\n';
   ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start run 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.5.0', participantId: '' }); await tick();
+  await setState({ version: '2.5.1', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });
@@ -186,12 +189,15 @@ const KH = 'Timestamp,HandX\n';
   ok(!(await allCmds()).slice((await allCmds()).indexOf('start')).some(c => c.startsWith('cue')), 'no cue commands once the session has started');
 
   console.log('ALERTS');
-  const alert = () => E(() => document.getElementById('g-alert').hidden ? '' : document.getElementById('g-alert').textContent);
+  const alert = () => E(() => document.getElementById('g-alert').classList.contains('on') ? document.getElementById('g-alert').textContent : '');
+  const noteTop = () => E(() => document.getElementById('g-note-spoke').getBoundingClientRect().top);
   await setState({ phase: 'running', trialCount: 6, backup: Object.assign({}, S.backup) });
   await frame(); await tick(50);
   for (let i = 0; i < 5; i++) { await frame({ leftValid: false, left: null }); await tick(500); }
   const before3 = await alert();
+  const topBefore = await noteTop();
   await frame({ leftValid: false, left: null }); await tick(1000);
+  ok((await noteTop()) === topBefore, 'buttons stay put when an alert appears');
   ok(before3 === '' && (await alert()) === 'Left hand not tracked (3 s)', `nothing at 2.5 s, "Left hand not tracked (3 s)" at 3.5 s ("${await alert()}")`);
   await frame(); await tick(300);
   ok((await alert()) === '', 'alert clears when the hand is tracked again');
@@ -201,6 +207,8 @@ const KH = 'Timestamp,HandX\n';
   ok((await alert()) === '', 'clears on the next trial');
   for (let i = 0; i < 11; i++) { await frame(); await setState({ trialCount: 7 + i, backup: Object.assign({}, S.backup, { kinL: 4 + i }) }); await tick(1000); }
   ok(/^Laptop copy 1[01] s behind$/.test(await alert()), `"Backup behind by N s" when more than 10 s behind ("${await alert()}")`);
+  for (let i = 0; i < 4; i++) { await frame({ leftValid: false, left: null }); await setState({}); await tick(1000); }
+  ok(/^Laptop copy \d+ s behind · Left hand not tracked/.test(await alert()), `laptop copy alert comes first ("${await alert()}")`);
   await E(([kh, n]) => window.__c.emit('data', JSON.stringify({ type: 'rows', file: 'kinL', from: 4, header: kh, lines: Array.from({ length: n }, (_, i) => `${100 + i},0.1,1,-0.3,0,0.9,-0.4,,,,1,0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,0\n`) })), [KH, S.backup.kinL - 4]);
   await frame(); await setState({}); await tick(300);
   ok((await alert()) === '', 'clears once the backup catches up');
