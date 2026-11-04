@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>if (/[?&]practice\b/.test(location.search) && window.parent === window) document.write('<script src="practice-link.js"><\/script>');</script>
     <script src="zip-writer.js"></script>
     <script src="workspace-shape.js"></script>
     <script src="results-charts.js"></script>
@@ -290,9 +291,16 @@
         #help-keys { display: grid; grid-template-columns: auto auto; gap: 0.45rem 1.6rem; font-size: 1.05rem; }
         #help-keys kbd { font-family: var(--mono); color: var(--accent); font-weight: 700; }
         #help p { margin: 1.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
+        #practice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; padding: 0.5rem 1.1rem; background: #5b3cc4; color: #fff; font-weight: 600; }
+        #practice-bar[hidden] { display: none; }
+        #practice-leave { margin-left: auto; background: transparent; border-color: #fff; color: #fff; min-height: 0; padding: 0.3rem 0.8rem; }
+        body.practice { display: flex; flex-direction: column; }
+        body.practice #app { height: auto; flex: 1 1 auto; min-height: 0; }
+        #practice-headset { position: fixed; left: -16px; top: -16px; width: 8px; height: 8px; border: 0; opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body>
+<div id="practice-bar" hidden><span>Practice session. No headset is connected and the participant is simulated.</span><button tabindex="-1" id="practice-leave">Leave practice</button></div>
 <div id="app">
     <aside id="left-slot">
         <div id="guide">
@@ -309,6 +317,7 @@
                 <div class="step-body">
                     <ul class="checks" id="g1-checks"></ul>
                     <p class="g-note" id="g1-note"></p>
+                    <div class="g-actions" id="g1-practice"><button tabindex="-1" id="g-practice">Practise without a headset</button></div>
                 </div>
             </section>
             <section class="step" data-step="2">
@@ -585,6 +594,17 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const $ = (id) => document.getElementById(id);
+    const PRACTICE = /[?&]practice\b/.test(location.search) && window.parent === window;
+    if (PRACTICE) {
+        $('practice-bar').hidden = false;
+        document.body.classList.add('practice');
+        const headset = document.createElement('iframe');
+        headset.id = 'practice-headset';
+        headset.src = 'index.html?practice=1';
+        headset.tabIndex = -1;
+        headset.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(headset);
+    }
     const COLORS = { left: 0x3a86ea, right: 0xe5534b, head: 0xe8ecf4, target: 0x00e5ff, targetDim: 0x0d4a55, home: 0x3ddc84 };
     const BG = new THREE.Color(0x0b0e14);
     const ORTHO_HEIGHT = 1.3;
@@ -1106,7 +1126,7 @@
     }
 
     const runStore = {
-        NAME: 'webspheres-laptop-copy',
+        NAME: PRACTICE ? 'webspheres-practice-copy' : 'webspheres-laptop-copy',
         forgotten: new Set(),
         open: function () {
             if (!this.opening) {
@@ -1824,7 +1844,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.5.3';
+    const APP_VERSION = '2.5.4';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const MODE_PER_RUN = { standard: '352 trials per run', short: '110 trials per run', fmode: '44 trials per run (2 sets of 22)', block: '110 trials per run (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
@@ -2126,6 +2146,7 @@
             s || st.live ? tick3(st.live, st.live ? 'Connected' : 'Reconnecting…') : ['info', 'Searching for headset…'],
             s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Force-refresh both pages.`) : ['info', 'Version check pending headset connection.']
         ]);
+        $('g1-practice').hidden = PRACTICE || !!s;
         $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest and enter VR or AR. The headset will connect automatically.';
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
@@ -2808,7 +2829,7 @@
         });
         return {
             runs,
-            session: `${s.participantId || 'No ID'} · ${new Date().toLocaleDateString('en-GB')}`,
+            session: `${PRACTICE ? 'PRACTICE · ' : ''}${s.participantId || 'No ID'} · ${new Date().toLocaleDateString('en-GB')}`,
             dominant: HAND_LABEL[s.dominantHand] || '–',
             dominantCode: s.dominantHand,
             homeHalf: s.homeMode === 'per-hand' ? 0.1 : 0.4
@@ -3382,10 +3403,12 @@
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
         $('g-new-reload').addEventListener('click', () => { guide.leaving = true; location.reload(); });
         window.addEventListener('beforeunload', (e) => {
-            if (guide.leaving || !sessionAtRisk(receiver.headsetState)) return;
+            if (PRACTICE || guide.leaving || !sessionAtRisk(receiver.headsetState)) return;
             e.preventDefault();
             e.returnValue = '';
         });
+        $('g-practice').addEventListener('click', () => window.open(location.pathname + '?practice=1', '_blank'));
+        $('practice-leave').addEventListener('click', () => { location.href = location.pathname; });
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
     }

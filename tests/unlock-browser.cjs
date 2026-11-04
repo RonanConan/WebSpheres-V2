@@ -106,7 +106,7 @@ const { ok, done } = counter('UNLOCK BROWSER');
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const tick = (ms) => o.clock.runFor(ms || 300);
-  const STATE = { type: 'state', version: '2.5.3', phase: 'running', endReason: '', participantId: 'P01', experimenter: 'Jo Smith', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.5.4', phase: 'running', endReason: '', participantId: 'P01', experimenter: 'Jo Smith', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const state = async (over) => { await O((s) => window.__c.emit('data', JSON.stringify(s)), Object.assign({}, STATE, over)); await tick(); };
   const shown = (id) => O((i) => document.getElementById(i).checkVisibility(), id);
   const sent = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue').map(m => m.value === undefined ? m.name : `${m.name}:${m.value}`));

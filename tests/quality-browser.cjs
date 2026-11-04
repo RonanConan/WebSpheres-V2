@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('QUALITY BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-quality-'));
-const VERSION = '2.5.3';
+const VERSION = '2.5.4';
 const row = (t, o) => {
   const a = Object.assign({ target: true, valid: 1, x: 0, y: 1.2, z: 0, rec: 0 }, o);
   return `${t},0.1,1,-0.3,0,0.9,-0.4,${a.target ? '0.1,1.2,-0.4' : ',,'},${a.valid},0,0,0,0,0,0,1,${a.x},${a.y},${a.z},0,0,0,1,${a.rec}\n`;

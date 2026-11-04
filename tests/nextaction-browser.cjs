@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.5.3';
+const VERSION = '2.5.4';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };

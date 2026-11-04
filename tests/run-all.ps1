@@ -12,7 +12,7 @@ if (-not (Test-Path (Join-Path $base 'kinematics-manager.js'))) {
 }
 $env:WS_BASELINE = $base
 $env:WS_TOOLS = $tools
-$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'keyboard-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs', 'info-browser.cjs', 'home-browser.cjs', 'unlock-browser.cjs', 'runs-browser.cjs', 'save-browser.cjs', 'quality-browser.cjs', 'charts-browser.cjs', 'workspace-browser.cjs', 'protect-browser.cjs', 'nextaction-browser.cjs'
+$suites = 'host-tests.mjs', 'kin-tests.mjs', 'observer-browser.cjs', 'scene-browser.cjs', 'hands-browser.cjs', 'settings-browser.cjs', 'seq-browser.cjs', 'layout-browser.cjs', 'host-browser.cjs', 'session-browser.cjs', 'data-browser.cjs', 'backup-browser.cjs', 'guide-browser.cjs', 'guided-e2e-browser.cjs', 'keyboard-browser.cjs', 'kin-browser.cjs', 'nopeer.cjs', 'info-browser.cjs', 'home-browser.cjs', 'unlock-browser.cjs', 'runs-browser.cjs', 'save-browser.cjs', 'quality-browser.cjs', 'charts-browser.cjs', 'workspace-browser.cjs', 'protect-browser.cjs', 'nextaction-browser.cjs', 'practice-browser.cjs'
 $failed = @()
 foreach ($s in $suites) {
     Write-Output "===== $s"

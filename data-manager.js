@@ -106,7 +106,7 @@ AFRAME.registerComponent('data-manager', {
     },
 
     sessionPrefix: function() {
-        return this.participantId ? this.participantId + '_' : 'session-';
+        return (this.practice ? 'PRACTICE_' : '') + (this.participantId ? this.participantId + '_' : 'session-');
     },
 
     plannedRuns: function() {
@@ -119,7 +119,7 @@ AFRAME.registerComponent('data-manager', {
     },
 
     runPrefix: function(participantId, run) {
-        const id = participantId ? participantId + '_' : '';
+        const id = (this.practice ? 'PRACTICE_' : '') + (participantId ? participantId + '_' : '');
         return this.plannedRuns() > 1 ? `${id}run${run}_` : id;
     },
 
@@ -216,7 +216,8 @@ AFRAME.registerComponent('data-manager', {
             ['Plan', this.planText()],
             ['BreakBefore', this.breakBefore],
             ['RecalibratedBefore', this.recalibratedBefore.join(';')],
-            ['XRMode', this.xrModes.join(';')]
+            ['XRMode', this.xrModes.join(';')],
+            ...(this.practice ? [['Practice', 1]] : [])
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
     },
