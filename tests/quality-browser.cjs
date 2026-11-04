@@ -244,6 +244,7 @@ async function headsetSuite(b) {
   let r = await cmd('addNote', note);
   ok(r.result.ok && r.next.noteMarks.length === 1, 'note stored, reported in state');
   ok(await E(() => window.__sounds === 0), 'adding a note makes no sound in the headset');
+  ok(r.next.noteMarks.at(-1).text === note.text && r.next.noteMarks.at(-1).type === note.type, 'note text reaches the laptop');
   ok((await cmd('addNote', note)).result.ok && (await E(() => window.__dm.notes.length)) === 1, 'a repeated send is stored once');
   for (const bad of [null, { id: 'x', type: 'note', text: '' }, { id: 'x', type: 'other', text: 'a' }, { type: 'note', text: 'a' }]) ok(!(await cmd('addNote', bad)).result.ok, 'bad note refused: ' + JSON.stringify(bad));
   await cmd('addNote', { id: 'n2', type: 'alert', text: 'Frame rate red: 60', run: 1, trial: 5, time: 2000, dateTime: '2026-11-02T10:00:01.000Z', estimated: true });

@@ -48,9 +48,9 @@ const joints = (dx, side) => { const a = []; for (let i = 0; i < 25; i++) a.push
   const u = await E(() => { const o = window.__obs.hands; return { vis: o.L.root.visible, lc: o.L.mats.map(x => x.color.getHex()), rc: o.R.mats[0].color.getHex(), x: o.L.meshJoints[9].position.x }; });
   ok(u.vis && u.lc.every(c => c === 0x5a5f6b), 'untracked hand stays drawn, in untracked grey');
   ok(near(u.x, L0[27]), 'untracked hand keeps its last joints');
-  ok(u.rc === 0x4f9dff || u.rc === 0xff9a3c, 'other hand keeps its colour');
+  ok(u.rc === 0x3a86ea || u.rc === 0xe5534b, 'other hand keeps its colour');
   await frame(); await tick();
-  ok(await E(() => window.__obs.hands.L.mats[0].color.getHex() === 0x4f9dff), 'hand regains its colour when tracked again');
+  ok(await E(() => window.__obs.hands.L.mats[0].color.getHex() === 0x3a86ea), 'hand regains its colour when tracked again');
 
   await frame({ left: [1, 2, 3] }); await frame({ left: joints(0, -1).map((v, i) => i === 4 ? null : v + 1) }); await tick();
   ok(await E((x) => Math.abs(window.__obs.hands.L.meshJoints[9].position.x - x) < 1e-6, L0[27]), 'malformed joint arrays ignored');

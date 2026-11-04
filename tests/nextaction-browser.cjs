@@ -63,6 +63,14 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok(await openStep() === 4, 'sending moves on to Position');
   ok((await text('g3-val')) === '2 runs · 88 trials', 'collapsed Run plan shows runs and trials');
 
+  console.log('VIEW BUTTONS');
+  const viewsOff = () => E(() => [...document.querySelectorAll('[data-view]')].every(b => b.disabled));
+  await p.click('[data-open="3"]'); await tick();
+  ok(await viewsOff() && await E(() => !document.getElementById('recentre').disabled), 'run plan covers the 3D view: view buttons off, Recentre still on');
+  await p.click('[data-open="4"]'); await tick();
+  ok(await E(() => [...document.querySelectorAll('[data-view]')].every(b => !b.disabled)), '3D view showing: view buttons on');
+  await p.click('[data-open="3"]'); await tick();
+
   console.log('RUN PLAN LAYOUT');
   ok(await E(() => { const s = document.getElementById('stage'); s.scrollLeft = 200; return s.scrollLeft === 0; }), '3D area cannot scroll sideways');
   ok(await E(() => document.getElementById('left-slot').scrollTop === 0), 'guide fits: finished steps stay in view');
@@ -157,8 +165,26 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok((await cyan()).join() === 'g7-b-start', 'recentred: Start cyan');
   ok(await E(() => document.getElementById('g-pause').offsetParent === null && document.getElementById('g-end').offsetParent === null && document.getElementById('g-note-spoke').offsetParent !== null && document.getElementById('plan-send-row').offsetParent === null), 'between runs: run controls and Send gone, notes stay');
 
+  ok(await viewsOff(), 'between runs: view buttons off');
+
+  console.log('RUN REPORT NOTES');
+  await st({ noteMarks: [{ run: 1, time: 109000, trial: 18, type: 'note', text: 'Spoke <b>to</b> "P9"', estimated: false }, { run: 1, time: 120000, trial: 20, type: 'alert', text: 'Tracking left: 80%', estimated: false }, { run: 1, time: 130000, trial: 22, type: 'note', text: 'Sneezed', estimated: true }, { run: 2, time: 5000, trial: 1, type: 'note', text: 'Other run', estimated: false }] }); await frame(); await tick();
+  const rows = await E(() => [...document.querySelectorAll('[data-report-run="1"] .rep-note')].map(r => [...r.children].map(c => c.textContent).join('|')));
+  ok(rows.join(' / ') === '1:49|Trial 18|Spoke <b>to</b> "P9" / 2:10 est.|Trial 22|Sneezed', 'notes listed with time and trial, alerts and other runs left out (' + rows.join(' / ') + ')');
+  ok(await E(() => document.querySelector('[data-report-run="1"] .rep-note b') === null), 'note text shown as typed, never as page code');
+
+  console.log('RESULTS');
+  const onColour = (cls) => E((c) => { const box = document.createElement('div'); box.className = c; const btn = document.createElement('button'); btn.className = 'on'; box.appendChild(btn); document.body.appendChild(box); const col = getComputedStyle(btn).color; box.remove(); return col; }, cls);
+  ok(await onColour('ws3d-bar') === 'rgb(3, 20, 24)' && await onColour('ws-option') === 'rgb(3, 20, 24)', 'selected Results buttons use dark text on cyan');
+  ok(await E(() => window.__obs.hands.L.mats[0].color.getHex() === 0x3a86ea && window.__obs.hands.R.mats[0].color.getHex() === 0xe5534b), 'live hands use the chart colours');
+
   console.log('FINISH');
   await st({ phase: 'complete', endReason: 'finished', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' } }); await frame(); await tick();
+  ok(await E(() => [...document.querySelectorAll('[data-view]')].every(b => !b.disabled)), 'finish, Results closed: view buttons on');
+  await p.click('#g-results'); await tick();
+  ok(await viewsOff(), 'Results open: view buttons off');
+  await p.click('#res-close'); await tick();
+  ok(await E(() => [...document.querySelectorAll('[data-view]')].every(b => !b.disabled)), 'Results closed: view buttons back on');
   ok(await E(() => !document.getElementById('recentre').classList.contains('want')), 'session over: bottom Recentre neutral');
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');
   await b.close();

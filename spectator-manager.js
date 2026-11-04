@@ -296,7 +296,7 @@ AFRAME.registerComponent('spectator-manager', {
             sessionPrefix: dataM?.sessionPrefix ? dataM.sessionPrefix() : '',
             headsetCopyRun: dataM?.breakSavedRun ?? 0,
             notesCsv: dataM?.notesCsv ? dataM.notesCsv() : '',
-            noteMarks: (dataM?.notes ?? []).map(n => ({ run: n.run, time: n.time, type: n.type })),
+            noteMarks: (dataM?.notes ?? []).map(n => ({ run: n.run, time: n.time, type: n.type, trial: n.trial, text: n.text, estimated: !!n.estimated })),
             betweenMs: sm?.phase === 'between' && dataM?.sessionEndTime ? Date.now() - dataM.sessionEndTime : 0,
             betweenRecentres: dataM?.betweenRecentres ?? 0,
             recalibrated: dataM?.recalibrated ?? [],

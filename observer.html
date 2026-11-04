@@ -21,7 +21,7 @@
         :root {
             --scale: 1;
             --bg: #0b0e14; --bar: rgba(11, 14, 20, 0.92); --line: #252c3a; --text: #dfe5f0; --muted: #7d8799;
-            --accent: #00e5ff; --left: #4f9dff; --right: #ff9a3c; --crit: #ffd34d;
+            --accent: #00e5ff; --left: #3a86ea; --right: #e5534b; --crit: #ffd34d;
             --ok: #3ddc84; --warn: #ffb347; --err: #ff5c5c;
             --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
             --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -179,13 +179,13 @@
         .ws-group h3 { margin: 0 0 0.35rem; font-size: 0.9rem; font-weight: 600; }
         .ws-option { display: grid; grid-template-columns: 5.2rem 1fr; gap: 0.1rem 0.6rem; align-items: start; padding: 0.3rem 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
         .ws-option button { grid-row: span 2; }
-        .ws-option button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ws-option button.on { background: var(--accent); color: #031418; border-color: var(--accent); }
         .ws-con { color: var(--muted); }
         #ws3d { margin-bottom: 1rem; }
         #ws3d-park { display: none; }
         .ws3d-bar { display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem; margin-bottom: 0.6rem; }
         .ws3d-bar .label { margin-bottom: 0.3rem; }
-        .ws3d-bar button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .ws3d-bar button.on { background: var(--accent); color: #031418; border-color: var(--accent); }
         .ws3d-ticks { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
         .ws3d-ticks label { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
         .ws3d-main { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 1rem; }
@@ -238,6 +238,9 @@
         .rep-marks { position: relative; height: 0.9rem; }
         .rep-mark { position: absolute; top: 0; width: 2px; height: 0.9rem; background: var(--text); }
         .rep-mark.recentre { background: var(--accent); }
+        .rep-notes { margin-top: 0.8rem; }
+        .rep-note { display: grid; grid-template-columns: 5rem 5.5rem minmax(0, 1fr); gap: 0.6rem; padding: 0.25rem 0; border-top: 1px solid var(--line); font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .rep-note > span:nth-child(-n+2) { font-family: var(--mono); color: var(--muted); }
         .rep-axis { display: flex; justify-content: space-between; color: var(--muted); font: 0.75rem var(--mono); }
         #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
         #plan-builder[hidden] { display: none; }
@@ -581,7 +584,7 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const $ = (id) => document.getElementById(id);
-    const COLORS = { left: 0x4f9dff, right: 0xff9a3c, head: 0xe8ecf4, target: 0x00e5ff, targetDim: 0x0d4a55, home: 0x3ddc84 };
+    const COLORS = { left: 0x3a86ea, right: 0xe5534b, head: 0xe8ecf4, target: 0x00e5ff, targetDim: 0x0d4a55, home: 0x3ddc84 };
     const BG = new THREE.Color(0x0b0e14);
     const ORTHO_HEIGHT = 1.3;
     const VIEWS = {
@@ -2304,6 +2307,8 @@
         renderResume(st);
         renderRecovery(s);
         renderResults(st);
+        const covered = !$('plan-builder').hidden || !$('results').hidden;
+        document.querySelectorAll('[data-view]').forEach(b => { b.disabled = covered; });
         updateHomeBoxes();
         $('btn-guide').classList.toggle('on', $('app').classList.contains('left-open'));
     }
@@ -2747,7 +2752,10 @@
         const pauses = earlier ? earlier.pauses || 0 : s.pauses;
         const recentres = earlier ? earlier.recentres || 0 : s.recentreCount;
         const { ms, skips, rows, lines } = qualityLines(run, trials, earlier ? earlier.info : s.info);
-        const notes = (s.noteMarks || []).filter(n => n.run === run && n.type === 'note').map(n => n.time);
+        const noteMarks = (s.noteMarks || []).filter(n => n.run === run && n.type === 'note');
+        const notes = noteMarks.map(n => n.time);
+        const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const noteList = noteMarks.map(n => `<div class="rep-note"><span>${mmss(n.time)}${n.estimated ? ' est.' : ''}</span><span>Trial ${n.trial}</span><span>${esc(n.text)}</span></div>`).join('');
         const markRow = (label, times, cls, name, count) => `<div class="rep-line"><span>${label}</span><div class="rep-marks">${ms > 0 ? times.map(t => `<div class="rep-mark ${cls}" style="left:${Math.min(100, 100 * t / ms)}%" title="${name} at ${mmss(t)}"></div>`).join('') : ''}</div><span>${count}</span></div>`;
         const facts = [['Duration', mmss(ms)], ['Trials', String(rows)], ['Skips', String(skips)], ['Pauses', String(pauses)], ['Recentres', String(recentres)], ['Notes', String(notes.length)]];
         return `<div class="rep-run" data-report-run="${run}">
@@ -2757,6 +2765,7 @@
             ${markRow('Recentres', (q && q.recentres) || [], 'recentre', 'Recentre', recentres)}
             ${lines.map(l => reportStrip(l.label, l.kinds, l.tips, l.summary)).join('')}
             <div class="rep-line"><span></span><div class="rep-axis"><span>0:00</span><span>${mmss(ms)}</span></div><span></span></div>
+            ${noteList ? `<div class="rep-notes"><div class="label">Notes</div>${noteList}</div>` : ''}
         </div>`;
     }
 
