@@ -22,7 +22,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   const checks = (id) => E((i) => [...document.querySelectorAll('#' + i + ' li')].map(li => li.children[0].className.replace('ck ', '') + ':' + li.children[1].textContent), id);
   const openStep = () => E(() => +(document.querySelector('#guide .step.open')?.dataset.step || 0));
   const text = (id) => E((i) => document.getElementById(i).textContent, id);
-  const cyan = () => E(() => [...document.querySelectorAll('#guide .g-primary:not(.amber):not(:disabled), #recentre.want')].filter(el => el.offsetParent !== null).map(el => el.id || el.dataset.calib));
+  const cyan = () => E(() => [...document.querySelectorAll('#guide .g-primary:not(.amber):not(:disabled), #plan-send-row .g-primary:not(:disabled), #recentre.want')].filter(el => el.offsetParent !== null).map(el => el.id || el.dataset.calib));
   const nextShown = (n) => E((k) => document.querySelector(`[data-next="${k}"]`).offsetParent !== null, n);
   let S = JSON.parse(JSON.stringify(BASE));
   const st = (o) => { S = Object.assign(JSON.parse(JSON.stringify(S)), o); return E((x) => window.__c.emit('data', JSON.stringify(x)), S); };
@@ -62,6 +62,16 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok((await checks('g3-checks')).every(r => r.startsWith('ok:')), 'plan facts ticked once sent');
   ok(await openStep() === 4, 'sending moves on to Position');
   ok((await text('g3-val')) === '2 runs · 88 trials', 'collapsed Run plan shows runs and trials');
+
+  console.log('RUN PLAN LAYOUT');
+  ok(await E(() => { const s = document.getElementById('stage'); s.scrollLeft = 200; return s.scrollLeft === 0; }), '3D area cannot scroll sideways');
+  ok(await E(() => document.getElementById('left-slot').scrollTop === 0), 'guide fits: finished steps stay in view');
+  await p.click('[data-open="3"]'); await tick();
+  ok(await E(() => { const send = document.getElementById('g-plan-send'), body = document.getElementById('plan-body'); return document.getElementById('plan-builder').contains(send) && send.getBoundingClientRect().top >= body.getBoundingClientRect().bottom - 1; }), 'Send to headset sits under the plan, in the same panel');
+  await p.setViewportSize({ width: 1440, height: 500 }); await tick();
+  ok(await E(() => { const r = document.getElementById('g-plan-send').getBoundingClientRect(), s = document.getElementById('stage').getBoundingClientRect(); return r.top >= s.top && r.bottom <= s.bottom; }), 'short window: Send stays visible');
+  await p.setViewportSize({ width: 1440, height: 900 }); await tick();
+  await p.click('[data-open="4"]'); await tick();
 
   console.log('POSITION');
   ok((await cyan()).join() === 'g-recentre', 'one cyan button: Recentre in the guide');
@@ -116,8 +126,23 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await st({ participantId: 'P10' }); await frame(); await tick();
   ok(await openStep() === 6, 'resent: back to the step in progress');
 
+  console.log('ALERT SLOT');
+  ok(await E(() => getComputedStyle(document.getElementById('g-alert')).display === 'none'), 'setup: no empty alert slot');
+
   console.log('RUNNING');
   await st({ phase: 'running', setupLocked: true }); await frame(); await tick();
+  ok(await E(() => { const a = document.getElementById('g-alert'); return getComputedStyle(a).display !== 'none' && a.offsetHeight > 0 && getComputedStyle(a).backgroundColor === 'rgb(11, 14, 20)'; }), 'running: alert slot kept, solid background');
+  const order = await E(() => ['g-pause', 'g-note-spoke', 'g-save-headset', 'g-end'].map(i => document.getElementById(i).getBoundingClientRect().top));
+  ok(order[0] < order[1] && order[1] < order[2] && order[2] < order[3], 'order: Pause, notes, rare controls, End run');
+  for (const [w, h] of [[2560, 1440], [1920, 1080], [1707, 960], [1536, 864], [1440, 900]]) {
+    await p.setViewportSize({ width: w, height: h });
+    await st({ participantId: 'P012345', plannedRuns: 2, trialCount: 118, totalTrials: 352 }); await frame({ score: 137 }); await tick();
+    const rows = await E(() => { const items = [...document.getElementById('topbar').children].filter(c => !c.hidden), a = items[1].getBoundingClientRect(); return items.slice(2).every(c => Math.abs(c.getBoundingClientRect().top - a.top) < 2); });
+    ok(rows, w + 'x' + h + ': top bar on one row at Normal text');
+    const seen = await E(() => document.getElementById('g-note-add').getBoundingClientRect().bottom <= innerHeight);
+    ok(seen, w + 'x' + h + ': note buttons on screen');
+  }
+  await p.setViewportSize({ width: 1440, height: 900 }); await st({ plannedRuns: 2, participantId: 'P10', trialCount: 0, totalTrials: 44 }); await frame(); await tick();
   ok((await cyan()).join() === 'g-pause', 'one cyan button: Pause');
   ok(await E(() => !document.getElementById('recentre').classList.contains('want')), 'bottom Recentre neutral while running');
   await st({ setupLocked: false }); await tick();
@@ -130,6 +155,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok(await E(() => !document.getElementById('g7-b-start').disabled), 'Start still enabled');
   await st({ betweenRecentres: 1 }); await frame(); await tick();
   ok((await cyan()).join() === 'g7-b-start', 'recentred: Start cyan');
+  ok(await E(() => document.getElementById('g-pause').offsetParent === null && document.getElementById('g-end').offsetParent === null && document.getElementById('g-note-spoke').offsetParent !== null && document.getElementById('plan-send-row').offsetParent === null), 'between runs: run controls and Send gone, notes stay');
 
   console.log('FINISH');
   await st({ phase: 'complete', endReason: 'finished', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' } }); await frame(); await tick();

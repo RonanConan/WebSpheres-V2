@@ -34,10 +34,10 @@
         #left-slot { grid-column: 1; grid-row: 1 / 4; display: none; background: var(--bar); border-right: 1px solid var(--line); overflow-y: auto; overflow-anchor: none; }
         #app.left-open #left-slot { display: block; }
         #topbar, #bottombar { grid-column: 2; display: flex; align-items: center; background: var(--bar); overflow: hidden; white-space: nowrap; }
-        #topbar { grid-row: 1; flex-wrap: wrap; gap: 0.4rem 1.6rem; padding: 0.55rem 1.1rem; border-bottom: 1px solid var(--line); }
+        #topbar { grid-row: 1; flex-wrap: wrap; gap: 0.4rem clamp(0.9rem, calc(4.5vw - 2.9rem), 1.6rem); padding: 0.55rem 1.1rem; border-bottom: 1px solid var(--line); }
         #topbar > .item { flex: none; }
         #bottombar { grid-row: 3; flex-wrap: wrap; gap: 0.5rem 0.7rem; padding: 0.5rem 1.1rem; border-top: 1px solid var(--line); }
-        #stage { grid-column: 2; grid-row: 2; position: relative; overflow: hidden; }
+        #stage { grid-column: 2; grid-row: 2; position: relative; overflow: clip; }
         #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
         #stage.stale #scene { filter: brightness(0.6) saturate(0.6); }
         .item { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
@@ -87,8 +87,10 @@
         #guide { min-height: 100%; }
         .g-head { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 1rem; border-bottom: 1px solid var(--line); }
         .g-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-        #g-alert { position: sticky; top: 0; z-index: 2; box-sizing: border-box; height: 3.9rem; padding: 0.6rem 1rem; background: var(--bar); color: #1a1000; font-weight: 700; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        #g-alert { position: sticky; top: 0; z-index: 2; box-sizing: border-box; height: 3.9rem; padding: 0.6rem 1rem; background: var(--bg); color: #1a1000; font-weight: 700; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         #g-alert.on { background: var(--warn); }
+        #g-alert[hidden] { display: none; }
+        #g-alert[hidden] + #g-resume { top: 0; }
         #g-unlocked { scroll-margin-top: 3.9rem; }
         .g-banner { padding: 0.6rem 1rem; border-bottom: 1px solid var(--warn); line-height: 1.35; }
         .g-banner[hidden] { display: none; }
@@ -156,6 +158,8 @@
         #v-run-item[hidden], #v-id-item[hidden] { display: none; }
         #v-id { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
         #g-skip { margin-left: auto; }
+        #g7-run-more { margin-top: 0.8rem; padding-top: 0.2rem; border-top: 1px solid var(--line); }
+        #g7-run-more[hidden] { display: none; }
         #stage-alert { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; pointer-events: none; }
         #stage-alert[hidden] { display: none; }
         #stage:has(.drawer.open) #stage-alert { right: min(calc(440px * var(--scale)), 100%); }
@@ -237,6 +241,9 @@
         .rep-axis { display: flex; justify-content: space-between; color: var(--muted); font: 0.75rem var(--mono); }
         #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
         #plan-builder[hidden] { display: none; }
+        .plan-send { position: sticky; bottom: -2rem; z-index: 1; display: flex; align-items: center; gap: 1rem; margin-top: 1rem; padding: 0.8rem 0; background: var(--bg); border-top: 1px solid var(--line); }
+        .plan-send[hidden] { display: none; }
+        .plan-send .g-msg { margin: 0; }
         .plan-settings { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin-bottom: 1.5rem; }
         .plan-settings .label { margin-bottom: 0.35rem; }
         .plan-title { margin: 0 0 0.6rem; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
@@ -316,8 +323,6 @@
                 <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Run plan</span><span class="step-val" id="g3-val"></span></button>
                 <div class="step-body">
                     <ul class="checks" id="g3-checks"></ul>
-                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-plan-send">Send to headset</button></div>
-                    <p class="g-msg" id="g3-msg"></p>
                     <div class="g-actions"><button tabindex="-1" class="g-next" data-next="3">Next</button></div>
                 </div>
             </section>
@@ -383,35 +388,6 @@
                     <div class="q-lights" id="g7-quality"></div>
                     <div class="g-actions">
                         <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
-                        <button tabindex="-1" id="g-save-headset">Save headset copy</button>
-                    </div>
-                    <div class="g-actions">
-                        <button tabindex="-1" id="g-unlock">Unlock setup</button>
-                        <button tabindex="-1" id="g-skip">Skip target</button>
-                    </div>
-                    <div class="g-actions">
-                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
-                    </div>
-                    <div class="g-confirm" id="g-end-confirm" hidden>
-                        <p>End run now? Run cannot resume.</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end run</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
-                    </div>
-                    <div class="g-confirm" id="g-unlock-confirm" hidden>
-                        <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
-                    </div>
-                    <div class="g-unlocked" id="g-unlocked" hidden>
-                        <div class="label">Setup unlocked</div>
-                        <p class="g-note">Changes apply now. All logged.</p>
-                        <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
-                        <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
-                        <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
-                        <div class="g-row"><div class="label">Participant ID</div><div class="g-inline"><input id="u-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-id-go">Change</button></div></div>
-                        <div class="g-row"><div class="label">Calibration</div>
-                            <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
-                            <ul class="checks" id="g7-calib"></ul>
-                        </div>
-                        <div class="g-actions"><button tabindex="-1" class="g-primary amber" id="g-relock">Relock setup</button></div>
                     </div>
                     </div>
                     <div id="g7-between" hidden>
@@ -445,6 +421,37 @@
                             <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-note-save">Save note</button><button tabindex="-1" id="g-note-cancel">Cancel</button></div>
                         </div>
                         <p class="g-note" id="g-note-status"></p>
+                    </div>
+                    <div id="g7-run-more">
+                    <div class="g-actions">
+                        <button tabindex="-1" id="g-save-headset">Save headset copy</button>
+                        <button tabindex="-1" id="g-unlock">Unlock setup</button>
+                    </div>
+                    <div class="g-actions">
+                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
+                        <button tabindex="-1" id="g-skip">Skip target</button>
+                    </div>
+                    <div class="g-confirm" id="g-end-confirm" hidden>
+                        <p>End run now? Run cannot resume.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end run</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
+                    </div>
+                    <div class="g-confirm" id="g-unlock-confirm" hidden>
+                        <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
+                    </div>
+                    <div class="g-unlocked" id="g-unlocked" hidden>
+                        <div class="label">Setup unlocked</div>
+                        <p class="g-note">Changes apply now. All logged.</p>
+                        <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
+                        <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
+                        <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
+                        <div class="g-row"><div class="label">Participant ID</div><div class="g-inline"><input id="u-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-id-go">Change</button></div></div>
+                        <div class="g-row"><div class="label">Calibration</div>
+                            <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
+                            <ul class="checks" id="g7-calib"></ul>
+                        </div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary amber" id="g-relock">Relock setup</button></div>
+                    </div>
                     </div>
                     <p class="g-msg" id="g7-msg"></p>
                 </div>
@@ -486,7 +493,7 @@
     <main id="stage">
         <canvas id="scene"></canvas>
         <div id="stage-alert" hidden></div>
-        <section id="plan-builder" hidden><div id="plan-body"></div><div id="run-report" hidden></div></section>
+        <section id="plan-builder" hidden><div id="plan-body"></div><div class="plan-send" id="plan-send-row"><button tabindex="-1" class="g-primary" id="g-plan-send">Send to headset</button><p class="g-msg" id="g3-msg"></p></div><div id="run-report" hidden></div></section>
         <section id="results" hidden>
             <div class="res-head"><h2>Results</h2><button tabindex="-1" id="res-close">Close</button></div>
             <div id="res-warning"></div>
@@ -2068,6 +2075,7 @@
             guide.expanded = null;
         }
         const inSetup = !s || s.phase === 'setup';
+        $('g-alert').hidden = !(s && ACTIVE_PHASES.includes(s.phase));
         const open = inSetup && guide.expanded ? guide.expanded : st.current;
         document.querySelectorAll('#guide .step').forEach(sec => {
             const n = +sec.dataset.step;
@@ -2081,7 +2089,12 @@
             guide.lastOpen = open;
             const sec = document.querySelector(`#guide .step[data-step="${open}"]`);
             const slot = $('left-slot');
-            if (sec && slot.offsetHeight) slot.scrollTop = Math.max(0, sec.offsetTop - slot.offsetTop - $('g-alert').offsetHeight);
+            if (sec && slot.offsetHeight) {
+                const top = sec.offsetTop - slot.offsetTop - $('g-alert').offsetHeight;
+                const bottom = sec.offsetTop - slot.offsetTop + sec.offsetHeight;
+                if (top < slot.scrollTop) slot.scrollTop = Math.max(0, top);
+                else if (bottom > slot.scrollTop + slot.clientHeight) slot.scrollTop = Math.min(top, bottom - slot.clientHeight);
+            }
         }
         prefillForm(s);
         prefillPlan(s);
@@ -2193,6 +2206,7 @@
             const between = s.phase === 'between';
             $('g7-run').hidden = between;
             $('g7-between').hidden = !between;
+            $('g7-run-more').hidden = between;
             if (between) renderBetween(st, now);
             const total = s.totalTrials || 1;
             $('g7-trial').textContent = `Trial ${s.trialCount} / ${s.totalTrials}`;
@@ -2338,6 +2352,7 @@
         const box = $('plan-body');
         builder.hidden = !(between || (inSetup && open === 3));
         $('run-report').hidden = !between;
+        $('plan-send-row').hidden = between;
         const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
         const sent = st.done[3];
         setChecks('g3-checks', [

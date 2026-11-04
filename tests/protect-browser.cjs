@@ -126,8 +126,8 @@ async function open(b, init) {
     const unlocked = await p.evaluate(() => [document.getElementById('g-skip').getBoundingClientRect().left, document.getElementById('g-pause').getBoundingClientRect().right]);
     ok(unlocked[0] >= unlocked[1], 'Skip target stays clear of Pause with Unlock setup hidden');
     await st({ setupLocked: true }); await tick();
-    ok(g.end.t >= g.skip.b, 'End run on a row of its own');
-    ok(g.save.t === g.pause.t, 'Save headset copy beside Pause');
+    ok(g.end.t === g.skip.t && g.skip.l > g.end.r, 'Skip target and End run at opposite ends of a row');
+    ok(g.save.t > g.pause.b && g.save.b <= g.end.t, 'Save headset copy on a lower row than Pause, above End run');
     await p.click('#g-skip'); await tick(100);
     const cmds = await p.evaluate(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd').map(m => m.name));
     ok(cmds.includes('skip'), 'Skip target still sends skip');
