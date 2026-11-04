@@ -147,7 +147,12 @@
         .ro-summary .warn { color: var(--warn); }
         .ro-summary .bad { color: var(--err); }
         .ro-tech summary { padding: 0.5rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
-        #v-run-item[hidden] { display: none; }
+        #v-run-item[hidden], #v-id-item[hidden] { display: none; }
+        #v-id { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
+        #g-skip { margin-left: auto; }
+        #stage-alert { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; pointer-events: none; }
+        #stage-alert[hidden] { display: none; }
+        #stage:has(.drawer.open) #stage-alert { right: min(440px, 100%); }
         .plan-charts { margin-top: 1.5rem; }
         .plan-charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0 1.5rem; }
         .chart-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 40px; cursor: pointer; line-height: 1.3; }
@@ -351,6 +356,7 @@
                     <ul class="checks" id="g6-required"></ul>
                     <div class="label">Recommended</div>
                     <ul class="checks" id="g6-advisory"></ul>
+                    <ul class="checks" id="g6-wake"></ul>
                     <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start run 1</button></div>
                     <p class="g-msg" id="g6-msg"></p>
                 </div>
@@ -368,12 +374,14 @@
                     <div class="q-lights" id="g7-quality"></div>
                     <div class="g-actions">
                         <button tabindex="-1" class="g-primary g-big" id="g-pause">Pause</button>
-                        <button tabindex="-1" id="g-skip">Skip target</button>
                         <button tabindex="-1" id="g-save-headset">Save headset copy</button>
                     </div>
                     <div class="g-actions">
-                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
                         <button tabindex="-1" id="g-unlock">Unlock setup</button>
+                        <button tabindex="-1" id="g-skip">Skip target</button>
+                    </div>
+                    <div class="g-actions">
+                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
                     </div>
                     <div class="g-confirm" id="g-end-confirm" hidden>
                         <p>End run now? Run cannot resume.</p>
@@ -457,6 +465,7 @@
                 <span id="conn-detail">Looking for the headset</span>
             </div>
         </div>
+        <div class="item" id="v-id-item" hidden><span class="label">Participant<button tabindex="-1" class="info" data-info="pid" aria-label="About Participant">i</button></span><span class="value" id="v-id">–</span></div>
         <div class="item" id="data-age" hidden><span class="label">Stream<button tabindex="-1" class="info" data-info="stream" aria-label="About Stream">i</button></span><span class="value" id="data-age-value"></span></div>
         <div class="item"><span class="label">Trial<button tabindex="-1" class="info" data-info="trial" aria-label="About Trial">i</button></span><span class="value" id="v-trial">–</span></div>
         <div class="item" id="v-run-item" hidden><span class="label">Run<button tabindex="-1" class="info" data-info="run" aria-label="About Run">i</button></span><span class="value" id="v-run">–</span></div>
@@ -467,6 +476,7 @@
     </header>
     <main id="stage">
         <canvas id="scene"></canvas>
+        <div id="stage-alert" hidden></div>
         <section id="plan-builder" hidden><div id="plan-body"></div><div id="run-report" hidden></div></section>
         <section id="results" hidden>
             <div class="res-head"><h2>Results</h2><button tabindex="-1" id="res-close">Close</button></div>
@@ -1629,6 +1639,7 @@
     const INFO = {
         conn: (rec) => breakOff() ? 'Headset off. Link drops are normal.' : CONN_INFO[receiver.status](rec),
         run: () => 'Current run / runs in plan.',
+        pid: () => 'ID on headset. Used in file names.',
         qtrack: () => '% frames tracked while target showing, last 30 s.',
         qfps: () => 'Headset frames per second, last 30 s. Low = coarser data.',
         qflow: () => 'Skipped targets and long gaps between trials.',
@@ -1792,7 +1803,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.5.1';
+    const APP_VERSION = '2.5.2';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -2014,10 +2025,35 @@
         if (document.activeElement !== $('g-exp')) $('g-exp').value = s.experimenter || '';
     }
 
+    function sessionAtRisk(s) {
+        if (!s) return false;
+        if (s.phase === 'setup') return backup.archive.length > 0;
+        if (s.phase === 'complete') return !(backup.autoSavedTs && s.backup && backup.autoSavedTs === s.backup.exportTs);
+        return true;
+    }
+
+    const wake = { lock: null, pending: false, failedAt: 0 };
+    function syncWake(s, now) {
+        if (!(s && (s.phase === 'setup' || sessionAtRisk(s)))) {
+            if (wake.lock) { wake.lock.release().catch(() => {}); wake.lock = null; }
+            wake.failedAt = 0;
+            return;
+        }
+        if (!navigator.wakeLock) { wake.failedAt = now; return; }
+        if (wake.lock || wake.pending || document.hidden || (wake.failedAt && now - wake.failedAt < 30000)) return;
+        wake.pending = true;
+        navigator.wakeLock.request('screen').then((lock) => {
+            wake.lock = lock;
+            wake.failedAt = 0;
+            lock.addEventListener('release', () => { if (wake.lock === lock) wake.lock = null; });
+        }).catch(() => { wake.failedAt = Date.now(); }).finally(() => { wake.pending = false; });
+    }
+
     function renderGuide() {
         const st = guideStatus();
         const s = st.s;
         const now = Date.now();
+        syncWake(s, now);
         if (st.current !== guide.lastCurrent) {
             guide.lastCurrent = st.current;
             guide.expanded = null;
@@ -2051,6 +2087,11 @@
         }
         $('v-run-item').hidden = !s || (s.plannedRuns || 1) < 2;
         if (s && (s.plannedRuns || 1) > 1) $('v-run').textContent = `${s.run} / ${s.plannedRuns}`;
+        $('v-id-item').hidden = !(s && s.participantId);
+        if (s && s.participantId && $('v-id').textContent !== s.participantId) {
+            $('v-id').textContent = s.participantId;
+            $('v-id').title = s.participantId;
+        }
 
         setChecks('g1-checks', [
             tick3(st.live, st.live ? 'Connected' : (s ? 'Reconnecting…' : 'Searching for headset…'), !s),
@@ -2111,6 +2152,7 @@
         ];
         setChecks('g6-required', required);
         setChecks('g6-advisory', advisory);
+        setChecks('g6-wake', wake.failedAt ? [['warn', 'Laptop may sleep. Check power settings.']] : []);
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
         $('g-start').disabled = !reqOk || guide.busy || !inSetup;
@@ -2183,6 +2225,9 @@
             alertEl.textContent = alerts.join(' · ');
             alertEl.title = alertEl.textContent;
         }
+        const stageAlert = $('stage-alert');
+        stageAlert.hidden = !alerts.length || $('app').classList.contains('left-open');
+        if (stageAlert.textContent !== alerts.join(' · ')) stageAlert.textContent = alerts.join(' · ');
 
         if (s && s.phase === 'complete') {
             $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
@@ -3270,7 +3315,12 @@
         $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
         $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
-        $('g-new-reload').addEventListener('click', () => location.reload());
+        $('g-new-reload').addEventListener('click', () => { guide.leaving = true; location.reload(); });
+        window.addEventListener('beforeunload', (e) => {
+            if (guide.leaving || !sessionAtRisk(receiver.headsetState)) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
     }
