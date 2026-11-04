@@ -112,7 +112,7 @@ AFRAME.registerComponent('spectator-manager', {
         if (this.recentre) {
             this.recentre = null;
             if (this.cue === 'lookAhead') this.setCue(this.cueBeforeRecentre || null);
-            this.broadcast(JSON.stringify({ type: 'recentre', ok: false, reason: 'Not in VR' }));
+            this.broadcast(JSON.stringify({ type: 'recentre', ok: false, reason: 'The headset is not in an immersive VR or AR session.' }));
         }
         this.activeSpace = null;
         this.baseSession = null;
@@ -267,10 +267,10 @@ AFRAME.registerComponent('spectator-manager', {
             result = this.requestCue(data.value);
         } else if (data.name === 'addNote') {
             const dm = document.querySelector('#data-manager')?.components?.['data-manager'];
-            result = dm?.addNote ? dm.addNote(data.value) : { ok: false, reason: 'Experiment not ready' };
+            result = dm?.addNote ? dm.addNote(data.value) : { ok: false, reason: 'The experiment is not ready. Wait for the headset page to finish loading.' };
         } else {
             const sm = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
-            result = sm?.runCommand ? sm.runCommand(data.name, data.value) : { ok: false, reason: 'Experiment not ready' };
+            result = sm?.runCommand ? sm.runCommand(data.name, data.value) : { ok: false, reason: 'The experiment is not ready. Wait for the headset page to finish loading.' };
         }
         if (conn) this.sendTo(conn, JSON.stringify({ type: 'cmdResult', id: data.id, ok: !!result.ok, reason: result.reason || '' }));
         this.sendState();
@@ -406,7 +406,7 @@ AFRAME.registerComponent('spectator-manager', {
     recentreReady: function () {
         const sceneEl = this.el.sceneEl;
         const session = sceneEl.renderer?.xr?.getSession?.();
-        if (!session || !sceneEl.frame) return { ok: false, reason: 'Not in VR' };
+        if (!session || !sceneEl.frame) return { ok: false, reason: 'The headset is not in an immersive VR or AR session.' };
         if (!this.baseRefSpace || this.baseSession !== session) return { ok: false, reason: 'Tracking not ready' };
         return { ok: true };
     },

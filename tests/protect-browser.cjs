@@ -83,7 +83,7 @@ async function open(b, init) {
     const { ctx, p, errs, st, frame, tick } = await open(b, init);
     await st({ participantId: 'P9', experimenter: 'Jo' }); await frame(); await tick(600);
     const row = await p.evaluate(() => document.getElementById('g6-wake').textContent);
-    ok(row.includes('Laptop may sleep. Check power settings.'), `${name}: Check step warns`);
+    ok(row.includes('The laptop may go to sleep. Check its power settings.'), `${name}: Check step warns`);
     const adv = await p.evaluate(() => document.getElementById('g6-advisory').textContent);
     ok(!adv.includes('Laptop may sleep'), `${name}: warning kept out of the recommended list`);
     ok(errs.length === 0, `${name}: no page errors`);
@@ -106,9 +106,9 @@ async function open(b, init) {
     await p.evaluate(() => { const c = window.__c; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: 'Trial,Timestamp\n', lines: ['1,100\n'] })); ['kinL', 'kinR'].forEach(f => c.emit('data', JSON.stringify({ type: 'rows', file: f, from: 0, header: 'Timestamp\n', lines: ['5\n'] }))); });
     await st({ phase: 'complete', endReason: 'finished', backup: { trials: 1, kinL: 1, kinR: 1, final: true, exportTs: 'T1' } });
     let saved = '';
-    for (let i = 0; i < 40 && !saved.includes('Saved to laptop'); i++) { await tick(300); await new Promise(r => setTimeout(r, 50)); saved = await p.evaluate(() => document.getElementById('g8-files').textContent); }
+    for (let i = 0; i < 40 && !saved.includes('Download started'); i++) { await tick(300); await new Promise(r => setTimeout(r, 50)); saved = await p.evaluate(() => document.getElementById('g8-files').textContent); }
     await tick(600);
-    ok(saved.includes('Saved to laptop'), 'session saved on the laptop');
+    ok(saved.includes('Download started'), 'session saved on the laptop');
     ok(await p.evaluate(() => window.__wake.released) === 1, 'session saved: lock released');
     const warned = await p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
     ok(warned === false, 'session saved: no leave warning');
@@ -177,7 +177,7 @@ async function open(b, init) {
     const long = await p.evaluate(() => { const e = document.getElementById('v-id'), bar = document.getElementById('topbar').getBoundingClientRect(), r = e.getBoundingClientRect(); return { title: e.title, fits: r.right <= bar.right + 0.5 }; });
     ok(long.title === 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345' && long.fits, 'longest ID cut to fit, full ID on hover');
     await p.hover('#topbar [data-info="pid"]'); await tick(50);
-    ok(await p.evaluate(() => document.getElementById('info-pop').textContent) === 'ID on headset. Used in file names.', 'explanation shown');
+    ok(await p.evaluate(() => document.getElementById('info-pop').textContent) === 'The participant ID set on the headset. Also used in file names.', 'explanation shown');
     for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await p.setViewportSize({ width: w, height: h });
       await st({ participantId: 'P10', plannedRuns: 3, run: 2 }); await frame({ fireMode: true }); await tick();

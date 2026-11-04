@@ -2,26 +2,26 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('INFO BROWSER');
 
 const TOP = {
-  trial: 'Completed / total, this run.',
-  score: 'Points, this run.',
-  cond: 'No boost: Critical hit chance: 30% both hands.\nBoost: Critical hit chance: non-dominant 55%, dominant 5%.',
-  dom: 'Hand taxed under Boost.',
-  fire: 'On: 3 non-dominant critical hits in a row. Off: any dominant hit. No effect on points.'
+  trial: 'Trials completed in the current run, out of the planned total.',
+  score: 'Points earned in the current run.',
+  cond: 'No boost: Both hands have a 30% critical-hit chance.\nBoost: The non-dominant hand has a 55% chance; the dominant hand has a 5% chance.',
+  dom: 'The dominant hand has a lower critical-hit chance during Boost.',
+  fire: 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.'
 };
 const DRAWER = {
-  target: 'Current target, 1–11. Numbering matches trial file.',
+  target: 'Current target number (1–11), matching the trial data file.',
   recentre: 'Time of last recentre.',
-  hand: 'Tracked: Hand in view.\nLost: Hand out of view.\nNo data: Nothing received yet.',
+  hand: 'Tracked: The hand is currently tracked.\nLost: The hand was tracked but is no longer tracked.\nNo data: No tracking data have been received yet.',
   headh: 'Height above floor.',
-  rows: 'Laptop / headset. Equal = laptop copy complete so far.',
+  rows: 'Counts of rows received on the laptop and recorded on the headset. Matching counts mean the laptop is up to date so far.',
   uptime: 'Time since link started.',
-  rate: '3D view updates. Should be steady. Not the recording rate.',
-  age: 'Time since last update. Normal: under 1 s.',
-  gap: 'Longest pause between updates. Normal: under 1 s.',
-  stale: 'Out-of-order updates ignored. Saved data unaffected.',
-  fps: 'Laptop drawing speed. Unrelated to headset or saved data.',
-  reconnects: 'Links restored since page opened.',
-  error: 'Latest technical message. "None" = good.'
+  rate: 'Frequency of updates to the laptop 3D view. This is not the headset recording rate.',
+  age: 'Time since the last update. Normally less than 1 s.',
+  gap: 'Longest gap between updates in the last 10 s. Normally less than 1 s.',
+  stale: 'Out-of-order updates are ignored. Saved data are unaffected.',
+  fps: 'Frame rate of the laptop 3D view, not the headset or recorded data.',
+  reconnects: 'Number of connections restored since this page was opened.',
+  error: 'Most recent connection error, if any.'
 };
 const LABELS = {
   '#g-hide': 'Hide guide', '#g-confirm': 'Send to headset', '#g-save-headset': 'Save headset copy', '#g-new-reload': 'Reload this page',
@@ -82,18 +82,18 @@ const LABELS = {
     ok(await pop() === want, `${state}: "${want}"`);
     await p.click('[data-info="conn"]'); await tick(50);
   };
-  await status('connecting', 'Searching for headset. Check WebSpheres is open, in VR.');
+  await status('connecting', 'Searching for the headset. Check that WebSpheres is open in VR or AR.');
   ok(await E(() => document.getElementById('conn-dot').offsetParent !== null), 'dot shows when not connected');
-  await status('reconnecting', 'Link lost. Retrying.');
-  await status('notfound', 'Headset not found. Check WebSpheres is open. Retrying.');
-  await status('error', 'Connection error. Retrying. If persistent: check internet, reload page.');
+  await status('reconnecting', 'Connection lost. Trying to reconnect.');
+  await status('notfound', 'Headset not found. Check that WebSpheres is open. Retrying automatically.');
+  await status('error', 'Connection error. Retrying automatically. If the problem continues, check your internet connection and reload this page.');
 
   await E(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
   await peer({ type: 'state', version: '2.5.3', phase: 'running', participantId: 'P1', experimenter: 'Jo', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await tick(50);
   await status('connected', 'Live data arriving.');
   ok(await E(() => document.getElementById('conn-dot').offsetParent === null), 'no dot when connected');
-  await status('reconnecting', 'Link lost. Retrying. Recording continues.');
+  await status('reconnecting', 'Connection lost. Trying to reconnect. The headset continues recording.');
   await E(() => window.__obs.receiver.setStatus('connected', ''));
 
   console.log('STATUS PANEL');
@@ -114,24 +114,24 @@ const LABELS = {
   const sendFrames = async () => { for (let i = 0; i < 110; i++) { await peer({ head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, trialCount: 0, totalTrials: 352, homePos: { x: 0, y: 0.9, z: -0.4 } }); await tick(100); } };
   await sendFrames(); await tick(260);
   let h = await health();
-  ok(h.text === 'Healthy: Live data arriving.' && h.cls === 'good', `Healthy (${h.text})`);
+  ok(h.text === 'Connected: Live data are arriving.' && h.cls === 'good', `Healthy (${h.text})`);
   await tick(1400);
   h = await health();
-  ok(h.text === 'Unstable: Gaps in live data. Recording continues.' && h.cls === 'warn', `Unstable (${h.text})`);
+  ok(h.text === 'Unstable: Live updates are intermittent. The headset continues recording.' && h.cls === 'warn', `Unstable (${h.text})`);
   await E(() => window.__obs.receiver.setStatus('reconnecting', ''));
   await tick(260);
   h = await health();
-  ok(h.text === 'Down: No live data. Recording continues.' && h.cls === 'bad', `Down (${h.text})`);
+  ok(h.text === 'Disconnected: No live data are arriving. The headset continues recording.' && h.cls === 'bad', `Down (${h.text})`);
   await peer({ type: 'state', version: '2.5.3', phase: 'setup', participantId: '', experimenter: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false, calib: null, recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await E(() => window.__obs.receiver.setStatus('reconnecting', ''));
   await tick(260);
   h = await health();
-  ok(h.text === 'Down: No live data.', `outside a session, no claim about recording (${h.text})`);
+  ok(h.text === 'Disconnected: No live data are arriving.', `outside a session, no claim about recording (${h.text})`);
 
   console.log('KEYS PANEL');
   await p.click('#btn-help'); await tick(100);
   const help = await E(() => document.getElementById('help').textContent);
-  ok(help.includes('Off by default. Turn on: Settings, Keyboard control.') && help.includes('Calibrate home') && help.includes('Save headset copy'), 'panel explains keys are off by default');
+  ok(help.includes('Keyboard shortcuts are off by default. Turn them on under Settings → Keyboard control.') && help.includes('Calibrate home') && help.includes('Save headset copy'), 'panel explains keys are off by default');
 
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');
   await b.close();

@@ -160,7 +160,7 @@ async function syncSuite(b) {
   await emit(stateRun2);
   await sleep(300);
   const copy = await O(() => document.getElementById('g7-b-copy').textContent);
-  ok(copy.includes('Laptop copy complete'), 'between runs: laptop copy complete across both runs');
+  ok(copy.includes('All data received for the completed run'), 'between runs: laptop copy complete across both runs');
 
   console.log('RECONNECTING');
   await O(() => { const P = window.__peers.at(-1); const c = P.conns.at(-1); c.close(); });
@@ -213,9 +213,9 @@ async function offlineSuite(b) {
   await sleep(100);
   const sentPlan = (await cmds()).filter(m => m.name === 'setPlan').at(-1);
   ok(sentPlan.value.runs.length === 3 && !(await dirty()), 'plan sent by itself when the headset returns');
-  await O(() => { window.__obs.guide.plan.runs.push({ condition: 1, off: false, recal: false }); window.__obs.guide.planDirty = true; window.__refuse = { setPlan: 'Plan: 1-20 runs' }; });
+  await O(() => { window.__obs.guide.plan.runs.push({ condition: 1, off: false, recal: false }); window.__obs.guide.planDirty = true; window.__refuse = { setPlan: 'A plan can contain 1–20 runs.' }; });
   await sleep(350);
-  ok(!(await dirty()) && (await text('g7-msg')) === 'Headset refused: Plan: 1-20 runs', 'a refused plan is reported, not retried for ever');
+  ok(!(await dirty()) && (await text('g7-msg')) === 'Headset refused: A plan can contain 1–20 runs.', 'a refused plan is reported, not retried for ever');
   await O(() => { window.__refuse = {}; });
   await emit(Object.assign({}, STATE, { plan: { mode: 'fmode', home: 'one-box', runs: runs.concat([{ condition: 1, off: false, recal: false }]) }, plannedRuns: 3 }));
   await sleep(350);
@@ -242,7 +242,7 @@ async function offlineSuite(b) {
   ok((await text('g8-files')).includes('Headset saving…'), 'still saving while files are queued');
   await emit(Object.assign({}, STATE, { phase: 'complete', endReason: 'finished', backup: { trials: 0, kinL: 0, kinR: 0, final: true, exportTs: 'T' } })); await sleep(350);
   ok((await text('g8-files')).includes('Headset copy saved'), 'Finish: saved once final');
-  await O(() => { window.__c.sent.length = 0; window.__refuse = { setPlan: 'Plan: 1-20 runs' }; });
+  await O(() => { window.__c.sent.length = 0; window.__refuse = { setPlan: 'A plan can contain 1–20 runs.' }; });
   const before = await O(() => window.__obs.guide.plan.runs.length);
   await o.click('#g-add-run'); await sleep(150);
   ok(await O((n) => window.__obs.guide.plan.runs.length === n, before) && !(await cmds()).some(m => m.name === 'reopenSession'), 'refused Add run leaves the plan unchanged');
@@ -303,7 +303,7 @@ async function guidedSuite(b) {
   ok(!(await shown('[data-g="cond"]')) && !(await shown('[data-g="mode"]')), 'Participant step no longer has condition or mode');
   await o.fill('#g-exp', 'Jo Smith'); await o.fill('#g-id', 'G06');
   await o.fill('#g-exp', 'Jo "JJ" Smith'); await o.click('#g-confirm');
-  ok((await text('g2-msg')).includes('no commas or quotes'), 'experimenter with quotes caught on the laptop');
+  ok((await text('g2-msg')).includes('cannot contain commas or quotation marks'), 'experimenter with quotes caught on the laptop');
   await o.fill('#g-exp', 'Jo Smith');
   await o.click('[data-g="dom"][data-v="RIGHT"]');
   await o.click('#g-confirm');
@@ -367,8 +367,8 @@ async function guidedSuite(b) {
   ok(await shown('#plan-builder') && await shown('#g7-between') && !(await shown('#g-pause')), 'between runs: plan shown, run controls gone');
   ok(!(await O(() => [...document.querySelectorAll('[data-plan-remove]')].some(b => b.dataset.planRemove === '0'))), 'finished run is locked');
   ok(await O(() => document.querySelector('[data-card="1"]').classList.contains('next')), 'next run marked');
-  ok((await text('g7-b-title')) === 'Run 1 of 3 done' && (await text('g7-b-next')).startsWith('Next: run 2, Boost'), 'title and next run');
-  await waitText('g7-b-copy', 'Laptop copy complete', 10000);
+  ok((await text('g7-b-title')) === 'Run 1 of 3 complete' && (await text('g7-b-next')).startsWith('Next run: 2 · Boost'), 'title and next run');
+  await waitText('g7-b-copy', 'All data received for the completed run', 10000);
   ok(!(await shown('#g7-b-off')) && !(await shown('#g7-b-break')), 'headset on: no break steps');
   ok((await text('conn-state')) !== 'Break: headset off', 'headset on: normal connection status');
   await waitCan(true);
@@ -394,7 +394,7 @@ async function guidedSuite(b) {
   await cueNow('Stretch one arm straight out');
   ok((await text('g7-b-say')).includes('Stretch one arm'), 'recalibration: read-aloud line and headset cue for reach');
   await H(() => { window.__inVR = false; window.__smState = true; document.querySelector('#spectator-manager').components['spectator-manager'].stateDirty = true; });
-  await waitText('g7-b-vr', 'Not in VR or AR. Enter on headset.');
+  await waitText('g7-b-vr', 'The headset is not in VR or AR. Enter VR or AR on the headset.');
   ok(await O(() => document.getElementById('g7-b-recentre').disabled), 'recentre waits for VR');
   await H(() => { window.__inAR = true; document.querySelector('#spectator-manager').components['spectator-manager'].stateDirty = true; });
   await waitText('g7-b-vr', 'In AR');
@@ -416,7 +416,7 @@ async function guidedSuite(b) {
   ok(!(await canStart()), 'still locked: recalibration ticked');
   await H(() => window.__home(true));
   await o.click('[data-bcalib="height"]');
-  await waitText('g7-b-recal-status', 'Redone: height');
+  await waitText('g7-b-recal-status', 'Recalibrated: height');
   await o.click('#g7-b-skip');
   await cueNow('Short break');
   ok(!(await shown('#g7-b-say')), 'recalibration skipped: read-aloud line gone, cue back to "Short break"');
@@ -431,7 +431,7 @@ async function guidedSuite(b) {
   console.log('GUIDED: FINISH');
   await finishRun(H);
   await waitStep(8, 10000);
-  await waitText('g8-files', 'Saved to laptop:', 20000);
+  await waitText('g8-files', 'Download started:', 20000);
   for (let i = 0; i < 40 && (odl.length < 1 || host.dl.length < 2); i++) await sleep(100);
   await sleep(300);
   const ts = await H(() => window.__dm.lastExportTimestamp);
@@ -447,7 +447,7 @@ async function guidedSuite(b) {
   await o.waitForFunction(() => !document.getElementById('g-add-run').disabled, null, { timeout: 4000 });
   await o.click('#g-add-run');
   await waitText('g7-head', 'Between runs');
-  ok((await text('g7-b-title')) === 'Run 3 of 4 done', 'Add run reopens the session');
+  ok((await text('g7-b-title')) === 'Run 3 of 4 complete', 'Add run reopens the session');
   await o.click('#g7-b-finish');
   await waitStep(8, 6000);
   ok(errs.length === 0, 'no observer page errors (' + errs.join(' | ') + ')');

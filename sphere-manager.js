@@ -363,18 +363,18 @@ AFRAME.registerComponent('sphere-manager', {
         }
         switch (name) {
             case 'setParticipant':
-                if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(value)) return { ok: false, reason: 'Participant ID: 1-32 letters, digits, _ or -' };
-                if (/left|right/i.test(value)) return { ok: false, reason: 'Participant ID: no "left" or "right". 3D viewer reads those words in filenames.' };
+                if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(value)) return { ok: false, reason: 'Participant ID must contain 1\u201332 letters, numbers, underscores or hyphens.' };
+                if (/left|right/i.test(value)) return { ok: false, reason: 'The participant ID cannot contain \u201cleft\u201d or \u201cright\u201d because the 3D viewer uses those words in file names.' };
                 dataManager.participantId = value;
                 return { ok: true };
             case 'setExperimenter':
-                if (typeof value !== 'string' || !value.trim() || value.length > 64) return { ok: false, reason: 'Experimenter name: 1-64 characters' };
-                if (/[,"\r\n]/.test(value)) return { ok: false, reason: 'Experimenter name: no commas or quotes (breaks the CSV)' };
+                if (typeof value !== 'string' || !value.trim() || value.length > 64) return { ok: false, reason: 'Experimenter name must contain 1\u201364 characters.' };
+                if (/[,"\r\n]/.test(value)) return { ok: false, reason: 'The experimenter\u2019s name cannot contain commas or quotation marks because they would affect the CSV format.' };
                 dataManager.experimenter = value.trim();
                 return { ok: true };
             case 'setHomeMode':
-                if (value !== 'one-box' && value !== 'per-hand') return { ok: false, reason: 'Home position: one-box or per-hand' };
-                if (phase !== 'setup') return { ok: false, reason: 'Home position: set before start' };
+                if (value !== 'one-box' && value !== 'per-hand') return { ok: false, reason: 'Home position must be either one box or one box per hand.' };
+                if (phase !== 'setup') return { ok: false, reason: 'Set the home position before starting the session.' };
                 this.setHomeMode(value);
                 return { ok: true };
             case 'setDominant':
@@ -390,7 +390,7 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'setMode':
                 if (!['standard', 'short', 'fmode', 'block'].includes(value)) return { ok: false, reason: 'Unknown mode' };
-                if (phase !== 'setup') return { ok: false, reason: 'Mode: set before start' };
+                if (phase !== 'setup') return { ok: false, reason: 'Set the run length before starting the session.' };
                 this.setMode(value);
                 return { ok: true };
             case 'calibrate':
@@ -401,7 +401,7 @@ AFRAME.registerComponent('sphere-manager', {
                 this.startSession();
                 return { ok: true };
             case 'pause':
-                if (phase !== 'running') return { ok: false, reason: 'Pause only while running' };
+                if (phase !== 'running') return { ok: false, reason: 'You can only pause during a run.' };
                 this.requestPause();
                 return { ok: true };
             case 'resume':
@@ -423,7 +423,7 @@ AFRAME.registerComponent('sphere-manager', {
                 this.completeSession('ended-early');
                 return { ok: true };
             case 'unlockSetup':
-                if (!this.isRunActive()) return { ok: false, reason: 'Setup locks only during a session' };
+                if (!this.isRunActive()) return { ok: false, reason: 'You can only unlock or relock setup during a session.' };
                 if (this.setupLocked) {
                     this.setupLocked = false;
                     dataManager.logSetupUnlock();
@@ -432,19 +432,19 @@ AFRAME.registerComponent('sphere-manager', {
             case 'setPlan':
                 return this.setPlan(value);
             case 'resumeAt':
-                if (phase !== 'setup') return { ok: false, reason: 'Resume only before start' };
-                if (!Number.isInteger(value) || value < 2 || value > dataManager.plannedRuns()) return { ok: false, reason: 'Resume: no such run in plan' };
+                if (phase !== 'setup') return { ok: false, reason: 'You can only resume a session before a new run starts.' };
+                if (!Number.isInteger(value) || value < 2 || value > dataManager.plannedRuns()) return { ok: false, reason: 'That run is not in the current plan.' };
                 dataManager.runNumber = value;
                 dataManager.breakBefore = 'headset-reload';
                 return { ok: true };
             case 'nextRun':
-                if (phase !== 'between') return { ok: false, reason: 'Next run only between runs' };
+                if (phase !== 'between') return { ok: false, reason: 'You can only start the next run between runs.' };
                 if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
-                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'No more runs in plan' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more runs in the plan.' };
                 this.startNextRun();
                 return { ok: true };
             case 'finishSession':
-                if (phase !== 'between') return { ok: false, reason: 'Finish only between runs' };
+                if (phase !== 'between') return { ok: false, reason: 'You can only finish the session between runs.' };
                 this.phase = 'complete';
                 this.setupLocked = true;
                 this.setHeadsetCue('done');
@@ -453,13 +453,13 @@ AFRAME.registerComponent('sphere-manager', {
             case 'reopenSession':
                 if (phase !== 'complete') return { ok: false, reason: 'Session not complete' };
                 if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
-                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'No more runs in plan' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more runs in the plan.' };
                 this.phase = 'between';
                 this.setupLocked = false;
                 this.setHeadsetCue('paused');
                 return { ok: true };
             case 'relockSetup':
-                if (!this.isRunActive()) return { ok: false, reason: 'Setup locks only during a session' };
+                if (!this.isRunActive()) return { ok: false, reason: 'You can only unlock or relock setup during a session.' };
                 this.setupLocked = true;
                 return { ok: true };
             case 'saveOnHeadset':
@@ -495,12 +495,12 @@ AFRAME.registerComponent('sphere-manager', {
     },
 
     setPlan: function (value) {
-        if (this.isRunActive()) return { ok: false, reason: 'Plan: set before start or between runs' };
+        if (this.isRunActive()) return { ok: false, reason: 'You can only change the plan before a session or between runs.' };
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const runs = value && value.runs;
-        if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'Plan: 1-20 runs' };
-        if (runs.length < dataManager.runNumber) return { ok: false, reason: 'Plan: cannot remove finished runs' };
-        if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Plan: reward must be 1 or 2' };
+        if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'A plan can contain 1\u201320 runs.' };
+        if (runs.length < dataManager.runNumber) return { ok: false, reason: 'You cannot remove completed runs from the plan.' };
+        if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Each run must use condition 1 or 2.' };
         const charts = Array.isArray(value.charts) ? value.charts.filter(c => typeof c === 'string').slice(0, 20) : [];
         dataManager.plan = { mode: this.mode, home: this.homeMode, charts, runs: runs.map(r => ({ condition: r.condition, off: !!r.off, recal: !!r.recal })) };
         if (this.phase === 'between' && !dataManager.runClosing) dataManager.saveForBreak();

@@ -61,8 +61,8 @@ const { ok, done } = counter('OBSERVER BROWSER');
   ok((await note()).startsWith('Recentred ') && await E(() => document.getElementById('recentre-note').className === 'ok'), 'ok ack → "Recentred <time>" in green');
   await frame(); await page.keyboard.press('KeyR');
   ok(await count('KeyR') === 2 && (await note()) === 'Recentring in 1.5 s…', 'R key follows same path as button');
-  await E(() => window.__peers[0].conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: false, reason: 'Not in VR' })));
-  ok((await note()) === 'Recentre failed: Not in VR', 'failure ack shows reason');
+  await E(() => window.__peers[0].conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: false, reason: 'The headset is not in an immersive VR or AR session.' })));
+  ok((await note()) === 'Recentre failed: The headset is not in an immersive VR or AR session.', 'failure ack shows reason');
   await frame(); await page.click('#recentre');
   for (let i = 0; i < 4; i++) { await frame(); await page.clock.runFor(1000); }
   ok((await note()) === 'Recentring in 1.5 s…', 'still waiting after 4 s (look-ahead needs ~1.5 s plus the round trip)');
@@ -114,7 +114,7 @@ const { ok, done } = counter('OBSERVER BROWSER');
   await frame(); await page.clock.runFor(300);
   ok(await E(() => document.getElementById('data-age').hidden && !document.getElementById('stage').classList.contains('stale')), 'fresh data: no age shown, scene not dimmed');
   await page.clock.runFor(2000);
-  ok(await E(() => !document.getElementById('data-age').hidden && document.getElementById('stage').classList.contains('stale')) && /^No data 2\.\d s$/.test(await txt('data-age-value')), 'data older than 1 s: "No data 2.x s" shown, scene dimmed (' + (await txt('data-age-value')) + ')');
+  ok(await E(() => !document.getElementById('data-age').hidden && document.getElementById('stage').classList.contains('stale')) && /^No data for 2\.\d s$/.test(await txt('data-age-value')), 'data older than 1 s: "No data 2.x s" shown, scene dimmed (' + (await txt('data-age-value')) + ')');
   await frame(); await page.clock.runFor(100);
   ok(await E(() => document.getElementById('data-age').hidden && !document.getElementById('stage').classList.contains('stale')), 'new data clears the stale state');
 

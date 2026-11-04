@@ -121,7 +121,7 @@ ok(dispatched.join() === 'KeyS', 'ping ignored, key relayed, malformed/null payl
 
 console.log('HOST — recentre');
 c3.emit('data', JSON.stringify({ code: 'KeyR' })); tick();
-let a = acks(c3).at(-1); ok(a && a.ok === false && a.reason === 'Not in VR', 'recentre outside VR → ack fail "Not in VR", no throw');
+let a = acks(c3).at(-1); ok(a && a.ok === false && a.reason === 'The headset is not in an immersive VR or AR session.', 'recentre outside VR → ack fail "The headset is not in an immersive VR or AR session.", no throw');
 ok(sm.recentrePending === false, 'pending flag cleared (no stale recentre later)');
 
 enterVR();
@@ -211,7 +211,7 @@ nAck = acks(c3).length; cueBox.attrs = {};
 c3.emit('data', JSON.stringify({ code: 'KeyR' })); for (let i = 0; i < 20; i++) tick();
 const cueMid = cueBox.attrs.visible;
 exitVR(); tick();
-ok(cueMid === true && acks(c3).length === nAck + 1 && acks(c3).at(-1).reason === 'Not in VR' && cueBox.attrs.visible === false, 'leaving VR mid-countdown → "Not in VR" ack, cue cleared');
+ok(cueMid === true && acks(c3).length === nAck + 1 && acks(c3).at(-1).reason === 'The headset is not in an immersive VR or AR session.' && cueBox.attrs.visible === false, 'leaving VR mid-countdown → "The headset is not in an immersive VR or AR session." ack, cue cleared');
 nAck = acks(c3).length; for (let i = 0; i < 200; i++) tick();
 ok(acks(c3).length === nAck, 'no late ack after the cancelled countdown');
 

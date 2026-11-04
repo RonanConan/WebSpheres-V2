@@ -80,7 +80,7 @@ AFRAME.registerComponent('data-manager', {
     },
 
     addNote: function(note) {
-        if (!note || typeof note.id !== 'string' || typeof note.text !== 'string' || !note.text.trim() || note.text.length > 500) return { ok: false, reason: 'Note: 1-500 characters' };
+        if (!note || typeof note.id !== 'string' || typeof note.text !== 'string' || !note.text.trim() || note.text.length > 500) return { ok: false, reason: 'Notes must contain 1\u2013500 characters.' };
         if (note.type !== 'note' && note.type !== 'alert') return { ok: false, reason: 'Note: unknown type' };
         if (this.noteIds.has(note.id)) return { ok: true };
         this.noteIds.add(note.id);

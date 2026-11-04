@@ -47,7 +47,7 @@
         #conn-dot { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--warn); flex: none; }
         #conn-dot[hidden] { display: none; }
         #conn-state { font-family: var(--sans); text-transform: uppercase; letter-spacing: 0.04em; }
-        #conn-detail { font-size: 0.75rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 22rem; }
+        #conn-detail { font-size: 0.75rem; color: var(--muted); max-width: 22rem; white-space: normal; }
         #data-age { color: var(--crit); }
         #data-age[hidden] { display: none; }
         #v-fire.on { color: var(--crit); }
@@ -63,7 +63,7 @@
         #recentre { font-size: 1rem; font-weight: 700; letter-spacing: 0.06em; padding: 0 1.4rem; }
         #recentre.want { background: var(--accent); color: #031418; border-color: var(--accent); }
         #recentre:disabled { background: #151a24; color: var(--muted); border-color: var(--line); opacity: 1; }
-        #recentre-note { flex: 1 1 9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; color: var(--muted); }
+        #recentre-note { flex: 1 1 9rem; min-width: 0; white-space: normal; font-size: 0.9rem; color: var(--muted); }
         #recentre-note.busy { color: var(--warn); }
         #recentre-note.ok { color: var(--ok); }
         #recentre-note.fail { color: var(--err); }
@@ -81,6 +81,7 @@
         .ro-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.4rem 0; border-bottom: 1px solid var(--line); }
         .ro-row > span:first-child { color: var(--muted); font-size: 0.9rem; }
         .ro-row > span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 600; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #r-recentre, #r-bk-saved { white-space: normal; }
         .ro-row .good { color: var(--ok); }
         .ro-row .bad { color: var(--err); }
         .ro-row .warn { color: var(--warn); }
@@ -435,16 +436,16 @@
                         <button tabindex="-1" id="g-skip">Skip target</button>
                     </div>
                     <div class="g-confirm" id="g-end-confirm" hidden>
-                        <p>End run now? Run cannot resume.</p>
+                        <p>End this run now? You will not be able to resume it.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end run</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
                     </div>
                     <div class="g-confirm" id="g-unlock-confirm" hidden>
-                        <p>Unlock setup mid-session? Logged in session info. Relocks on next resume.</p>
+                        <p>Unlock the setup during this session? Changes will be logged, and the setup will lock again when the run resumes.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
                     </div>
                     <div class="g-unlocked" id="g-unlocked" hidden>
                         <div class="label">Setup unlocked</div>
-                        <p class="g-note">Changes apply now. All logged.</p>
+                        <p class="g-note">Changes take effect immediately and are recorded.</p>
                         <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
                         <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
                         <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
@@ -464,12 +465,12 @@
                 <div class="step-body">
                     <div class="g-big-line" id="g8-title">–</div>
                     <ul class="checks" id="g8-files"></ul>
-                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Download zip again</button><button tabindex="-1" id="g-results">Results</button></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Download ZIP again</button><button tabindex="-1" id="g-results">Results</button></div>
                     <div class="sum" id="g8-summary"></div>
                     <div class="g-actions"><button tabindex="-1" id="g-add-run">Add run</button><button tabindex="-1" id="g-new">New session</button></div>
                     <p class="g-msg" id="g8-msg"></p>
                     <div class="g-confirm" id="g-new-confirm" hidden>
-                        <p>Reload WebSpheres on the headset first. Then reload this page.</p>
+                        <p>Reload WebSpheres on the headset before reloading this page.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload this page</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
                     </div>
                 </div>
@@ -518,7 +519,7 @@
                     </div></div>
                 </div>
                 <div class="ws3d-main">
-                    <div class="ws3d-stage"><canvas id="ws3d-canvas"></canvas><div id="ws3d-status"></div><div id="ws3d-hint">Drag to rotate. Scroll to zoom. Right-drag to pan.</div></div>
+                    <div class="ws3d-stage"><canvas id="ws3d-canvas"></canvas><div id="ws3d-status"></div><div id="ws3d-hint">Drag to rotate, scroll to zoom, or right-drag to move the view.</div></div>
                     <table id="ws3d-table"></table>
                 </div>
             </div></div>
@@ -528,7 +529,7 @@
             <div id="readout-rows"></div>
             <div class="set-row">
                 <button tabindex="-1" id="save-backup">Save laptop copy</button>
-                <div class="set-note">Saves all laptop files so far as one zip.</div>
+                <div class="set-note">Download a ZIP containing the files received by the laptop so far.</div>
             </div>
         </section>
         <section class="drawer" id="drawer-settings">
@@ -554,8 +555,8 @@
                     <kbd>Z</kbd><span>Skip target</span>
                     <kbd>R</kbd><span>Recentre</span>
                 </div>
-                <p>Off by default. Turn on: Settings, Keyboard control.</p>
-                <p>Esc: close panels.</p>
+                <p>Keyboard shortcuts are off by default. Turn them on under Settings → Keyboard control.</p>
+                <p>Press Esc to close panels.</p>
             </div>
         </section>
     </main>
@@ -605,7 +606,7 @@
         ['arc', 'Target arc', [['all', 'All targets'], ['active', 'Active only']]],
         ['homeBox', 'Home box', [[true, 'Show'], [false, 'Hide']]],
         ['textSize', 'Text size', [[1, 'Normal'], [1.2, 'Large'], [1.4, 'Extra large']]],
-        ['keyControl', 'Keyboard control', [[true, 'On'], [false, 'Off']], 'Off: laptop keys ignored. Buttons always work.']
+        ['keyControl', 'Keyboard control', [[true, 'On'], [false, 'Off']], 'When off, keyboard shortcuts other than Esc are disabled. On-screen controls are unaffected.']
     ];
     const settings = Object.assign({}, DEFAULTS);
     try {
@@ -965,6 +966,7 @@
 
     const finite = (...v) => v.every(Number.isFinite);
     const ACTIVE_PHASES = ['running', 'pausing', 'paused'];
+    const PHASE_LABEL = { setup: 'Not started', running: 'Running', pausing: 'Pausing', paused: 'Paused', between: 'Between runs', complete: 'Complete' };
     const STATUS = {
         connecting: ['Connecting', 'var(--warn)'],
         connected: ['Connected', 'var(--ok)'],
@@ -1096,10 +1098,10 @@
             : WebSpheresZip.make(files);
         return zipped.then(blob => {
             saveBlob(zipName, blob);
-            return 'in zip';
+            return 'in a ZIP';
         }).catch(() => {
             files.forEach(f => downloadText(f.path.split('/').pop(), f.parts));
-            return 'loose';
+            return 'individually';
         });
     }
 
@@ -1226,7 +1228,7 @@
         saveZipOrLoose(`${s.sessionPrefix || ''}${ts}.zip`, files).then((how) => {
             backup.zipping--;
             backup.saved = `${files.length} files ${how} at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}`;
-            backup.savedLoose = how === 'loose';
+            backup.savedLoose = how === 'individually';
             if (final && storeId && !backup.savedLoose) {
                 guide.recovery = guide.recovery.filter(r => r.id !== storeId);
                 runStore.forget(storeId).catch(() => {});
@@ -1295,7 +1297,7 @@
             }
 
             if (typeof Peer === 'undefined') {
-                this.setStatus('error', 'Connection library not loaded. Check internet. Reload page.');
+                this.setStatus('error', 'Could not load the connection software. Check the internet connection and reload this page.');
                 return;
             }
 
@@ -1303,7 +1305,7 @@
             try {
                 peer = new Peer({ debug: 0 });
             } catch (e) {
-                this.setStatus('error', 'Connection not started. Retrying.');
+                this.setStatus('error', 'Could not start the connection. Retrying automatically.');
                 this.scheduleRetry();
                 return;
             }
@@ -1318,9 +1320,9 @@
                 noteError(err?.type || 'unknown');
                 if (this.isLive()) return;
                 if (err?.type === 'peer-unavailable') {
-                    this.setStatus('notfound', 'Headset not found. Retrying.');
+                    this.setStatus('notfound', 'Headset not found. Retrying automatically.');
                 } else {
-                    this.setStatus('error', 'Network error (' + (err?.type || 'unknown') + '). Retrying.');
+                    this.setStatus('error', 'Network error (' + (err?.type || 'unknown') + '). Retrying automatically.');
                 }
                 this.scheduleRetry();
             });
@@ -1636,7 +1638,7 @@
         stage.classList.toggle('stale', stale);
         $('data-age').hidden = !stale;
         if (stale) {
-            const text = 'No data ' + (age / 1000).toFixed(1) + ' s';
+            const text = 'No data for ' + (age / 1000).toFixed(1) + ' s';
             if ($('data-age-value').textContent !== text) $('data-age-value').textContent = text;
         }
     }
@@ -1644,43 +1646,43 @@
     const READOUTS = [
         ['Session', [['trial', 'Trial', 'trial'], ['score', 'Score', 'score'], ['cond', 'Condition', 'cond'], ['dom', 'Dominant hand', 'dom'], ['fire', 'Fire mode', 'fire'], ['run', 'State'], ['target', 'Active target', 'target'], ['recentre', 'Last recentre', 'recentre']]],
         ['Tracking', [['left', 'Left hand', 'hand'], ['right', 'Right hand', 'hand'], ['headh', 'Head height', 'headh']]],
-        ['Laptop copy', [['bk-trials', 'Trial rows', 'rows'], ['bk-kinl', 'Left kinematics rows', 'rows'], ['bk-kinr', 'Right kinematics rows', 'rows'], ['bk-saved', 'Last saved']]]
+        ['Laptop copy', [['bk-trials', 'Trial rows', 'rows'], ['bk-kinl', 'Left kinematics rows', 'rows'], ['bk-kinr', 'Right kinematics rows', 'rows'], ['bk-saved', 'Last download started']]]
     ];
     const TECH_READOUTS = [['status', 'Status', 'conn'], ['uptime', 'Connected for', 'uptime'], ['rate', 'Live updates per second', 'rate'], ['age', 'Data age', 'age'], ['gap', 'Longest wait, last 10 s', 'gap'], ['stale', 'Late updates discarded', 'stale'], ['fps', '3D view smoothness', 'fps'], ['reconnects', 'Reconnects', 'reconnects'], ['error', 'Last error', 'error']];
-    const RECORDING = ' Recording continues.';
+    const RECORDING = ' The headset continues recording.';
     const CONN_INFO = {
         connected: () => 'Live data arriving.',
-        connecting: () => 'Searching for headset. Check WebSpheres is open, in VR.',
-        reconnecting: (rec) => 'Link lost. Retrying.' + rec,
-        notfound: () => 'Headset not found. Check WebSpheres is open. Retrying.',
-        error: () => 'Connection error. Retrying. If persistent: check internet, reload page.'
+        connecting: () => 'Searching for the headset. Check that WebSpheres is open in VR or AR.',
+        reconnecting: (rec) => 'Connection lost. Trying to reconnect.' + rec,
+        notfound: () => 'Headset not found. Check that WebSpheres is open. Retrying automatically.',
+        error: () => 'Connection error. Retrying automatically. If the problem continues, check your internet connection and reload this page.'
     };
     const INFO = {
-        conn: (rec) => breakOff() ? 'Headset off. Link drops are normal.' : CONN_INFO[receiver.status](rec),
-        run: () => 'Current run / runs in plan.',
-        pid: () => 'ID on headset. Used in file names.',
-        qtrack: () => '% frames tracked while target showing, last 30 s.',
-        qfps: () => 'Headset frames per second, last 30 s. Low = coarser data.',
+        conn: (rec) => breakOff() ? 'The connection may drop while the headset is off.' : CONN_INFO[receiver.status](rec),
+        run: () => 'Current run, out of the total number of planned runs.',
+        pid: () => 'The participant ID set on the headset. Also used in file names.',
+        qtrack: () => 'Percentage of frames with hand tracking while a target was visible, over the last 30 s.',
+        qfps: () => 'Headset frame rate over the last 30 s. A lower rate produces less detailed movement data.',
         qflow: () => 'Skipped targets and long gaps between trials.',
-        stream: (rec) => '3D view out of date.' + rec,
-        trial: () => 'Completed / total, this run.',
-        score: () => 'Points, this run.',
-        cond: () => 'No boost: Critical hit chance: 30% both hands.\nBoost: Critical hit chance: non-dominant 55%, dominant 5%.',
-        dom: () => 'Hand taxed under Boost.',
-        fire: () => 'On: 3 non-dominant critical hits in a row. Off: any dominant hit. No effect on points.',
-        target: () => 'Current target, 1–11. Numbering matches trial file.',
+        stream: (rec) => 'The 3D view is not receiving current data.' + rec,
+        trial: () => 'Trials completed in the current run, out of the planned total.',
+        score: () => 'Points earned in the current run.',
+        cond: () => 'No boost: Both hands have a 30% critical-hit chance.\nBoost: The non-dominant hand has a 55% chance; the dominant hand has a 5% chance.',
+        dom: () => 'The dominant hand has a lower critical-hit chance during Boost.',
+        fire: () => 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.',
+        target: () => 'Current target number (1–11), matching the trial data file.',
         recentre: () => 'Time of last recentre.',
-        hand: () => 'Tracked: Hand in view.\nLost: Hand out of view.\nNo data: Nothing received yet.',
+        hand: () => 'Tracked: The hand is currently tracked.\nLost: The hand was tracked but is no longer tracked.\nNo data: No tracking data have been received yet.',
         headh: () => 'Height above floor.',
-        rows: () => 'Laptop / headset. Equal = laptop copy complete so far.',
+        rows: () => 'Counts of rows received on the laptop and recorded on the headset. Matching counts mean the laptop is up to date so far.',
         uptime: () => 'Time since link started.',
-        rate: () => '3D view updates. Should be steady. Not the recording rate.',
-        age: () => 'Time since last update. Normal: under 1 s.',
-        gap: () => 'Longest pause between updates. Normal: under 1 s.',
-        stale: () => 'Out-of-order updates ignored. Saved data unaffected.',
-        fps: () => 'Laptop drawing speed. Unrelated to headset or saved data.',
-        reconnects: () => 'Links restored since page opened.',
-        error: () => 'Latest technical message. "None" = good.'
+        rate: () => 'Frequency of updates to the laptop 3D view. This is not the headset recording rate.',
+        age: () => 'Time since the last update. Normally less than 1 s.',
+        gap: () => 'Longest gap between updates in the last 10 s. Normally less than 1 s.',
+        stale: () => 'Out-of-order updates are ignored. Saved data are unaffected.',
+        fps: () => 'Frame rate of the laptop 3D view, not the headset or recorded data.',
+        reconnects: () => 'Number of connections restored since this page was opened.',
+        error: () => 'Most recent connection error, if any.'
     };
     const infoBtn = (key, label) => key ? `<button tabindex="-1" class="info" data-info="${key}" aria-label="About ${label}">i</button>` : '';
     const roRow = ([id, label, info]) => `<div class="ro-row"><span>${label}${infoBtn(info, label)}</span><span id="r-${id}">–</span></div>`;
@@ -1788,7 +1790,7 @@
         setReadout('cond', f.condition === 1 ? 'No boost' : f.condition === 2 ? 'Boost' : '–');
         setReadout('dom', f.dominantHand === 'LEFT' ? 'Left' : f.dominantHand === 'RIGHT' ? 'Right' : '–');
         setReadout('fire', lastFrame ? (f.fireMode ? 'On' : 'Off') : '–', f.fireMode ? 'warn' : '');
-        setReadout('run', lastFrame ? (f.isPaused ? 'Paused' : 'Running') : '–');
+        setReadout('run', PHASE_LABEL[(receiver.headsetState || {}).phase] || '–');
         setReadout('target', !lastFrame ? '–' : (Number.isInteger(f.activeSphere) && f.activeSphere >= 0 && f.activeSphere <= 10 ? String(f.activeSphere + 1) : 'none'));
         setReadout('recentre', stats.lastRecentre || '–');
         setReadout('left', ...handReadout(hands.L));
@@ -1806,9 +1808,9 @@
         for (let i = 1; i < win.length; i++) gap = Math.max(gap, win[i] - win[i - 1]);
         setReadout('gap', win.length > 1 ? gap + ' ms' : '–', gap > STALE_MS ? 'warn' : '');
         const rec = recordingNote();
-        if (receiver.status !== 'connected' || !receiver.lastData) setReadout('health', 'Down: No live data.' + rec, 'bad');
-        else if (now - receiver.lastData > STALE_MS || gap > STALE_MS) setReadout('health', 'Unstable: Gaps in live data.' + rec, 'warn');
-        else setReadout('health', 'Healthy: Live data arriving.', 'good');
+        if (receiver.status !== 'connected' || !receiver.lastData) setReadout('health', 'Disconnected: No live data are arriving.' + rec, 'bad');
+        else if (now - receiver.lastData > STALE_MS || gap > STALE_MS) setReadout('health', 'Unstable: Live updates are intermittent.' + rec, 'warn');
+        else setReadout('health', 'Connected: Live data are arriving.', 'good');
         setReadout('stale', String(stats.staleDropped));
         setReadout('fps', stats.fps + ' fps');
         setReadout('reconnects', String(Math.max(0, stats.opens - 1)));
@@ -1824,10 +1826,12 @@
 
     const APP_VERSION = '2.5.3';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
+    const MODE_PER_RUN = { standard: '352 trials per run', short: '110 trials per run', fmode: '44 trials per run (2 sets of 22)', block: '110 trials per run (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
     const HOME_LABEL = { 'one-box': 'One box', 'per-hand': 'One per hand' };
     const HAND_LABEL = { LEFT: 'Left', RIGHT: 'Right' };
+    const failureText = (r) => r.offline ? r.reason : `Headset refused: ${r.reason}`;
     const pendingCmds = new Map();
     let cmdSeq = 0;
     const guide = {
@@ -1895,12 +1899,12 @@
     }
 
     const tick3 = (ok, text, warnInstead) => [ok ? 'ok' : (warnInstead ? 'warn' : 'bad'), text];
-    const NOT_IN_XR = 'Not in VR or AR. Enter on headset.';
+    const NOT_IN_XR = 'The headset is not in VR or AR. Enter VR or AR on the headset.';
     const inXrLabel = (s) => s && s.xrMode === 'ar' ? 'In AR' : 'In VR';
     const recentreLine = () => {
         const note = $('recentre-note');
         if (!note.textContent) return [];
-        return [note.className === 'ok' ? ['info', `Last recentre ${stats.recentredAt}`] : ['warn', note.textContent]];
+        return [note.className === 'ok' ? ['info', `Last recentre: ${stats.recentredAt}`] : ['warn', note.textContent]];
     };
     const mmss = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
     const fmt = (v, d) => Number.isFinite(+v) ? (+v).toFixed(d) : '–';
@@ -1974,17 +1978,17 @@
             ['Trials completed', `${rows.length} / ${s.totalTrials * (s.run || 1)}`],
             ['Left hand use', pct(L.length, hits.length)],
             ['Right hand use', pct(R.length, hits.length)],
-            ['Critical hits, left', String(L.filter(r => r[5] === 'critical').length)],
-            ['Critical hits, right', String(R.filter(r => r[5] === 'critical').length)],
-            ['Decision time, mean', ms(mean(dt))],
-            ['Decision time, median', ms(median(dt))],
-            ['Total time, mean', ms(mean(mt))],
-            ['Total time, median', ms(median(mt))],
+            ['Left-hand critical hits', String(L.filter(r => r[5] === 'critical').length)],
+            ['Right-hand critical hits', String(R.filter(r => r[5] === 'critical').length)],
+            ['Mean decision time', ms(mean(dt))],
+            ['Median decision time', ms(median(dt))],
+            ['Mean total time', ms(mean(mt))],
+            ['Median total time', ms(median(mt))],
             ['Skips', String(rows.length - hits.length)],
             ['Recentres', String(s.recentreCount + sumEarlier('recentres'))],
             ['Pauses', String(s.pauses + sumEarlier('pauses'))],
-            ['Tracking valid, left', valid(every.flatMap(r => r.kinL))],
-            ['Tracking valid, right', valid(every.flatMap(r => r.kinR))],
+            ['Valid left-hand tracking', valid(every.flatMap(r => r.kinL))],
+            ['Valid right-hand tracking', valid(every.flatMap(r => r.kinR))],
             ['Session duration', mmss(s.sessionMs + sumEarlier('ms'))]
         ];
         return guide.summary;
@@ -2120,9 +2124,9 @@
 
         setChecks('g1-checks', [
             s || st.live ? tick3(st.live, st.live ? 'Connected' : 'Reconnecting…') : ['info', 'Searching for headset…'],
-            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Hard-refresh both pages.`) : ['info', 'Version checked on connection']
+            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Force-refresh both pages.`) : ['info', 'Version check pending headset connection.']
         ]);
-        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest. Enter VR or AR. Connects automatically.';
+        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest and enter VR or AR. The headset will connect automatically.';
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
         const locked = !!(s && (s.setupLocked || s.phase !== 'setup'));
@@ -2164,12 +2168,15 @@
             b.classList.toggle('g-primary', k === nextCalib);
             b.textContent = `${c && c[k].done ? 'Redo' : 'Calibrate'} ${CALIB_LABEL[k]}`;
         });
-        setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
+        setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · reach ${fmt(c.reach.distance, 2)} m · target radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
         setChecks('g5-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
         const box = handsInBox();
         const boxAt = (name, h) => ['ok', `${name} at x ${fmt(h.x, 2)}, y ${fmt(h.y, 2)}, z ${fmt(h.z, 2)} m`];
+        const boxText = (perHand) => box.L && box.R ? (perHand ? 'Both hands are in their home boxes.' : 'Both hands are in the home box.')
+            : !box.L && !box.R ? (perHand ? 'Both hands are outside their home boxes.' : 'Both hands are outside the home box.')
+            : `The ${!box.L ? 'left' : 'right'} hand is outside ${perHand ? 'its' : 'the'} home box.`;
         const boxLines = c && c.lap.done ? (c.lap.left ? [boxAt('Left box', c.lap.left), boxAt('Right box', c.lap.right)] : [boxAt('Home box', c.lap.home)]) : [];
-        setChecks('g5-lap', c && c.lap.done ? [...boxLines, tick3(box.L && box.R, box.L && box.R ? 'Both hands in box now' : `${!box.L && !box.R ? 'Both hands' : !box.L ? 'Left hand' : 'Right hand'} outside box now`, true)] : [['bad', 'Not calibrated']]);
+        setChecks('g5-lap', c && c.lap.done ? [...boxLines, tick3(box.L && box.R, boxText(!!c.lap.left), true)] : [['bad', 'Not calibrated']]);
 
         const tracked = !!(lastFrame && lastFrame.leftValid && lastFrame.rightValid);
         const inSync = now - (backup.syncedAt || 0) < 3000;
@@ -2180,7 +2187,7 @@
             tick3(!!(s && s.participantId), 'Participant ID set'),
             tick3(st.done[2], 'Setup received by headset'),
             tick3(st.done[3], 'Run plan received by headset'),
-            ...(guide.resume ? [tick3(false, 'Headset reloaded: choose Continue or New session')] : []),
+            ...(guide.resume ? [tick3(false, 'The headset page reloaded. Choose Continue or New session.')] : []),
             tick3(!!(s && s.recentred), 'Recentred'),
             tick3(!!(c && c.reach.done), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
@@ -2198,7 +2205,7 @@
         const failing = allChecks.filter(r => r[0] !== 'ok');
         const passed = allChecks.length - failing.length;
         setChecks('g6-top', [...failing, ...(passed ? [['ok', failing.length ? `${passed} of ${allChecks.length} passed` : `All ${allChecks.length} passed`]] : [])]);
-        setChecks('g6-wake', wake.failedAt ? [['warn', 'Laptop may sleep. Check power settings.']] : []);
+        setChecks('g6-wake', wake.failedAt ? [['warn', 'The laptop may go to sleep. Check its power settings.']] : []);
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
         $('g-start').disabled = !reqOk || guide.busy || !inSetup;
@@ -2250,7 +2257,7 @@
         renderNotes(s);
         const alerts = [];
         if (s && ACTIVE_PHASES.includes(s.phase)) {
-            if (receiver.status !== 'connected') alerts.push('Link lost. Recording continues.');
+            if (receiver.status !== 'connected') alerts.push('Connection lost. The headset continues recording.');
             else {
                 if (s.phase !== 'paused') {
                     [['L', 'Left'], ['R', 'Right']].forEach(([h, name]) => {
@@ -2260,10 +2267,10 @@
                 }
                 if (s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000) alerts.push('No new trial for 30 s');
                 QUALITY_LIGHTS.forEach(([k, name]) => {
-                    if (lights[k].kind === 'bad' && !(k === 'flow' && lights[k].text === 'No trial 30 s')) alerts.push(`${name}: ${lights[k].text}`);
+                    if (lights[k].kind === 'bad' && !(k === 'flow' && lights[k].text === 'No new trial for 30 s')) alerts.push(`${name}: ${lights[k].text}`);
                 });
                 const behind = now - (backup.syncedAt || now);
-                if (behind > 10000) alerts.unshift(`Laptop copy ${Math.floor(behind / 1000)} s behind`);
+                if (behind > 10000) alerts.unshift(`Laptop copy ${Math.floor(behind / 1000)} s behind headset`);
             }
         }
         const alertEl = $('g-alert');
@@ -2280,15 +2287,15 @@
             $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
             const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs) && !backup.zipping;
             const complete = caughtUp(s);
-            const laptopLine = saved ? [backup.savedLoose ? 'warn' : 'ok', `Saved to laptop: ${backup.saved}`]
-                : complete ? ['warn', 'Packing laptop zip…']
-                : st.live ? ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows). Saves when complete.`]
-                : ['bad', `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Reconnect, or get files from headset.`];
+            const laptopLine = saved ? [backup.savedLoose ? 'warn' : 'ok', `Download started: ${backup.saved}`]
+                : complete ? ['warn', 'Creating the laptop ZIP…']
+                : st.live ? ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows). Download will begin when all rows arrive.`]
+                : ['bad', `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Reconnect the headset or retrieve the files from it.`];
             setChecks('g8-files', [
                 laptopLine,
                 s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'],
-                ...(saved && complete ? [backup.savedLoose ? ['warn', 'Zip failed. Check Downloads for every file. Keep headset copy.'] : ['ok', 'Laptop copy complete. No need to plug in headset.']] : []),
-                ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts unavailable. Data not affected.']] : [])
+                ...(saved && complete ? [backup.savedLoose ? ['warn', 'ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.'] : ['ok', 'All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.']] : []),
+                ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts are unavailable, but the recorded data are unaffected.']] : [])
             ]);
             const sumEl = $('g8-summary');
             const rows = computeSummary(s);
@@ -2361,7 +2368,7 @@
         const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
         const sent = st.done[3];
         setChecks('g3-checks', [
-            [sent ? 'ok' : 'info', `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_LABEL[plan.mode]} each`],
+            [sent ? 'ok' : 'info', `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_PER_RUN[plan.mode]}`],
             [sent ? 'ok' : 'info', plan.runs.map(r => COND_LABEL[r.condition]).join(', ')],
             [sent ? 'ok' : 'info', `Home: ${HOME_LABEL[plan.home]}`]
         ]);
@@ -2384,9 +2391,9 @@
         const charts = between || typeof ResultsCharts === 'undefined' ? '' : `<div class="plan-charts"><h3 class="plan-title">Results at end of session</h3><div class="plan-charts-grid">${ResultsCharts.IDS.map(id => `<label class="chart-tick"><input type="checkbox" data-plan-chart="${id}" ${plan.charts.includes(id) ? 'checked' : ''}><span>${ResultsCharts.titleOf(id)}</span></label>`).join('')}</div></div>`;
         box.innerHTML = `${settings}
             <h3 class="plan-title">${between ? 'Plan' : 'Runs'}</h3>
-            <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'} · ${trials.toLocaleString('en-GB')} trials <span>about ${Math.round(trials * SEC_PER_TRIAL / 60)} min, plus breaks</span></div>
+            <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'} · ${trials.toLocaleString('en-GB')} trials <span>Approximately ${Math.round(trials * SEC_PER_TRIAL / 60)} min, excluding breaks</span></div>
             <div id="plan-strip">${parts.join('')}</div>
-            <p class="plan-hint">${between ? 'Finished runs locked. Current break and later runs can still change.' : 'Drag a card to reorder. Click a link to switch headset on or off.'}</p>
+            <p class="plan-hint">${between ? 'You can edit the current break and upcoming runs, but not completed runs.' : 'Drag run cards to reorder them. Select the link between runs to change whether the headset stays on.'}</p>
             ${charts}`;
     }
 
@@ -2417,7 +2424,7 @@
         $('g-resume').hidden = !r;
         if (!r) return;
         const next = r.plan.runs[r.nextRun - 1];
-        $('g-resume-text').textContent = `Headset page reloaded. ${r.kept} ${r.kept === 1 ? 'run' : 'runs'} kept on laptop.${next ? '' : ' No more runs in plan.'}`;
+        $('g-resume-text').textContent = `The headset page reloaded. This laptop still has data from ${r.kept} ${r.kept === 1 ? 'run' : 'runs'}.${next ? '' : ' No more runs are planned.'}`;
         $('g-resume-go').hidden = !next;
         $('g-resume-go').textContent = `Continue with run ${r.nextRun}`;
         $('g-resume-go').disabled = !st.live || guide.busy;
@@ -2434,7 +2441,7 @@
             const result = await sendCmd(name, value);
             if (!result.ok) {
                 guide.busy = false;
-                $('g-resume-msg').textContent = `Headset refused: ${result.reason}`;
+                $('g-resume-msg').textContent = failureText(result);
                 renderGuide();
                 return;
             }
@@ -2465,13 +2472,13 @@
             const row = document.createElement('div');
             row.className = 'g-banner';
             const line = document.createElement('div');
-            line.textContent = `Unsaved session on this laptop: ${r.participantId || 'no ID'}, ${r.runs} ${r.runs === 1 ? 'run' : 'runs'}`;
+            line.textContent = `Unsaved session: ${r.participantId || 'no participant ID'} · ${r.runs} ${r.runs === 1 ? 'run' : 'runs'} stored on this laptop`;
             const actions = document.createElement('div');
             actions.className = 'g-actions';
             const save = document.createElement('button');
             save.tabIndex = -1;
             save.className = 'g-primary';
-            save.textContent = 'Download zip';
+            save.textContent = 'Download ZIP';
             const msg = document.createElement('p');
             msg.className = 'g-msg';
             save.addEventListener('click', () => recoverSession(r, msg));
@@ -2513,7 +2520,7 @@
         }
         if (session.notes) files.push({ path: `${session.sessionPrefix || ''}notes-${ts}.csv`, parts: [session.notes] });
         const how = await saveZipOrLoose(`${session.sessionPrefix || ''}recovered-${ts}.zip`, files);
-        say('ok', `${files.length} ${files.length === 1 ? 'file' : 'files'} saved ${how}`);
+        say('ok', `Download started: ${files.length} ${files.length === 1 ? 'file' : 'files'} ${how}`);
     }
 
     function discardSession(session) {
@@ -2532,7 +2539,7 @@
         }).catch(() => {});
     }
 
-    const QUALITY_LIGHTS = [['trackL', 'Tracking left', 'qtrack'], ['trackR', 'Tracking right', 'qtrack'], ['fps', 'Frame rate', 'qfps'], ['flow', 'Trial flow', 'qflow']];
+    const QUALITY_LIGHTS = [['trackL', 'Left-hand tracking', 'qtrack', 'Tracking left'], ['trackR', 'Right-hand tracking', 'qtrack', 'Tracking right'], ['fps', 'Frame rate', 'qfps', 'Frame rate'], ['flow', 'Trial flow', 'qflow', 'Trial flow']];
     const LIGHT_MARK = { ok: '✓', warn: '!', bad: '✗', off: '–' };
     const trackKind = (pct) => pct < 85 ? 'bad' : pct < 95 ? 'warn' : 'ok';
     const fpsKind = (fps) => fps < 70 ? 'bad' : fps < 80 ? 'warn' : 'ok';
@@ -2566,7 +2573,7 @@
         if (s.phase === 'running' || s.phase === 'pausing') {
             const skips = backup.run === (s.run || 1) ? backup.trials.slice(-22).filter(l => l.split(',')[5] === 'SKIP').length : 0;
             const stalled = s.phase === 'running' && now - Math.max(guide.trialChangedAt, guide.phaseChangedAt) > 30000;
-            if (stalled) out.flow = { kind: 'bad', text: 'No trial 30 s' };
+            if (stalled) out.flow = { kind: 'bad', text: 'No new trial for 30 s', logged: 'No trial 30 s' };
             else if (skips >= 3) out.flow = { kind: 'bad', text: `${skips} skips` };
             else if (skips >= 1) out.flow = { kind: 'warn', text: skips === 1 ? '1 skip' : `${skips} skips` };
             else out.flow = { kind: 'ok', text: 'OK' };
@@ -2595,7 +2602,7 @@
 
     function logRedLights(s, lights, now) {
         const q = qualityRun(s.run || 1);
-        QUALITY_LIGHTS.forEach(([k, name]) => {
+        QUALITY_LIGHTS.forEach(([k, , , logged]) => {
             const kind = lights[k].kind;
             if (kind === 'off') return;
             if (kind !== 'bad') {
@@ -2606,7 +2613,7 @@
             q.red[k] = true;
             if (now - (q.redAt[k] || -Infinity) < 30000) return;
             q.redAt[k] = now;
-            queueNote(noteStamp(s, now), 'alert', `${name} red: ${lights[k].text}`);
+            queueNote(noteStamp(s, now), 'alert', `${logged} red: ${lights[k].logged || lights[k].text}`);
         });
     }
 
@@ -2644,7 +2651,7 @@
         const waiting = guide.noteQueue.length;
         const canNote = !!s && s.phase !== 'setup' && s.phase !== 'complete';
         $('g7-notes').hidden = !canNote;
-        const text = `${guide.lastNote}${waiting ? `${guide.lastNote ? ' · ' : ''}${waiting} waiting to send` : ''}`;
+        const text = `${guide.lastNote}${waiting ? `${guide.lastNote ? ' · ' : ''}Notes waiting to send: ${waiting}` : ''}`;
         if ($('g-note-status').textContent !== text) $('g-note-status').textContent = text;
     }
 
@@ -2727,19 +2734,19 @@
         const total = out.reduce((t, o) => { ['frames', 'lt', 'lv', 'rt', 'rv'].forEach(k => { t[k] += o[k]; }); return t; }, { frames: 0, lt: 0, lv: 0, rt: 0, rv: 0 });
         const show = (v) => v === null ? '–' : `${Math.floor(v)}%`;
         const skips = rows.filter(c => c[5] === 'SKIP').length;
-        const track = (hitKey, allKey) => [out.map(o => { const p = pct(o[hitKey], o[allKey]); return p === null ? '' : trackKind(p); }), out.map((o, i) => { const p = pct(o[hitKey], o[allKey]); return `${when(i)}: ${p === null ? 'no target' : Math.floor(p) + '%'}`; })];
+        const track = (hitKey, allKey) => [out.map(o => { const p = pct(o[hitKey], o[allKey]); return p === null ? '' : trackKind(p); }), out.map((o, i) => { const p = pct(o[hitKey], o[allKey]); return `${when(i)}: ${p === null ? 'no target displayed' : Math.floor(p) + '%'}`; })];
         const [lk, lt] = track('lv', 'lt');
         const [rk, rt] = track('rv', 'rt');
         const binFps = (o, i) => o.frames / Math.max(0.001, Math.min(binSec, ms / 1000 - i * binSec));
         const fpsK = out.map((o, i) => o.frames ? fpsKind(binFps(o, i)) : '');
         const fpsT = out.map((o, i) => `${when(i)}: ${Math.round(binFps(o, i))} frames/s`);
         const flowK = out.map(o => o.stalled || o.skips >= 3 ? 'bad' : o.skips ? 'warn' : (o.frames ? 'ok' : ''));
-        const flowT = out.map((o, i) => `${when(i)}: ${o.skips} ${o.skips === 1 ? 'skip' : 'skips'}${o.stalled ? ', no trial for 30 s' : ''}`);
+        const flowT = out.map((o, i) => `${when(i)}: ${o.skips} ${o.skips === 1 ? 'skip' : 'skips'}${o.stalled ? '; no new trial for 30 s' : ''}`);
         return {
             ms, skips, rows: rows.length, duration: mmss(ms),
             lines: [
-                { label: 'Tracking left', kinds: lk, tips: lt, summary: show(pct(total.lv, total.lt)) },
-                { label: 'Tracking right', kinds: rk, tips: rt, summary: show(pct(total.rv, total.rt)) },
+                { label: 'Left-hand tracking', kinds: lk, tips: lt, summary: show(pct(total.lv, total.lt)) },
+                { label: 'Right-hand tracking', kinds: rk, tips: rt, summary: show(pct(total.rv, total.rt)) },
                 { label: 'Frame rate', kinds: fpsK, tips: fpsT, summary: ms ? `${Math.round(1000 * total.frames / ms)}/s` : '–' },
                 { label: 'Trial flow', kinds: flowK, tips: flowT, summary: stalls.length ? `${stalls.length} ${stalls.length === 1 ? 'stall' : 'stalls'}` : `${skips} ${skips === 1 ? 'skip' : 'skips'}` }
             ]
@@ -2783,8 +2790,8 @@
         const final = (/^Condition,(\d)/m.exec(info || '') || [])[1] || (planned && planned.condition);
         const changes = [...(info || '').matchAll(/(\d+)\|(\d+)\|Condition\|(\d)\|(\d)/g)];
         if (!changes.length) return `Run ${run}: ${COND_LABEL[final] || '–'}`;
-        if (changes.length > 1) return `Run ${run}: condition changed ${changes.length}×, ended ${COND_LABEL[final]}`;
-        return `Run ${run}: ${COND_LABEL[changes[0][3]]} to trial ${changes[0][2]}, then ${COND_LABEL[changes[0][4]]}`;
+        if (changes.length > 1) return `Run ${run}: condition changed ${changes.length} times; ended on ${COND_LABEL[final]}`;
+        return `Run ${run}: ${COND_LABEL[changes[0][3]]} through trial ${changes[0][2]}, then ${COND_LABEL[changes[0][4]]}`;
     }
 
     function resultsData(s) {
@@ -2824,7 +2831,7 @@
         if (res.shapeBuilt) return;
         res.shapeBuilt = true;
         const groups = ResultsCharts.SHAPE_OPTIONS.map(g => `<div class="ws-group"><h3>${g.title}</h3>${g.options.map(o => `<div class="ws-option"><button tabindex="-1" data-shape="${g.key}" data-v="${o.value}">${o.value} cm${o.value === ResultsCharts.SHAPE_DEFAULT[g.key] ? '*' : ''}</button><span>+ ${o.pro}</span><span class="ws-con">− ${o.con}</span></div>`).join('')}</div>`).join('');
-        $('ws-settings-body').innerHTML = `<p class="ws-note">These settings change how the workspace shape is drawn and measured. Use the same settings when comparing runs.</p><p class="ws-note">Gap filling: empty space between hand paths, up to this width, counts as workspace. Smoothing: rounds the edge of the shape. * Default.</p><div class="ws-groups">${groups}</div><div class="g-actions"><button tabindex="-1" id="ws-defaults">Back to defaults</button></div>`;
+        $('ws-settings-body').innerHTML = `<p class="ws-note">These settings affect how the workspace is displayed and measured. Use identical settings when comparing runs.</p><p class="ws-note">Gap filling includes spaces between recorded hand paths up to the selected width. Smoothing reduces irregularities along the boundary. An asterisk (*) marks the default setting.</p><div class="ws-groups">${groups}</div><div class="g-actions"><button tabindex="-1" id="ws-defaults">Back to defaults</button></div>`;
     }
 
     function renderResults(st) {
@@ -2856,8 +2863,8 @@
         }
         document.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('on', +b.dataset.v === res.shape[b.dataset.shape]));
         document.querySelectorAll('[data-res-chart]').forEach(b => { b.checked = res.charts.has(b.dataset.resChart); });
-        $('res-showing').textContent = `Workspace shape. 3D: gaps filled up to ${res.shape.gap3D} cm, smoothing ${res.shape.smooth3D} cm. 2D: gaps filled up to ${res.shape.gap2D} cm, smoothing ${res.shape.smooth2D} cm.`;
-        $('res-warning').textContent = caughtUp(s) ? '' : `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Charts use what has arrived.`;
+        $('res-showing').textContent = `Workspace shape settings — 3D: fill gaps up to ${res.shape.gap3D} cm and smooth by ${res.shape.smooth3D} cm; 2D: fill gaps up to ${res.shape.gap2D} cm and smooth by ${res.shape.smooth2D} cm.`;
+        $('res-warning').textContent = caughtUp(s) ? '' : `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Charts show only the data received so far.`;
         const selected = ResultsCharts.IDS.filter(id => res.charts.has(id));
         const save = $('res-save');
         save.disabled = !selected.length || res.saving;
@@ -2884,7 +2891,7 @@
         }
         $('ws3d-views').innerHTML = (typeof WorkspaceView === 'undefined' ? [] : WorkspaceView.VIEWS).map(v => `<button tabindex="-1" data-ws-view="${v}" class="${v === ws.viewName ? 'on' : ''}">${v}</button>`).join('');
         $('ws3d-hint').hidden = !ws.view;
-        $('ws3d-status').textContent = ws.view ? '' : '3D view unavailable. Use the 2D figure below. Data not affected.';
+        $('ws3d-status').textContent = ws.view ? '' : 'The 3D view is unavailable. Use the 2D figure below. The recorded data are unaffected.';
         const run = runs[ws.run];
         const solid = ResultsCharts.shape3D(run, res.shape);
         const top = ResultsCharts.shape2D(run, 'top', res.shape);
@@ -2892,12 +2899,12 @@
         const n = (v) => Math.round(v).toLocaleString('en-GB');
         const pct = (a, b) => `${(50 * (a + b)).toFixed(1)}%`;
         const row = (name, vol, area, cls) => `<tr class="${cls || ''}"><td>${name}</td><td>${vol}</td><td>${area}</td></tr>`;
-        $('ws3d-table').innerHTML = `<tr><th></th><th>Volume (cm³)</th><th>Area from above (cm²)</th></tr>`
+        $('ws3d-table').innerHTML = `<tr><th></th><th>Volume (cm³)</th><th>Area viewed from above (cm²)</th></tr>`
             + row('Left', solid ? n(solid.left.volume) : '–', n(top.left.area))
             + row('Right', solid ? n(solid.right.volume) : '–', n(top.right.area))
             + row('Overlap', solid ? n(solid.overlap.volume) : '–', n(top.overlap))
             + row('Total', solid ? n(solid.total) : '–', n(top.total), 'total')
-            + row('Hand positions outside shape', solid ? pct(solid.left.outside, solid.right.outside) : '–', pct(top.left.outside, top.right.outside), 'minor');
+            + row('Hand positions outside the workspace shape', solid ? pct(solid.left.outside, solid.right.outside) : '–', pct(top.left.outside, top.right.outside), 'minor');
     }
 
     function drawResults(selected) {
@@ -2928,7 +2935,7 @@
                     try {
                         showWorkspace3D();
                     } catch (e) {
-                        $('ws3d-status').textContent = '3D view could not draw. Data not affected.';
+                        $('ws3d-status').textContent = 'Could not draw the 3D view. The recorded data are unaffected.';
                     }
                 }
                 const canvas = document.createElement('canvas');
@@ -2938,7 +2945,7 @@
             } catch (e) {
                 $('ws3d-park').appendChild($('ws3d'));
                 wrap.classList.add('failed');
-                wrap.textContent = `${ResultsCharts.titleOf(id)}: could not draw. Data not affected.`;
+                wrap.textContent = `Could not draw ${ResultsCharts.titleOf(id)}. The recorded data are unaffected.`;
             }
             holder.appendChild(wrap);
             step(i + 1);
@@ -2980,11 +2987,11 @@
                     const shots = await res.ws.view.snapshot(views, ResultsCharts.limits3D(data, res.shape), 2400, 1500);
                     shots.forEach((bytes, i) => files.push({ path: `${prefix}workspace-3d-run${data.runs[i].run}-${ts}.png`, parts: [bytes] }));
                 } catch (e) {
-                    note = ' 3D image not saved.';
+                    note = ' The 3D figure could not be saved.';
                 }
             }
             const how = await saveZipOrLoose(`${prefix}figures-${ts}.zip`, files);
-            $('res-msg').textContent = `${files.length} ${files.length === 1 ? 'figure' : 'figures'} saved ${how}.${note}`;
+            $('res-msg').textContent = `Download started: ${files.length} ${files.length === 1 ? 'figure' : 'figures'} ${how}.${note}`;
         } catch (e) {
             $('res-msg').textContent = 'Figures not saved. Try again.';
         }
@@ -3009,7 +3016,7 @@
                 try {
                     showWorkspace3D();
                 } catch (err) {
-                    $('ws3d-status').textContent = '3D view could not draw. Data not affected.';
+                    $('ws3d-status').textContent = 'Could not draw the 3D view. The recorded data are unaffected.';
                 }
                 return;
             } else if (b.dataset.wsView) {
@@ -3079,14 +3086,14 @@
         const redone = s.recalibrated || [];
         const pending = pendingRecal(s);
         const recalDone = !pending;
-        $('g7-b-title').textContent = `Run ${s.run} of ${s.plannedRuns} done`;
-        $('g7-b-next').textContent = next ? `Next: run ${s.run + 1}, ${COND_LABEL[next.condition]}, ${MODE_LABEL[s.mode]} trials` : 'No more runs in plan';
+        $('g7-b-title').textContent = `Run ${s.run} of ${s.plannedRuns} complete`;
+        $('g7-b-next').textContent = next ? `Next run: ${s.run + 1} · ${COND_LABEL[next.condition]} · ${MODE_LABEL[s.mode]} trials` : 'There are no more runs in the plan.';
         $('g7-b-break').hidden = !off;
         $('g7-b-timer').textContent = mmss(s.betweenMs + now - guide.stateAt);
         $('g7-b-off').hidden = !off;
         setChecks('g7-b-copy', [
-            copied ? ['ok', 'Laptop copy complete'] : ['warn', `Laptop copy catching up (${backupRows()} / ${headsetRows(s)} rows)`],
-            ...(backup.storeFailed ? [['warn', 'Browser storage failed. Laptop copy in memory only.']] : []),
+            copied ? ['ok', 'All data received for the completed run'] : ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows)`],
+            ...(backup.storeFailed ? [['warn', 'Browser storage failed. The laptop copy is held in memory only.']] : []),
             ...(off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
         ]);
         setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? inXrLabel(s) : NOT_IN_XR)]);
@@ -3096,7 +3103,7 @@
         $('g7-b-recal').hidden = !link.recal;
         $('g7-b-say').hidden = !pending;
         if (pending) $('g7-b-say').textContent = document.querySelector(`#guide .sub[data-sub="${pending}"] .say`).textContent;
-        setChecks('g7-b-recal-status', [tick3(recalDone, redone.length ? `Redone: ${redone.map(k => CALIB_LABEL[k]).join(', ')}` : guide.recalSkipped ? 'Skipped' : 'Not redone', true)]);
+        setChecks('g7-b-recal-status', [tick3(recalDone, redone.length ? `Recalibrated: ${redone.map(k => CALIB_LABEL[k]).join(', ')}` : guide.recalSkipped ? 'Skipped' : 'Not redone', true)]);
         document.querySelectorAll('[data-bcalib], #g7-b-skip, #g7-b-finish').forEach(b => { b.disabled = !st.live || guide.busy; });
         $('g7-b-add').disabled = guide.busy;
         const start = $('g7-b-start');
@@ -3113,7 +3120,7 @@
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
-                setMsg(3, `Headset refused: ${r.reason}`, 'bad');
+                setMsg(3, failureText(r), 'bad');
                 renderGuide();
                 return;
             }
@@ -3132,7 +3139,7 @@
         guide.planSending = false;
         if (seq === guide.planSeq) {
             if (r.offline) {
-                setMsg(step, 'Plan not sent. Retries when headset returns.', 'busy');
+                setMsg(step, 'Plan not sent. It will be sent when the headset reconnects.', 'busy');
             } else {
                 guide.planDirty = false;
                 if (!r.ok) setMsg(step, `Headset refused: ${r.reason}`, 'bad');
@@ -3193,7 +3200,7 @@
         }
         if (started.ok) started = await sendCmd('nextRun');
         guide.busy = false;
-        setMsg(7, started.ok ? `Run ${s.run + 1} started` : `Headset refused: ${started.reason}`, started.ok ? 'ok' : 'bad');
+        setMsg(7, started.ok ? `Run ${s.run + 1} started` : failureText(started), started.ok ? 'ok' : 'bad');
         renderGuide();
     }
 
@@ -3204,7 +3211,7 @@
         const r = await sendCmd('setPlan', Object.assign(planPayload(), { runs }));
         guide.busy = false;
         if (!r.ok) {
-            setMsg(8, `Headset refused: ${r.reason}`, 'bad');
+            setMsg(8, failureText(r), 'bad');
             renderGuide();
             return;
         }
@@ -3289,27 +3296,27 @@
         setMsg(step, 'Sending…', 'busy');
         const r = await sendCmd(name, value);
         guide.busy = false;
-        setMsg(step, r.ok ? okText : `Headset refused: ${r.reason}`, r.ok ? 'ok' : 'bad');
+        setMsg(step, r.ok ? okText : failureText(r), r.ok ? 'ok' : 'bad');
         renderGuide();
         return r;
     }
 
     async function confirmSetup() {
         const exp = $('g-exp').value.trim();
-        if (!exp) { setMsg(2, 'Enter experimenter name', 'bad'); return; }
-        if (/[,"]/.test(exp)) { setMsg(2, 'Experimenter name: no commas or quotes (breaks the CSV)', 'bad'); return; }
+        if (!exp) { setMsg(2, 'Enter the experimenter’s name.', 'bad'); return; }
+        if (/[,"]/.test(exp)) { setMsg(2, 'The experimenter’s name cannot contain commas or quotation marks because they would affect the CSV format.', 'bad'); return; }
         const id = $('g-id').value.trim();
-        if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID: 1–32 letters, digits, _ or -', 'bad'); return; }
-        if (/left|right/i.test(id)) { setMsg(2, 'Participant ID: no "left" or "right". 3D viewer reads those words in filenames.', 'bad'); return; }
+        if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID must contain 1–32 letters, numbers, underscores or hyphens.', 'bad'); return; }
+        if (/left|right/i.test(id)) { setMsg(2, 'The participant ID cannot contain “left” or “right” because the 3D viewer uses those words in file names.', 'bad'); return; }
         const f = guide.form;
-        if (!f.dom) { setMsg(2, 'Choose dominant hand', 'bad'); return; }
+        if (!f.dom) { setMsg(2, 'Select the dominant hand.', 'bad'); return; }
         guide.busy = true;
         setMsg(2, 'Sending…', 'busy');
         for (const [name, value] of [['setDominant', f.dom], ['setExperimenter', exp], ['setParticipant', id]]) {
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
-                setMsg(2, `Headset refused: ${r.reason}`, 'bad');
+                setMsg(2, failureText(r), 'bad');
                 return;
             }
         }
@@ -3352,13 +3359,13 @@
             else runGuideCmd(7, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
         });
         $('g-skip').addEventListener('click', () => runGuideCmd(7, 'skip', undefined, 'Target skipped'));
-        $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, 'Headset copy saved'));
+        $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, 'Headset save started.'));
         $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
         $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
         $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(7, 'endEarly', undefined, 'Run ended'); });
         $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
         $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
-        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Unlocked. Relocks on resume.'); });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Setup unlocked. It will lock again when the run resumes.'); });
         document.querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
             const condition = b.dataset.u === 'setCondition';
             runGuideCmd(7, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, condition ? 'Condition changed' : 'Dominant hand changed');
@@ -3384,7 +3391,7 @@
     }
 
     window.__obs = {
-        frames: 0, head, gaze, targets, homeBox, homeBoxL, homeBoxR, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide,
+        frames: 0, head, gaze, targets, homeBox, homeBoxL, homeBoxR, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide, quality,
         get camera() { return camera; },
         get view() { return viewName; }
     };

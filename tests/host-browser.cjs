@@ -22,7 +22,7 @@ const { ok, done } = counter('HOST BROWSER');
   ok(r.last.head && Object.values(r.last.head).every(v => Math.abs(v * 1e4 - Math.round(v * 1e4)) < 1e-6), 'head values rounded to 4 decimals in index.html');
   ok(r.id === 'webspheres-host', 'host peer ID webspheres-host');
   ok(r.frames >= 5, 'streams frames (' + r.frames + ' in ~1.1 s)');
-  ok(r.ack && r.ack.ok === false && r.ack.reason === 'Not in VR', 'recentre outside VR → "Not in VR" ack');
+  ok(r.ack && r.ack.ok === false && r.ack.reason === 'The headset is not in an immersive VR or AR session.', 'recentre outside VR → "The headset is not in an immersive VR or AR session." ack');
   ok(r.last && r.last.condition === 2, 'relayed key (C) reaches sphere-manager (condition toggled → 2)');
   const real = errs.filter(e => !e.includes('ERR_FAILED'));
   ok(real.length === 0, 'no page errors (only blocked-CDN font load in sandbox) (' + real.join(' | ') + ')');

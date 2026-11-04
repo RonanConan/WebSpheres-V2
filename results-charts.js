@@ -9,25 +9,25 @@ const ResultsCharts = (() => {
     const SHAPE_DEFAULT = { gap3D: 16, smooth3D: 0.5, gap2D: 8, smooth2D: 0.5 };
     const SHAPE_OPTIONS = [
         { key: 'gap3D', title: 'Gap filling, 3D', options: [
-            { value: 8, pro: 'Shape follows the hand paths closely.', con: 'Dents and holes. Overlap looks very small.' },
-            { value: 16, pro: 'Shape stays in one piece.', con: 'Includes some space the hand never entered.' },
-            { value: 24, pro: 'Simplest, roundest shape.', con: 'Includes the most unused space. Overlap looks larger.' }
+            { value: 8, pro: 'Follows the recorded hand paths more closely.', con: 'Leaves more gaps and irregularities, making the overlap appear smaller.' },
+            { value: 16, pro: 'Produces a more continuous workspace shape.', con: 'Includes some space the hand did not reach.' },
+            { value: 24, pro: 'Produces the simplest, most rounded shape.', con: 'Includes the most unreached space and makes the overlap appear larger.' }
         ] },
         { key: 'smooth3D', title: 'Smoothing, 3D', options: [
-            { value: 0.5, pro: 'Almost all hand positions stay inside the shape.', con: 'Measured shape is rougher than the one shown.' },
-            { value: 1, pro: 'Measured shape is the one shown.', con: 'Some hand positions fall outside the shape.' },
-            { value: 2, pro: 'Smoothest surface.', con: 'Many positions fall outside. Thin reaches vanish.' }
+            { value: 0.5, pro: 'Keeps almost all recorded hand positions inside the measured workspace.', con: 'The measured boundary is less smooth than the displayed surface.' },
+            { value: 1, pro: 'The measured boundary matches the displayed surface.', con: 'Some recorded hand positions fall outside the measured boundary.' },
+            { value: 2, pro: 'Produces the smoothest surface.', con: 'More recorded hand positions fall outside the shape, and narrow reaches may disappear from it.' }
         ] },
         { key: 'gap2D', title: 'Gap filling, 2D', options: [
-            { value: 4, pro: 'Tightest outline.', con: 'Deep notches between paths. Smallest area.' },
-            { value: 8, pro: 'Outline follows groups of reaches.', con: 'Some dents remain.' },
-            { value: 12, pro: 'Cleaner outline.', con: 'Fills some real gaps. Larger area.' },
-            { value: 16, pro: 'Simplest outline.', con: 'Hides dents. Largest area.' }
+            { value: 4, pro: 'Produces the tightest outline around the hand paths.', con: 'Leaves larger notches between paths and produces the smallest area estimate.' },
+            { value: 8, pro: 'Follows the overall pattern of the reaches.', con: 'Some irregularities remain in the outline.' },
+            { value: 12, pro: 'Produces a more continuous outline.', con: 'Includes some gaps between recorded paths, increasing the estimated area.' },
+            { value: 16, pro: 'Produces the simplest outline.', con: 'Removes small indentations and produces the largest area estimate.' }
         ] },
         { key: 'smooth2D', title: 'Smoothing, 2D', options: [
-            { value: 0.25, pro: 'Stays closest to the paths.', con: 'Outline looks angular.' },
-            { value: 0.5, pro: 'Clean line, close to the paths.', con: 'A few hand positions fall outside.' },
-            { value: 1, pro: 'Smoothest line.', con: 'More hand positions fall outside.' }
+            { value: 0.25, pro: 'Keeps the outline closest to the recorded paths.', con: 'Produces a more angular outline.' },
+            { value: 0.5, pro: 'Produces a smoother outline that remains close to the recorded paths.', con: 'A small number of recorded hand positions fall outside the outline.' },
+            { value: 1, pro: 'Produces the smoothest outline.', con: 'More recorded hand positions fall outside the outline.' }
         ] }
     ];
     const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -445,7 +445,7 @@ const ResultsCharts = (() => {
         yAxis(ctx, box.x, box.y, box.w, box.h, max, theme, cfg.format);
         axisTitleY(ctx, cfg.yTitle, 14, box.y + box.h / 2, theme);
         if (!sets.flat().length) {
-            text(ctx, 'Too few trials', box.x + box.w / 2, box.y + box.h / 2, theme.muted, 13, 'center');
+            text(ctx, 'Not enough trials to plot', box.x + box.w / 2, box.y + box.h / 2, theme.muted, 13, 'center');
             return;
         }
         const px = (trial) => box.x + (box.w * trial) / total;
@@ -471,7 +471,7 @@ const ResultsCharts = (() => {
         });
         const step = [22, 44, 88, 110, 176, 352, 704, 1408].find(v => total / v <= 8) || 2816;
         for (let v = 0; v <= total; v += step) text(ctx, String(v), px(v), box.y + box.h + 18, theme.muted, 12, 'center');
-        text(ctx, 'Trial (across the whole session)', box.x + box.w / 2, box.y + box.h + 40, theme.text, 13, 'center');
+        text(ctx, 'Trial number (across the session)', box.x + box.w / 2, box.y + box.h + 40, theme.text, 13, 'center');
     }
 
     const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
@@ -481,7 +481,7 @@ const ResultsCharts = (() => {
             title: 'Workspace map',
             height: (width, data, opts) => 80 + data.runs.length * mapLayout(width, data, opts).rowH,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Workspace map', ['Where the fingertips went while a target was active, seen from above and from the side.', `Gaps filled up to ${opts.shape.gap2D} cm, smoothing ${opts.shape.smooth2D} cm. Dots: targets. Dashed: home.`]);
+                const top = header(ctx, width, data, theme, 'Workspace map', ['Fingertip positions recorded while a target was active, viewed from above and from the side.', `Gaps filled up to ${opts.shape.gap2D} cm; smoothing ${opts.shape.smooth2D} cm. Dots show targets; dashed lines show home positions.`]);
                 legend(ctx, width, 38, theme, [{ label: 'Left hand', color: theme.left }, { label: 'Right hand', color: theme.right }, { label: 'Overlap', color: theme.overlap }]);
                 const L = mapLayout(width, data, opts);
                 data.runs.forEach((run, i) => {
@@ -492,7 +492,7 @@ const ResultsCharts = (() => {
                     const plotY = Y + MAP.rowHead;
                     text(ctx, `${run.label} · From above`, X1 - 58, Y + 14, theme.text, 14, 'left', 600);
                     text(ctx, `Total ${cm2(a.total)} cm²`, X1 + L.topW, Y + 14, theme.text, 14, 'right', 700);
-                    text(ctx, `Left ${cm2(a.left.area)} · Right ${cm2(a.right.area)} · Overlap ${cm2(a.overlap)}${m.radius ? ` · Targets ${Math.round(m.radius)} cm away` : ''}`, X1 + L.topW, Y + 33, theme.muted, 13, 'right');
+                    text(ctx, `Left ${cm2(a.left.area)} · Right ${cm2(a.right.area)} · Overlap ${cm2(a.overlap)}${m.radius ? ` · Target distance ${Math.round(m.radius)} cm` : ''}`, X1 + L.topW, Y + 33, theme.muted, 13, 'right');
                     text(ctx, 'From the side', X2 - 58, Y + 14, theme.text, 14, 'left', 600);
                     text(ctx, `Total ${cm2(b.total)} cm²`, X2 + L.sideW, Y + 14, theme.text, 14, 'right', 700);
                     text(ctx, `Left ${cm2(b.left.area)} · Right ${cm2(b.right.area)}`, X2 + L.sideW, Y + 33, theme.muted, 13, 'right');
@@ -514,7 +514,7 @@ const ResultsCharts = (() => {
                         ctx.fillStyle = theme.text;
                         ctx.fill();
                         text(ctx, String(t.n), P.gx(t.x), P.gy(t.f) - 7, theme.text, 10, 'center');
-                        hits.push({ x: P.gx(t.x) - 7, y: P.gy(t.f) - 7, w: 14, h: 14, text: `Target ${t.n}: ${Math.round(t.x)} cm across, ${Math.round(t.f)} cm forward` });
+                        hits.push({ x: P.gx(t.x) - 7, y: P.gy(t.f) - 7, w: 14, h: 14, text: `Target ${t.n}: horizontal position ${Math.round(t.x)} cm, forward position ${Math.round(t.f)} cm` });
                     });
                     const Q = mapPlot(ctx, X2, plotY, L.lim.f, L.lim.h, L.S, 'Forward of home (cm)', 'Height above home (cm)', theme);
                     drawOverlay(ctx, Q.gx, Q.gy, b.left, b.right, theme, [[framesOf(run, 'L'), theme.left, 2, 1], [framesOf(run, 'R'), theme.right, 2, 1]]);
@@ -538,7 +538,7 @@ const ResultsCharts = (() => {
                         text(ctx, 'Targets', Q.gx(far.f) + 8, Q.gy(far.h) - 6, theme.text, 12, 'left', 600);
                     }
                     if (m.homes.length) text(ctx, 'Home', Q.gx(Math.min(...m.homes.map(h => h.f))), Q.gy(m.homes[0].h) + 20, theme.text, 12, 'center', 600);
-                    if (run.recentres.length) text(ctx, `Recentred ${run.recentres.length}× in this run: positions before and after may not line up.`, X1 - 58, plotY + L.plotH + MAP.axis + 10, theme.warn, 12);
+                    if (run.recentres.length) text(ctx, `The headset was recentred ${run.recentres.length}× during this run. Positions recorded before and after may not align.`, X1 - 58, plotY + L.plotH + MAP.axis + 10, theme.warn, 12);
                 });
             }
         },
@@ -546,7 +546,7 @@ const ResultsCharts = (() => {
             title: 'Workspace over time',
             height: () => SESSION_H,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Workspace over time', [`Area seen from above, in sets of ${SET_SIZE} trials. Gaps filled up to ${opts.shape.gap2D} cm, smoothing ${opts.shape.smooth2D} cm.`]);
+                const top = header(ctx, width, data, theme, 'Workspace over time', [`Workspace area viewed from above, calculated in groups of ${SET_SIZE} trials. Gap filling: ${opts.shape.gap2D} cm; smoothing: ${opts.shape.smooth2D} cm.`]);
                 legend(ctx, width, 38, theme, [{ label: 'Left hand', color: theme.left, line: true }, { label: 'Right hand', color: theme.right, line: true }, { label: 'Total', color: theme.text, line: true }]);
                 const tip = (name) => (s, v) => `${name} ${cm2(v)} cm²`;
                 sessionPlot(ctx, width, top, data, theme, hits, {
@@ -562,7 +562,7 @@ const ResultsCharts = (() => {
             title: 'Hand choice by target',
             height: (width, data) => 70 + panels(width, data.runs.length).rows * (LINE_H + 94),
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Hand choice by target', [`Which hand hit each target. Dominant hand: ${data.dominant}.`]);
+                const top = header(ctx, width, data, theme, 'Hand choice by target', [`Hand used to hit each target. Dominant hand: ${data.dominant}.`]);
                 legend(ctx, width, 38, theme, [{ label: 'Left hand', color: theme.left }, { label: 'Right hand', color: theme.right }]);
                 const p = panels(width, data.runs.length);
                 data.runs.forEach((run, i) => {
@@ -598,7 +598,7 @@ const ResultsCharts = (() => {
             title: 'Hand use across session',
             height: () => SESSION_H,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Hand use across session', [`How often the non-dominant hand made the hit, in sets of ${SET_SIZE} trials. Dominant hand: ${data.dominant}.`]);
+                const top = header(ctx, width, data, theme, 'Hand use across session', [`Percentage of hits made with the non-dominant hand, calculated in groups of ${SET_SIZE} trials. Dominant hand: ${data.dominant}.`]);
                 sessionPlot(ctx, width, top, data, theme, hits, {
                     sets: (run) => handUseSets(run, data.dominantCode),
                     max: () => 100,
@@ -613,7 +613,7 @@ const ResultsCharts = (() => {
             title: 'Decision and movement time by target',
             height: (width, data) => 88 + panels(width, data.runs.length).rows * (LINE_H + 76),
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Decision and movement time by target', ['Middle value for each target, hits only. Shaded band: middle 50% of trials.', 'Decision: target appears until hand leaves home. Movement: hand leaves home until hit.']);
+                const top = header(ctx, width, data, theme, 'Decision and movement time by target', ['Median time for each target, using successful hits only. Shaded bands show the middle 50% of trials.', 'Decision time: from target appearance to leaving home. Movement time: from leaving home to target hit.']);
                 legend(ctx, width, 38, theme, [{ label: 'Movement time', color: theme.text, line: true }, { label: 'Decision time', color: theme.muted, line: true, dash: [5, 4] }]);
                 const p = panels(width, data.runs.length);
                 const rows = data.runs.map(timesByTarget);
@@ -654,7 +654,7 @@ const ResultsCharts = (() => {
             title: 'Data quality timeline',
             height: (width, data) => 66 + data.runs.length * QUALITY_RUN_H,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Data quality timeline', ['Each block is one slice of the run. Amber and red blocks show problems. Hover for the value.']);
+                const top = header(ctx, width, data, theme, 'Data quality timeline', ['Each block represents part of a run. Amber and red indicate potential data-quality problems. Hover to see the value.']);
                 data.runs.forEach((run, i) => {
                     const y0 = top + 6 + i * QUALITY_RUN_H;
                     text(ctx, run.label, 0, y0 + 14, theme.text, 14, 'left', 600);
@@ -663,7 +663,7 @@ const ResultsCharts = (() => {
                         text(ctx, 'No data', 0, y0 + 36, theme.muted, 13);
                         return;
                     }
-                    const left = 118, right = 84;
+                    const left = 130, right = 84;
                     const w = width - left - right;
                     text(ctx, 'Whole run', width, y0 + 14, theme.muted, 12, 'right');
                     q.lines.forEach((line, row) => {

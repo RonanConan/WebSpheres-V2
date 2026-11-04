@@ -110,7 +110,7 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   await p.evaluate(() => { const c = window.__peers[0].conns.at(-1); c.open = true; c.emit('open'); });
   for (let i = 0; i < 90; i++) { await send(p); await p.clock.runFor(33); }
   await p.clock.runFor(260);
-  ok((await r('trial')) === '9 / 110' && (await r('score')) === '7' && (await r('cond')) === 'Boost' && (await r('dom')) === 'Right' && (await r('fire')) === 'On' && (await r('run')) === 'Running', 'session values');
+  ok((await r('trial')) === '9 / 110' && (await r('score')) === '7' && (await r('cond')) === 'Boost' && (await r('dom')) === 'Right' && (await r('fire')) === 'On' && (await r('run')) === '–', 'session values; State waits for the headset state');
   ok((await r('target')) === '5', 'active target shown 1–11 (activeSphere 4 → 5)');
   ok((await r('left')) === 'tracked' && (await rc('left')) === 'good' && (await r('right')) === 'no data', 'left tracked, right never seen');
   ok((await r('headh')) === '1.23 m', 'head height in metres');
@@ -125,14 +125,14 @@ const onVals = (p) => p.evaluate(() => Object.fromEntries([...document.querySele
   await p.clock.runFor(450);
   for (let i = 0; i < 5; i++) { await send(p, { isPaused: true, activeSphere: -1, leftValid: false, left: null }); await p.clock.runFor(33); }
   await p.clock.runFor(260);
-  ok((await r('run')) === 'Paused' && (await r('target')) === 'none', 'paused, no active target');
+  ok((await r('target')) === 'none', 'no active target');
   ok((await r('left')) === 'lost' && (await rc('left')) === 'bad', 'untracked hand shows "lost"');
   const gap = parseInt(await r('gap'));
   ok(gap >= 440 && gap <= 520, `a 0.45 s pause shows as the worst gap (${gap} ms)`);
   await p.click('#recentre');
-  await p.evaluate(() => window.__peers.at(-1).conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: false, reason: 'Not in VR' })));
+  await p.evaluate(() => window.__peers.at(-1).conns.at(-1).emit('data', JSON.stringify({ type: 'recentre', ok: false, reason: 'The headset is not in an immersive VR or AR session.' })));
   await p.clock.runFor(260);
-  ok((await r('recentre')).startsWith('Failed (Not in VR) at '), 'last recentre result and time');
+  ok((await r('recentre')).startsWith('Failed (The headset is not in an immersive VR or AR session.) at '), 'last recentre result and time');
   await p.evaluate(() => window.__peers.at(-1).conns.at(-1).close());
   await p.clock.runFor(3200);
   await p.evaluate(() => window.__peers.at(-1).serverOpen());

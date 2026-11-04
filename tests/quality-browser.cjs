@@ -89,7 +89,7 @@ async function observerSuite(b) {
   await feed(30, (i) => ({ L: { valid: i % 5 === 0 ? 0 : 1 }, R: {} }));
   l = await light('trackL');
   ok(l.kind === 'bad' && l.text === '80%' && l.mark === '✗', 'left at 80%: red (' + l.text + ')');
-  ok((await alert()).includes('Tracking left: 80%'), 'alert bar shows the red light');
+  ok((await alert()).includes('Left-hand tracking: 80%'), 'alert bar shows the red light');
   let n = await notes();
   ok(n.length === 1 && n[0].type === 'alert' && n[0].text === 'Tracking left red: 80%', 'red alert logged in notes (' + JSON.stringify(n.map(x => x.text)) + ')');
   await feed(5, (i) => ({ L: { valid: i % 5 === 0 ? 0 : 1 }, R: {} }));
@@ -167,12 +167,23 @@ async function observerSuite(b) {
   await sleep(50);
   await o.click('#g-note-spoke');
   await sleep(350);
-  ok((await notes()).length === nBefore + 2 && (await O(() => document.getElementById('g-note-status').textContent)).includes('1 waiting to send') && (await O(() => document.getElementById('g-note-status').textContent)).includes('time estimated'), 'link lost: note waits and is marked estimated');
+  ok((await notes()).length === nBefore + 2 && (await O(() => document.getElementById('g-note-status').textContent)).includes('Notes waiting to send: 1') && (await O(() => document.getElementById('g-note-status').textContent)).includes('time estimated'), 'link lost: note waits and is marked estimated');
   await O(() => { window.__c.open = true; });
   await state({ sessionMs: 30000 });
   await sleep(400);
   const late = (await notes()).at(-1);
   ok((await notes()).length === nBefore + 3 && late.estimated === true, 'sent when the link returns, still marked estimated');
+
+  console.log('TRIAL STALL');
+  await state({ trialCount: 18 });
+  await O(() => { delete window.__obs.quality.runs[1].redAt.flow; const g = window.__obs.guide; g.trialChangedAt = g.phaseChangedAt = Date.now() - 31000; }); await sleep(320);
+  ok((await light('flow')).kind === 'bad' && (await light('flow')).text === 'No new trial for 30 s', 'stall: red, new wording');
+  ok((await alert()).split('No new trial for 30 s').length === 2, 'stall: alert not doubled');
+  ok((await notes()).some(x => x.text === 'Trial flow red: No trial 30 s'), 'stall: notes CSV text unchanged');
+  await O(() => {
+    const g = window.__obs.guide; g.trialChangedAt = g.phaseChangedAt = Date.now();
+    const c = window.__c; const keep = c.sent.filter(x => !x.includes('Trial flow red: No trial')); c.sent.length = 0; c.sent.push(...keep);
+  }); await state({ trialCount: 18 }); await sleep(320);
 
   console.log('NOTES AND THE FINAL SAVE');
   await O(() => { window.__obs.guide.noteQueue.push({ id: 'held', type: 'note', text: 'x' }); window.__obs.guide.noteSending = true; });
@@ -195,11 +206,11 @@ async function observerSuite(b) {
   await sleep(350);
   ok(await O(() => document.getElementById('run-report').checkVisibility() && !!document.querySelector('[data-report-run="1"]')), 'report shown between runs');
   const rep = await O(() => document.getElementById('run-report').textContent);
-  ok(['Duration', 'Skips', 'Pauses', 'Recentres', 'Tracking left', 'Tracking right', 'Frame rate', 'Trial flow'].every(w => rep.includes(w)) && !rep.includes('Head stillness'), 'facts and four timelines listed, no head stillness');
+  ok(['Duration', 'Skips', 'Pauses', 'Recentres', 'Left-hand tracking', 'Right-hand tracking', 'Frame rate', 'Trial flow'].every(w => rep.includes(w)) && !rep.includes('Head stillness'), 'facts and four timelines listed, no head stillness');
   ok(!/verdict|pass|fail/i.test(rep), 'facts only, no pass or fail');
-  ok(!/\bLEFT\b|hand use|Left hand/i.test(rep), 'no hand-choice data in the report');
+  ok(!/\bLEFT\b|hand use|Left hand/i.test(rep.replace(/(Left|Right)-hand tracking/g, '')), 'no hand-choice data in the report');
   const strip = await O(() => {
-    const line = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Tracking left'));
+    const line = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Left-hand tracking'));
     const cells = [...line.querySelectorAll('.rep-cell')];
     return { n: cells.length, kinds: cells.map(c => c.className.replace('rep-cell', '').trim()), title: cells[0].title };
   });
@@ -211,7 +222,7 @@ async function observerSuite(b) {
   ok(markRows.Notes[0] === 1 && markRows.Notes[1] === '1' && /^Note at /.test(markRows.Notes[2]), 'notes row: experimenter notes only, no alerts');
   ok(markRows.Recentres[0] >= 1 && /^Recentre at /.test(markRows.Recentres[2]), 'recentres row: recentres only (' + markRows.Recentres[0] + ')');
   ok(!/within limits|amber limit|red limit/i.test(rep), 'no colour legend under the timeline');
-  const flowLine = () => O(() => { const l = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Trial flow')); const cells = [...l.querySelectorAll('.rep-cell')]; return { stalled: cells.filter(c => c.title.includes('no trial for 30 s')).map(c => c.className), summary: l.children[2].textContent }; });
+  const flowLine = () => O(() => { const l = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Trial flow')); const cells = [...l.querySelectorAll('.rep-cell')]; return { stalled: cells.filter(c => c.title.includes('no new trial for 30 s')).map(c => c.className), summary: l.children[2].textContent }; });
   const flowStalled = await flowLine();
   ok(flowStalled.stalled.length > 0 && flowStalled.stalled.every(c => c.includes('bad')) && /stall/.test(flowStalled.summary), 'trial stall: red on the timeline (' + flowStalled.summary + ')');
   await state({ phase: 'between', sessionMs: Math.round(t), setupLocked: false, trialCount: nT, recentreCount: 2, pauses: 1, info: `Key,Value\nPauses,0-${Math.round(t)}\n` });

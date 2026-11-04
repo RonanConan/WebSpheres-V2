@@ -122,7 +122,7 @@ async function panelSuite(b) {
   ok((await charts()).join() === 'workspaceMap,handChoice', 'only ticked charts drawn');
   ok(dl.length === 1 && dl[0].suggestedFilename() === 'P1_TS.zip', 'data zip saved on its own, no figures downloaded');
   ok(await O(() => !document.querySelector('[data-res-view]') && !document.querySelector('[data-res-frames]')), 'old hand and frame buttons gone');
-  ok((await text('res-showing')) === 'Workspace shape. 3D: gaps filled up to 16 cm, smoothing 0.5 cm. 2D: gaps filled up to 8 cm, smoothing 0.5 cm.', 'settings stated in words');
+  ok((await text('res-showing')) === 'Workspace shape settings — 3D: fill gaps up to 16 cm and smooth by 0.5 cm; 2D: fill gaps up to 8 cm and smooth by 0.5 cm.', 'settings stated in words');
   ok((await text('res-save')) === 'Save figures (2)', 'Save figures counts what is selected');
   const colourAt = (id, hex) => O(([chart, rgb]) => {
     const c = document.querySelector(`[data-chart="${chart}"] canvas`);
@@ -147,7 +147,7 @@ async function panelSuite(b) {
   ok(await shown('#ws3d-canvas'), '3D view shown');
   const both3D = await painted();
   ok(both3D.blue > 100 && both3D.red > 100, `left drawn blue, right drawn red (${both3D.blue}, ${both3D.red})`);
-  ok(/Volume.*Left[\d,]+[\d,]+Right[\d,]+[\d,]+Overlap[\d,]+[\d,]+Total[\d,]+[\d,]+Hand positions outside shape[\d.]+%[\d.]+%/.test(await tableText()), 'volume and area side by side, with positions outside');
+  ok(/Volume.*Left[\d,]+[\d,]+Right[\d,]+[\d,]+Overlap[\d,]+[\d,]+Total[\d,]+[\d,]+Hand positions outside the workspace shape[\d.]+%[\d.]+%/.test(await tableText()), 'volume and area side by side, with positions outside');
   await o.uncheck('[data-ws-show="left"]'); await sleep(150);
   const noLeft = await painted();
   ok(noLeft.blue < both3D.blue / 2 && noLeft.red > 100, 'Left off: blue gone, red stays');
@@ -177,14 +177,14 @@ async function panelSuite(b) {
   await o.click('[data-shape="gap3D"][data-v="24"]'); await sleep(500);
   const larger = await areaNow();
   ok(larger.volume > start.volume && larger.area === start.area, 'more 3D gap filling changes volume, not area');
-  ok((await text('res-showing')).includes('3D: gaps filled up to 24 cm') && await O(() => document.querySelector('[data-shape="gap3D"][data-v="24"]').classList.contains('on')), 'choice stated and marked');
+  ok((await text('res-showing')).includes('3D: fill gaps up to 24 cm') && await O(() => document.querySelector('[data-shape="gap3D"][data-v="24"]').classList.contains('on')), 'choice stated and marked');
   ok(await O((v) => document.getElementById('ws3d-table').textContent.includes(Math.round(v).toLocaleString('en-GB')), larger.volume), 'table shows the new volume');
   await o.click('[data-shape="gap2D"][data-v="16"]'); await sleep(500);
   const larger2D = await areaNow();
   ok(larger2D.area > start.area && larger2D.volume === larger.volume, 'more 2D gap filling changes area, not volume');
   await o.click('#ws-defaults'); await sleep(500);
   const reset = await areaNow();
-  ok(reset.area === start.area && reset.volume === start.volume && (await text('res-showing')).includes('3D: gaps filled up to 16 cm'), 'Back to defaults');
+  ok(reset.area === start.area && reset.volume === start.volume && (await text('res-showing')).includes('3D: fill gaps up to 16 cm'), 'Back to defaults');
   await O(() => { document.getElementById('ws-settings').open = false; });
   const tip = await O(() => { const c = document.querySelector('[data-chart="handChoice"] canvas'); const h = c.hits[0]; const r = c.getBoundingClientRect(); const s = r.width / +c.dataset.width; return { x: r.left + (h.x + h.w / 2) * s, y: r.top + (h.y + h.h / 2) * s, text: h.text }; });
   await o.evaluate((y) => document.getElementById('results').scrollTo(0, 0), 0);
@@ -219,7 +219,7 @@ async function panelSuite(b) {
   const shot3D = entries.find(e => e.name.includes('workspace-3d-run1'));
   const corner3D = await O(async (b64) => { const res = await fetch(`data:image/png;base64,${b64}`); const bmp = await createImageBitmap(await res.blob()); const c = new OffscreenCanvas(bmp.width, bmp.height); const x = c.getContext('2d'); x.drawImage(bmp, 0, 0); return { w: bmp.width, h: bmp.height, px: [...x.getImageData(2, 2, 1, 1).data] }; }, shot3D.data.toString('base64'));
   ok(corner3D.w === 2400 && corner3D.h === 1500 && corner3D.px[0] === 255, '3D figure on white at high resolution');
-  ok((await text('res-msg')) === '3 figures saved in zip.', 'says what was saved');
+  ok((await text('res-msg')) === 'Download started: 3 figures in a ZIP.', 'says what was saved');
   ok(await O(() => { const n = document.querySelectorAll('#res-charts [data-chart]').length; document.querySelector('[data-res-chart="times"]').click(); return document.querySelectorAll('#res-charts [data-chart]').length === n; }), 'drawing runs after the guide update, not inside it');
   await sleep(350);
   ok((await charts()).join() === 'workspaceMap,handChoice,times' && (await text('res-save')) === 'Save figures (3)', 'unticked chart can be added afterwards and saved too');
@@ -246,7 +246,7 @@ async function panelSuite(b) {
     CanvasRenderingContext2D.prototype.fillText = real;
     return out;
   });
-  const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial (across the whole session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial (across the whole session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in run (min:s)'] };
+  const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial number (across the session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial number (across the session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in run (min:s)'] };
   Object.entries(axes).forEach(([id, want]) => ok(want.every(w => written[id].includes(w)), `${id}: axes titled`));
   ok(Object.values(written).flat().every(s => !/ball/i.test(s)), 'no specialist wording on any figure');
   ok(!written.quality.includes('Within limits') && written.times.includes('Movement time') && written.handChoice.includes('Hits'), 'legends and hit counts present; no limits legend on the timeline');
@@ -268,12 +268,12 @@ async function panelSuite(b) {
   console.log('CHART FAILS TO DRAW');
   await O(() => { window.__render = ResultsCharts.render; ResultsCharts.render = function (c, id) { if (id === 'handUse') throw new Error('bad chart'); return window.__render.apply(ResultsCharts, arguments); }; });
   await o.check('[data-res-chart="quality"]'); await sleep(450);
-  ok((await text('res-charts')).includes('Hand use across session: could not draw. Data not affected.'), 'failed chart says so');
+  ok((await text('res-charts')).includes('Could not draw Hand use across session. The recorded data are unaffected.'), 'failed chart says so');
   ok(await O(() => document.querySelectorAll('#res-charts [data-chart] > canvas').length) === 5, 'other charts still drawn');
   await O(() => { ResultsCharts.render = window.__render; });
   await O(() => { window.__parse = ResultsCharts.parseRun; ResultsCharts.parseRun = () => { throw new Error('bad data'); }; window.__obs.guide.results.parsed = new Map(); });
   await o.uncheck('[data-res-chart="quality"]'); await sleep(450);
-  ok((await text('res-charts')).includes('could not draw') && await O(() => document.querySelectorAll('#res-charts canvas').length) === 0, 'bad data: message, not a blank panel');
+  ok((await text('res-charts')).includes('Could not draw') && await O(() => document.querySelectorAll('#res-charts canvas').length) === 0, 'bad data: message, not a blank panel');
   ok(await O(() => !!document.getElementById('ws3d')), '3D view kept for the next draw');
   await O(() => document.getElementById('res-save').click()); await sleep(300);
   ok((await text('res-msg')) === 'Figures not saved. Try again.' && !(await O(() => document.getElementById('res-save').disabled)), 'bad data: figures report failure, button recovers');
@@ -300,11 +300,11 @@ async function panelSuite(b) {
   ok(await m.evaluate(() => document.querySelector('[data-plan-mode="short"]').classList.contains('on')), 'guide still updates');
   await mem(Object.assign({}, done1, { sessionId: 'M', plan: { mode: 'fmode', home: 'one-box', charts: ['times'], runs: RUNS }, backup: { trials: 0, kinL: 0, kinR: 0, final: true, exportTs: 'TS' } }));
   await sleep(600);
-  ok(await m.evaluate(() => document.getElementById('g8-files').textContent.includes('Charts unavailable. Data not affected.') && !document.getElementById('g-results').checkVisibility() && !document.getElementById('results').checkVisibility()), 'Finish says charts are unavailable, no Results button');
+  ok(await m.evaluate(() => document.getElementById('g8-files').textContent.includes('Charts are unavailable, but the recorded data are unaffected.') && !document.getElementById('g-results').checkVisibility() && !document.getElementById('results').checkVisibility()), 'Finish says charts are unavailable, no Results button');
   ok(errs3.length === 0, 'no page errors (' + errs3.join(' | ') + ')');
   await c3.close();
 
-  for (const [name, file, want, still] of [['3D VIEW MISSING', 'workspace-view.js', '3D view unavailable', true], ['SHAPE MATHS MISSING', 'workspace-shape.js', 'could not draw', false]]) {
+  for (const [name, file, want, still] of [['3D VIEW MISSING', 'workspace-view.js', 'The 3D view is unavailable', true], ['SHAPE MATHS MISSING', 'workspace-shape.js', 'Could not draw', false]]) {
     console.log(name);
     const cx = await b.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
     const w = await cx.newPage();
@@ -349,7 +349,7 @@ async function panelSuite(b) {
   ok(await n.evaluate(() => document.getElementById('results').checkVisibility() && document.getElementById('res-save').disabled), 'can still open Results; nothing selected');
   await n.check('[data-res-chart="workspaceMap"]'); await sleep(350);
   ok(await n.evaluate(() => !!document.querySelector('[data-chart="workspaceMap"] canvas') && !document.getElementById('res-save').disabled), 'unticked chart available afterwards');
-  ok(await n.evaluate(() => [...window.__obs.guide.results.parsed.values()].at(-1).label) === 'Run 1: No boost to trial 200, then Boost', 'run label shows a mid-run condition change');
+  ok(await n.evaluate(() => [...window.__obs.guide.results.parsed.values()].at(-1).label) === 'Run 1: No boost through trial 200, then Boost', 'run label shows a mid-run condition change');
   await c2.close();
 }
 

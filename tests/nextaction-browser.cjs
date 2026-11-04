@@ -29,7 +29,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   const frame = (o) => E((x) => window.__c.emit('data', JSON.stringify(x)), Object.assign({}, FRAME, o || {}));
 
   console.log('NOTHING CONNECTED');
-  ok((await checks('g1-checks')).join('|') === 'info:Searching for headset…|info:Version checked on connection', 'waiting for the headset: no warning marks');
+  ok((await checks('g1-checks')).join('|') === 'info:Searching for headset…|info:Version check pending headset connection.', 'waiting for the headset: no warning marks');
 
   await E(() => {
     const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c;

@@ -19,19 +19,19 @@ const { ok, done } = counter('SESSION BROWSER');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
   r = await cmd('setParticipant', 'bad id!');
-  ok(!r.result.ok && r.result.reason === 'Participant ID: 1-32 letters, digits, _ or -', 'invalid participant ID refused with reason');
+  ok(!r.result.ok && r.result.reason === 'Participant ID must contain 1–32 letters, numbers, underscores or hyphens.', 'invalid participant ID refused with reason');
   r = await cmd('setParticipant', 'x'.repeat(33));
   ok(!r.result.ok, '33-character ID refused');
   for (const id of ['CLEFT01', 'Wright', 'p_RiGhT', 'left']) {
     r = await cmd('setParticipant', id);
-    ok(!r.result.ok && /no "left" or "right"/.test(r.result.reason), `ID "${id}" refused (left/right, any case)`);
+    ok(!r.result.ok && /cannot contain “left” or “right”/.test(r.result.reason), `ID "${id}" refused (left/right, any case)`);
   }
   ok((await state()).participantId === 'P01', 'refused IDs leave the previous ID in place');
   ok((await state()).experimenter === '', 'experimenter starts empty');
   ok(!(await cmd('setExperimenter', '   ')).result.ok, 'blank experimenter refused');
   ok(!(await cmd('setExperimenter', 'x'.repeat(65))).result.ok, '65-character experimenter refused');
   r = await cmd('setExperimenter', 'Smith, Jo');
-  ok(!r.result.ok && r.result.reason === 'Experimenter name: no commas or quotes (breaks the CSV)', 'experimenter with a comma refused with reason');
+  ok(!r.result.ok && r.result.reason === 'The experimenter’s name cannot contain commas or quotation marks because they would affect the CSV format.', 'experimenter with a comma refused with reason');
   ok(!(await cmd('setExperimenter', 'Jo "JJ" Smith')).result.ok, 'experimenter with quotes refused');
   ok(!(await cmd('setExperimenter', 42)).result.ok, 'non-text experimenter refused');
   r = await cmd('setExperimenter', '  Jo Smith ');
@@ -92,7 +92,7 @@ const { ok, done } = counter('SESSION BROWSER');
   await key('Space');
   ok(await E(() => window.__sm.calib.reach.hand === 'RIGHT' && Math.abs(window.__sm.calib.reach.distance - 0.62) < 1e-9), 'Space key uses the same either-hand logic');
   console.log('SETUP PHASE (continued)');
-  for (const [n, re] of [['pause', /running/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /locks only/], ['skip', /No trial/]]) {
+  for (const [n, re] of [['pause', /during a run/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /only unlock or relock/], ['skip', /No trial/]]) {
     r = await cmd(n);
     ok(!r.result.ok && re.test(r.result.reason), `${n} refused in setup ("${r.result.reason}")`);
   }
@@ -203,7 +203,7 @@ const { ok, done } = counter('SESSION BROWSER');
   await key('KeyC');
   ok(await E(() => window.__sc.currentCondition === 2), 'locked keys work again after unlock');
   r = await cmd('setMode', 'fmode');
-  ok(!r.result.ok && r.result.reason === 'Mode: set before start', 'mode change refused even while unlocked');
+  ok(!r.result.ok && r.result.reason === 'Set the run length before starting the session.', 'mode change refused even while unlocked');
   await E(() => window.__sm.setMode('fmode'));
   await until(() => window.__sm.currentState === 'invisible' || window.__sm.currentState === 'visible' || window.__sm.currentState === 'waiting-to-appear');
   await cmd('pause');

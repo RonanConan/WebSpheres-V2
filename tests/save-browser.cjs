@@ -168,7 +168,7 @@ async function laptopSuite(b) {
   await sleep(350);
   const s1 = await stored();
   ok(s1.length === 1 && s1[0].run === 1 && s1[0].trials === 'H\nr1-trials\n' && s1[0].prefix === 'P1_run1_', 'finished run stored in the browser');
-  ok((await text('g7-b-copy')).includes('Laptop copy complete'), 'between runs: laptop copy complete');
+  ok((await text('g7-b-copy')).includes('All data received for the completed run'), 'between runs: laptop copy complete');
   const sessionsStored = () => idbAll(o, 'sessions');
   await emit(Object.assign({}, STATE, { notesCsv: 'HEADER\nlater note\n' }));
   await sleep(200);
@@ -176,13 +176,13 @@ async function laptopSuite(b) {
   await emit(Object.assign({}, STATE, { notesCsv: '' }));
   await load();
   await sleep(350);
-  ok(await shown('#g-recovery .g-banner') && (await text('g-recovery')).includes('Unsaved session on this laptop: P1, 1 run'), 'tab reopened: unsaved session offered');
+  ok(await shown('#g-recovery .g-banner') && (await text('g-recovery')).includes('Unsaved session: P1 · 1 run stored on this laptop'), 'tab reopened: unsaved session offered');
   await O(() => document.querySelector('#g-recovery button').click());
   await sleep(600);
   const rec = await openDownload(o.dl.at(-1), OUT);
-  ok(/^P1_recovered-[\dT-]+\.zip$/.test(o.dl.at(-1).suggestedFilename()) && rec.length === 4 && rec.some(x => x.path.startsWith('run1/P1_run1_vr-session-data-') && x.text === 'H\nr1-trials\n'), 'Download zip rebuilds the run from browser storage');
+  ok(/^P1_recovered-[\dT-]+\.zip$/.test(o.dl.at(-1).suggestedFilename()) && rec.length === 4 && rec.some(x => x.path.startsWith('run1/P1_run1_vr-session-data-') && x.text === 'H\nr1-trials\n'), 'Download ZIP rebuilds the run from browser storage');
   ok(rec.some(x => x.path.includes('session-info') && x.text === STATE.info), 'session info recovered');
-  ok((await text('g-recovery')).includes('4 files saved in zip'), 'recovery says what was saved');
+  ok((await text('g-recovery')).includes('Download started: 4 files in a ZIP'), 'recovery says what was saved');
   const rowButton = (who) => O((w) => [...document.querySelectorAll('#g-recovery .g-banner')].find(r => r.textContent.includes(w)).querySelector('button').click(), who);
   await O(() => { window.__obs.guide.recovery.push({ id: 'gone', participantId: 'GONE', runs: 1, notes: 'n' }); });
   await sleep(350);
@@ -222,11 +222,11 @@ async function laptopSuite(b) {
   await sleep(600);
   ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')), 'saved session leaves the recovery list');
   ok(o.dl.length === before + 1 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00.zip', 'one zip, named for the session');
-  ok((await text('g8-files')).includes('Saved to laptop: 4 files in zip') && (await text('g8-files')).includes('Laptop copy complete. No need to plug in headset.'), 'Finish says the laptop copy is complete');
+  ok((await text('g8-files')).includes('Download started: 4 files in a ZIP') && (await text('g8-files')).includes('All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'Finish says the laptop copy is complete');
   ok((await stored()).length === 0, 'browser storage cleared once the final zip is saved');
   await O(() => document.getElementById('g-save-again').click());
   await sleep(600);
-  ok((await text('g-save-again')) === 'Download zip again' && o.dl.length === before + 2, 'Download zip again');
+  ok((await text('g-save-again')) === 'Download ZIP again' && o.dl.length === before + 2, 'Download ZIP again');
   await O(() => { window.__obs.backup.zipping++; });
   await sleep(350);
   ok(await O(() => document.getElementById('g-add-run').disabled), 'Add run waits while the zip is packing');
@@ -261,7 +261,7 @@ async function laptopSuite(b) {
   await sleep(300);
   await O(() => { window.__c.open = false; });
   await sleep(350);
-  ok((await text('g8-files')).includes('Laptop copy incomplete (0 / 27 rows). Reconnect, or get files from headset.'), 'Finish says what is missing when the laptop cannot catch up');
+  ok((await text('g8-files')).includes('Laptop copy incomplete (0 / 27 rows). Reconnect the headset or retrieve the files from it.'), 'Finish says what is missing when the laptop cannot catch up');
   await ctx.close();
 
   console.log('LAPTOP: FALLBACK');
@@ -275,8 +275,8 @@ async function laptopSuite(b) {
   await sleep(800);
   ok(f.o.dl.length === 4 && f.o.dl.every(d => d.suggestedFilename().endsWith('.csv')), 'zip fails: 4 loose files instead');
   const looseText = await f.o.evaluate(() => document.getElementById('g8-files').textContent);
-  ok(looseText.includes('4 files loose'), 'Finish says the files are loose');
-  ok(looseText.includes('Zip failed. Check Downloads for every file. Keep headset copy.') && !looseText.includes('No need to plug in headset'), 'loose files: tells the experimenter to check them');
+  ok(looseText.includes('4 files individually'), 'Finish says the files are loose');
+  ok(looseText.includes('ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.') && !looseText.includes('No need to plug in headset'), 'loose files: tells the experimenter to check them');
   ok((await idbAll(f.o, 'runs')).some(x => x.key === 'F:1'), 'loose files: browser storage kept');
   await f.ctx.close();
 
@@ -299,11 +299,11 @@ async function laptopSuite(b) {
   await sleep(600);
   const afterReload = ro.dl.length;
   ok(afterReload === 1, 'headset reload: laptop saves what it holds straight away');
-  ok(await R(() => !document.getElementById('g-resume').hidden) && (await rtext('g-resume-text')) === 'Headset page reloaded. 1 run kept on laptop.', 'offers to continue');
+  ok(await R(() => !document.getElementById('g-resume').hidden) && (await rtext('g-resume-text')) === 'The headset page reloaded. This laptop still has data from 1 run.', 'offers to continue');
   ok((await rtext('g-resume-go')) === 'Continue with run 2', 'names the next run');
   ok(await R(() => { const r = document.getElementById('g-resume-go').getBoundingClientRect(); const slot = document.getElementById('left-slot').getBoundingClientRect(); return r.top >= slot.top && r.bottom <= slot.bottom; }), 'Continue button is on screen, whatever step the guide has scrolled to');
   ok((await rtext('g7-head')) === 'Running', 'step heading back to Running');
-  ok((await rtext('g6-required')).includes('Headset reloaded: choose Continue or New session') && await R(() => document.getElementById('g-start').disabled), 'Start blocked until chosen');
+  ok((await rtext('g6-required')).includes('The headset page reloaded. Choose Continue or New session.') && await R(() => document.getElementById('g-start').disabled), 'Start blocked until chosen');
   await R(() => { window.__c.sent.length = 0; });
   await R(() => document.getElementById('g-resume-go').click());
   await sleep(200);
@@ -364,7 +364,7 @@ async function laptopSuite(b) {
   await tem(Object.assign({}, NEW, { sessionId: 'B2' }));
   await sleep(300);
   const again = await resumeState();
-  ok(again.shown && again.go === 'Continue with run 2' && again.text.includes('1 run kept') && again.run === 2 && again.archived === 1 && again.storeId === 'A', 'second reload before Continue: runs and Continue kept');
+  ok(again.shown && again.go === 'Continue with run 2' && again.text.includes('data from 1 run') && again.run === 2 && again.archived === 1 && again.storeId === 'A', 'second reload before Continue: runs and Continue kept');
   await t.o.evaluate(() => document.getElementById('g-resume-go').click());
   await sleep(200);
   await tem(Object.assign({}, BACK, { sessionId: 'B2' }));
