@@ -55,6 +55,7 @@ const joints = (dx, side) => { const a = []; for (let i = 0; i < 25; i++) a.push
   await frame({ left: [1, 2, 3] }); await frame({ left: joints(0, -1).map((v, i) => i === 4 ? null : v + 1) }); await tick();
   ok(await E((x) => Math.abs(window.__obs.hands.L.meshJoints[9].position.x - x) < 1e-6, L0[27]), 'malformed joint arrays ignored');
 
+  await p.clock.pauseAt(await E(() => Date.now() + 1000));
   let step = 0;
   const stream = async (n) => { for (let i = 0; i < n; i++) { await frame({ left: joints((step++) * 0.002, -1) }); await p.clock.runFor(33); } };
   const cnt = () => E(() => window.__obs.hands.L.trail.geometry.drawRange.count);

@@ -214,6 +214,99 @@ async function openPractice(b, viewport) {
     await c.close();
   }
 
+  console.log('TROUBLE BUTTONS');
+  {
+    const { ctx: c, p: q, f: g } = await openPractice(b);
+    const open = (n) => q.waitForFunction((k) => +(document.querySelector('#guide .step.open')?.dataset.step || 0) === k, n, { timeout: 15000, polling: 50 });
+    const alertText = () => q.evaluate(() => document.getElementById('g-alert').textContent);
+    const waitAlert = (text, timeout) => q.waitForFunction((t) => document.getElementById('g-alert').textContent.includes(t), text, { timeout: timeout || 8000, polling: 100 });
+    const waitNoAlert = (text) => q.waitForFunction((t) => !document.getElementById('g-alert').textContent.includes(t), text, { timeout: 8000, polling: 100 });
+    const trials = () => g.evaluate(() => window.__practice.dm.trialData.length);
+    const moreTrials = async (n) => g.waitForFunction((k) => window.__practice.dm.trialData.length > k, n, { timeout: 20000, polling: 100 });
+    const toggle = (kind) => q.click(`[data-trouble="${kind}"]`);
+    const on = (kind) => q.evaluate((k) => document.querySelector(`[data-trouble="${k}"]`).classList.contains('on'), kind);
+    await open(2);
+    await q.fill('#g-exp', 'Jo Smith');
+    await q.fill('#g-id', 'T1');
+    await q.click('#g-confirm');
+    await open(3);
+    await q.click('[data-plan-mode="fmode"]');
+    await q.click('#g-plan-send');
+    await open(4);
+    await q.click('#g-recentre');
+    await open(5);
+    await g.waitForFunction(() => window.__practice.right.z < -0.69, null, { timeout: 5000 });
+    await q.click('[data-calib="reach"]');
+    await q.click('[data-calib="height"]');
+    await g.waitForFunction(() => window.__practice.right.z > -0.45, null, { timeout: 5000 });
+    await q.click('[data-calib="lap"]');
+    await open(6);
+    await q.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 5000 });
+    await q.click('#g-start');
+    await g.waitForFunction(() => window.__practice.dm.trialData.length >= 2, null, { timeout: 30000, polling: 100 });
+
+    await toggle('left');
+    ok(await on('left') && await g.evaluate(() => window.__practice.left.valid === false), 'Lose left hand: hand no longer tracked');
+    await waitAlert('Left hand not tracked');
+    ok(true, 'real alert appears for the lost hand');
+    const kinLeft = await g.evaluate(() => { const km = document.querySelector('#kinematics-manager').components['kinematics-manager']; return km.leftHandData.at(-1); });
+    ok(kinLeft.split(',')[10] === '0', 'recorded as not valid in the left kinematics');
+    await toggle('left');
+    ok(!(await on('left')), 'pressed again: button off');
+    await waitNoAlert('Left hand not tracked');
+    ok(true, 'alert clears when the hand returns');
+    await moreTrials(await trials());
+    ok(true, 'trials continue');
+
+    await toggle('right');
+    await waitAlert('Right hand not tracked');
+    await toggle('right');
+    await waitNoAlert('Right hand not tracked');
+    ok(true, 'Lose right hand raises and clears its alert');
+
+    const atDrop = await g.evaluate(() => document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.length);
+    await toggle('drop');
+    await q.waitForFunction(() => document.getElementById('conn-state').textContent !== 'Connected', null, { timeout: 5000 });
+    await waitAlert('Connection lost');
+    ok(true, 'Drop connection: real alert and status');
+    await sleep(2000);
+    ok(await g.evaluate((n) => document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.length > n + 90, atDrop), 'headset keeps recording while the connection is down');
+    await toggle('drop');
+    await q.waitForFunction(() => document.getElementById('conn-state').textContent === 'Connected', null, { timeout: 12000, polling: 100 });
+    await waitNoAlert('Connection lost');
+    ok(true, 'connection returns by itself when switched back');
+
+    await g.waitForFunction(() => window.__practice.sm.currentState === 'invisible' || window.__practice.sm.currentState === 'visible', null, { timeout: 5000 });
+    await toggle('stops');
+    const frozen = await g.evaluate(() => [window.__practice.left.x, window.__practice.right.x]);
+    const atStop = await trials();
+    await waitAlert('No new trial for 30 s', 40000);
+    ok(await trials() === atStop, 'Participant stops: no new trials, real alert after 30 s');
+    ok(await g.evaluate((p) => window.__practice.left.x === p[0] && window.__practice.right.x === p[1], frozen), 'hands hold still but stay tracked');
+    ok(!(await alertText()).includes('not tracked'), 'no tracking alert while the participant is only still');
+    await toggle('stops');
+    await moreTrials(atStop);
+    ok(true, 'pressed again: trials resume');
+
+    await q.click('#g-save-headset');
+    await q.waitForFunction(() => document.getElementById('g7-msg').textContent.includes('no headset copy'), null, { timeout: 5000 });
+    ok(true, 'Save headset copy says no copy is saved in practice');
+    await q.click('#g-end');
+    await q.click('#g-end-yes');
+    await open(8);
+    await q.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Download started'), null, { timeout: 20000 });
+    const finish = await q.evaluate(() => document.getElementById('g8-files').textContent);
+    ok(finish.includes('no headset copy is saved') && !finish.includes('Headset copy saved') && !finish.includes('No cable') && finish.includes('keep it apart from study data'), 'Finish wording fits practice (' + finish + ')');
+    await sleep(800);
+    ok(q.dl.length === 1, 'one zip after the dropped connection');
+    const out = await openDownload(q.dl[0], OUT);
+    const rows = (re) => out.find(x => re.test(x.path)).text.trimEnd().split('\n').length - 1;
+    const hs = await g.evaluate(() => { const km = document.querySelector('#kinematics-manager').components['kinematics-manager']; return { l: km.leftHandData.length, r: km.rightHandData.length, t: window.__practice.dm.trialData.length }; });
+    ok(rows(/kinematics-LEFT/) === hs.l && rows(/kinematics-RIGHT/) === hs.r && rows(/vr-session-data/) === hs.t, `laptop copy complete despite the drop (${hs.l} left, ${hs.r} right, ${hs.t} trials)`);
+    ok(q.errs.length === 0, 'no page errors (' + q.errs.join(' | ') + ')');
+    await c.close();
+  }
+
   console.log('LAYOUT');
   for (const [w, h] of [[2560, 1440], [1920, 1080], [1707, 960]]) {
     const { ctx: c, p: q } = await openPractice(b, { width: w, height: h });

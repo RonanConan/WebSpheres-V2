@@ -293,14 +293,18 @@
         #help p { margin: 1.2rem 0 0; color: var(--muted); font-size: 0.9rem; }
         #practice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; padding: 0.5rem 1.1rem; background: #5b3cc4; color: #fff; font-weight: 600; }
         #practice-bar[hidden] { display: none; }
-        #practice-leave { margin-left: auto; background: transparent; border-color: #fff; color: #fff; min-height: 0; padding: 0.3rem 0.8rem; }
+        #practice-bar button { background: transparent; border-color: #fff; color: #fff; min-height: 0; padding: 0.3rem 0.7rem; }
+        #practice-bar button:hover:not(:disabled) { border-color: #fff; }
+        #practice-bar button.on { background: #fff; color: #3b2690; }
+        #practice-trouble { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+        #practice-leave { margin-left: auto; }
         body.practice { display: flex; flex-direction: column; }
         body.practice #app { height: auto; flex: 1 1 auto; min-height: 0; }
         #practice-headset { position: fixed; left: -16px; top: -16px; width: 8px; height: 8px; border: 0; opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body>
-<div id="practice-bar" hidden><span>Practice session. No headset is connected and the participant is simulated.</span><button tabindex="-1" id="practice-leave">Leave practice</button></div>
+<div id="practice-bar" hidden><span>Practice session. No headset is connected and the participant is simulated.</span><span id="practice-trouble"><span>Try a problem:</span><button tabindex="-1" data-trouble="left">Lose left hand</button><button tabindex="-1" data-trouble="right">Lose right hand</button><button tabindex="-1" data-trouble="drop">Drop connection</button><button tabindex="-1" data-trouble="stops">Participant stops</button></span><button tabindex="-1" id="practice-leave">Leave practice</button></div>
 <div id="app">
     <aside id="left-slot">
         <div id="guide">
@@ -2147,7 +2151,11 @@
             s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Force-refresh both pages.`) : ['info', 'Version check pending headset connection.']
         ]);
         $('g1-practice').hidden = PRACTICE || !!s;
-        $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest and enter VR or AR. The headset will connect automatically.';
+        $('g1-note').textContent = st.live ? '' : PRACTICE ? 'The practice headset connects automatically.' : 'Open WebSpheres on the Quest and enter VR or AR. The headset will connect automatically.';
+        if (PRACTICE) {
+            const practice = $('practice-headset').contentWindow.__practice;
+            document.querySelectorAll('[data-trouble]').forEach(b => { b.disabled = !practice; });
+        }
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
         const locked = !!(s && (s.setupLocked || s.phase !== 'setup'));
@@ -2314,8 +2322,8 @@
                 : ['bad', `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Reconnect the headset or retrieve the files from it.`];
             setChecks('g8-files', [
                 laptopLine,
-                s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'],
-                ...(saved && complete ? [backup.savedLoose ? ['warn', 'ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.'] : ['ok', 'All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.']] : []),
+                PRACTICE ? ['info', 'This is a practice session, so no headset copy is saved.'] : s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'],
+                ...(saved && complete ? [backup.savedLoose ? ['warn', 'ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.'] : ['ok', PRACTICE ? 'All rows are in the laptop ZIP. Its file names start with PRACTICE, so keep it apart from study data.' : 'All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.']] : []),
                 ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts are unavailable, but the recorded data are unaffected.']] : [])
             ]);
             const sumEl = $('g8-summary');
@@ -3115,7 +3123,7 @@
         setChecks('g7-b-copy', [
             copied ? ['ok', 'All data received for the completed run'] : ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows)`],
             ...(backup.storeFailed ? [['warn', 'Browser storage failed. The laptop copy is held in memory only.']] : []),
-            ...(off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
+            ...(off && PRACTICE ? [['info', 'This is a practice session, so no headset copy is saved.']] : off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
         ]);
         setChecks('g7-b-vr', [tick3(!!s.inVR, s.inVR ? inXrLabel(s) : NOT_IN_XR)]);
         setChecks('g7-b-recentred', [tick3(recentred, recentred ? 'Recentred' : off ? 'Recentre required' : 'Recentre recommended', !off), ...(recentred ? [] : recentreLine())]);
@@ -3380,7 +3388,7 @@
             else runGuideCmd(7, 'resume', undefined, s.phase === 'pausing' ? 'Pause cancelled' : 'Resumed');
         });
         $('g-skip').addEventListener('click', () => runGuideCmd(7, 'skip', undefined, 'Target skipped'));
-        $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, 'Headset save started.'));
+        $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, PRACTICE ? 'This is a practice session, so no headset copy is saved.' : 'Headset save started.'));
         $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
         $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
         $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(7, 'endEarly', undefined, 'Run ended'); });
@@ -3409,6 +3417,16 @@
         });
         $('g-practice').addEventListener('click', () => window.open(location.pathname + '?practice=1', '_blank'));
         $('practice-leave').addEventListener('click', () => { location.href = location.pathname; });
+        document.querySelectorAll('[data-trouble]').forEach(b => b.addEventListener('click', () => {
+            const practice = $('practice-headset').contentWindow.__practice;
+            if (!practice) return;
+            const on = b.classList.toggle('on');
+            const kind = b.dataset.trouble;
+            if (kind === 'left') practice.participant.setLost('L', on);
+            else if (kind === 'right') practice.participant.setLost('R', on);
+            else if (kind === 'stops') practice.participant.frozen = on;
+            else window.__practiceLink.setDown(on);
+        }));
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
     }

@@ -4,6 +4,7 @@
     const conns = new Map();
     const peers = new Set();
     let hostReady = false;
+    let down = false;
     let nextId = 1;
 
     const other = () => {
@@ -62,7 +63,7 @@
         connect(hostId) {
             const conn = new PracticeConn(nextId++, hostId);
             conns.set(conn.id, conn);
-            if (hostReady) post('hello', conn.id);
+            if (hostReady && !down) post('hello', conn.id);
             return conn;
         }
         disconnect() {
@@ -93,7 +94,7 @@
         const conn = conns.get(m.id);
         if (m.kind === 'ready') {
             hostReady = true;
-            conns.forEach((c) => { if (!c.open && !c.closed) post('hello', c.id); });
+            if (!down) conns.forEach((c) => { if (!c.open && !c.closed) post('hello', c.id); });
         } else if (m.kind === 'hello') {
             const host = [...peers][0];
             if (!host) return;
@@ -119,4 +120,11 @@
     });
 
     window.Peer = PracticePeer;
+    window.__practiceLink = {
+        setDown: (value) => {
+            down = value;
+            if (down) [...conns.values()].forEach(c => c.close());
+            else if (hostReady) conns.forEach((c) => { if (!c.open && !c.closed) post('hello', c.id); });
+        }
+    };
 })();

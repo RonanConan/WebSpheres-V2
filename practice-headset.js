@@ -103,7 +103,12 @@
             return { x: base.x + j.x, y: base.y + j.y, z: base.z + j.z };
         };
 
-        const chooseSide = (x) => (Math.random() < 1 / (1 + Math.exp(x / 0.12)) ? 'L' : 'R');
+        const otherSide = (side) => (side === 'L' ? 'R' : 'L');
+        const chooseSide = (x) => {
+            const side = Math.random() < 1 / (1 + Math.exp(x / 0.12)) ? 'L' : 'R';
+            return hands[side].valid ? side : otherSide(side);
+        };
+        participant.setLost = (side, lost) => hands[side].setValid(!lost);
 
         const stepTrial = (now) => {
             const live = (sm.phase === 'running' || sm.phase === 'pausing') && sm.currentState === 'visible' ? sm.activeSphere : null;
@@ -113,7 +118,12 @@
                 participant.trial = { sphere: live, side: chooseSide(at.x), decideAt: now + rand(250, 650), moving: false };
             }
             const trial = participant.trial;
-            if (trial && !trial.moving && now >= trial.decideAt) {
+            if (trial && !hands[trial.side].valid && hands[otherSide(trial.side)].valid) {
+                trial.side = otherSide(trial.side);
+                trial.moving = false;
+                trial.decideAt = now + rand(200, 400);
+            }
+            if (trial && !trial.moving && hands[trial.side].valid && now >= trial.decideAt) {
                 const at = trial.sphere.getAttribute('position');
                 const bow = { x: rand(-0.11, 0.11), y: rand(0.02, 0.1), z: rand(-0.07, 0.07) };
                 goTo(hands[trial.side], at, rand(450, 800), bow);
