@@ -12,6 +12,7 @@ AFRAME.registerComponent('sphere-manager', {
         this.decisionTimeRecorded = false;
         this.lastSelectedPosition = -1;
         this.radius = 0.45;
+        this.reachHandChoice = null;
         this.height = 1.2;
         this.isPaused = true;
         this.appearancesPerSphere = 32;
@@ -314,6 +315,7 @@ AFRAME.registerComponent('sphere-manager', {
             Experimenter: dataManager.experimenter,
             DominantHand: scoreManager.dominantHand,
             Condition: scoreManager.currentCondition,
+            ReachingArm: this.reachHand(),
             Radius: this.radius,
             Height: this.height,
             Home: lap.left ? `${at(lap.left)}/${at(lap.right)}` : at(lap.home)
@@ -341,6 +343,8 @@ AFRAME.registerComponent('sphere-manager', {
             try {
                 document.querySelector('#audio-manager').components['audio-manager'].playCalibrationSound('switch');
             } catch (e) {}
+            const spectator = document.querySelector('#spectator-manager')?.components?.['spectator-manager'];
+            if (spectator?.cue === 'reach') spectator.setCue('reach');
             this.markStateChanged();
         }
         return result;
@@ -356,7 +360,7 @@ AFRAME.registerComponent('sphere-manager', {
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const scoreManager = document.querySelector('#score-display').components['score-manager'];
         const phase = this.phase;
-        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
+        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setReachHand', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
         if (setupCommands.includes(name)) {
             const open = this.setupOpen();
             if (!open.ok) return open;
@@ -380,6 +384,10 @@ AFRAME.registerComponent('sphere-manager', {
             case 'setDominant':
                 if (value !== 'LEFT' && value !== 'RIGHT') return { ok: false, reason: 'Dominant hand: LEFT or RIGHT' };
                 scoreManager.setDominantHand(value);
+                return { ok: true };
+            case 'setReachHand':
+                if (value !== 'LEFT' && value !== 'RIGHT') return { ok: false, reason: 'Reaching arm: LEFT or RIGHT' };
+                this.reachHandChoice = value;
                 return { ok: true };
             case 'setCondition':
                 if (value !== 1 && value !== 2) return { ok: false, reason: 'Condition: 1 or 2' };
@@ -603,29 +611,30 @@ AFRAME.registerComponent('sphere-manager', {
         this.markStateChanged();
     },
 
+    reachHand: function () {
+        return this.reachHandChoice || document.querySelector('#score-display').components['score-manager'].dominantHand;
+    },
+
     calibrateReach: function () {
         const camera = document.querySelector('a-scene').camera;
         const cameraPos = camera?.el?.getAttribute('position');
         if (!cameraPos) return { ok: false, reason: 'Head not tracked' };
         const kinematicsManager = document.querySelector('#kinematics-manager').components['kinematics-manager'];
-
-        let best = null;
-        [['LEFT', this.leftController], ['RIGHT', this.rightController]].forEach(([hand, controller]) => {
-            if (!kinematicsManager.isHandValid(controller)) return;
-            const tip = this.getHandPosition(controller);
-            if (!tip) return;
-            const distance = Math.sqrt(
-                Math.pow(tip.x - cameraPos.x, 2) +
-                Math.pow(tip.y - cameraPos.y, 2) +
-                Math.pow(tip.z - cameraPos.z, 2)
-            );
-            if (Number.isFinite(distance) && (!best || distance > best.distance)) best = { hand, distance };
-        });
-
-        if (!best) return { ok: false, reason: 'No hand tracked' };
-        this.radius = Math.max(0.3, 0.8 * best.distance);
+        const hand = this.reachHand();
+        const controller = hand === 'LEFT' ? this.leftController : this.rightController;
+        const notTracked = { ok: false, reason: `The ${hand.toLowerCase()} hand is not tracked, so reach cannot be measured. Check that the hand is in view, or change the reaching arm.` };
+        if (!kinematicsManager.isHandValid(controller)) return notTracked;
+        const tip = this.getHandPosition(controller);
+        if (!tip) return notTracked;
+        const distance = Math.sqrt(
+            Math.pow(tip.x - cameraPos.x, 2) +
+            Math.pow(tip.y - cameraPos.y, 2) +
+            Math.pow(tip.z - cameraPos.z, 2)
+        );
+        if (!Number.isFinite(distance)) return notTracked;
+        this.radius = Math.max(0.3, 0.8 * distance);
         this.updateSpherePositions();
-        this.calib.reach = { done: true, hand: best.hand, distance: best.distance, radius: this.radius };
+        this.calib.reach = { done: true, hand, distance, radius: this.radius };
         return { ok: true };
     },
 

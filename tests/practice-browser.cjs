@@ -200,10 +200,14 @@ async function openPractice(b, viewport) {
     await open(4);
     await q.click('#g-recentre');
     await open(5);
-    await g.waitForFunction(() => window.__practice.right.z < -0.69, null, { timeout: 5000 });
+    await q.click('.sub [data-reach="LEFT"]');
+    await g.waitForFunction(() => window.__practice.left.z < -0.69, null, { timeout: 5000 });
+    ok(await g.evaluate(() => window.__practice.right.z > -0.45), 'left arm chosen: simulated participant stretches the left arm');
     await q.click('[data-calib="reach"]');
+    await q.waitForFunction(() => document.getElementById('g5-reach').textContent.includes('Left hand'), null, { timeout: 5000 });
+    ok(true, 'reach measured with the chosen arm');
     await q.click('[data-calib="height"]');
-    await g.waitForFunction(() => window.__practice.right.z > -0.45, null, { timeout: 5000 });
+    await g.waitForFunction(() => window.__practice.left.z > -0.45, null, { timeout: 5000 });
     await q.click('[data-calib="lap"]');
     await open(6);
     await q.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 5000 });

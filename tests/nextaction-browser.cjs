@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.5.4';
+const VERSION = '2.5.5';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };
@@ -122,6 +122,24 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await st({ recentred: false }); await frame(); await tick();
   ok(await openStep() === 4 && await E(() => document.getElementById('g-start').disabled) && (await checks('g6-required')).includes('bad:Recentred'), 'not recentred: guide returns to Position, Start blocked');
   await st({ recentred: true }); await frame(); await tick();
+
+  console.log('REACHING ARM');
+  await st({ reachHand: 'RIGHT' }); await frame(); await tick();
+  await p.click('[data-open="5"]'); await tick();
+  const reachOn = (v) => E((k) => document.querySelector(`.sub [data-reach="${k}"]`).classList.contains('on'), v);
+  ok(await reachOn('RIGHT') && !(await reachOn('LEFT')), 'toggle shows the arm the headset reports');
+  ok((await text('g5-reach-say')).includes('Stretch your right arm'), 'read-aloud line names the arm');
+  await E(() => { window.__c.sent.length = 0; });
+  await p.click('.sub [data-reach="LEFT"]'); await tick();
+  const armCmd = await E(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name === 'setReachHand').map(m => m.value));
+  ok(armCmd.join() === 'LEFT', 'pressing Left sends the choice to the headset');
+  await st({ reachHand: 'LEFT' }); await frame(); await tick();
+  ok((await text('g5-reach-say')).includes('Stretch your left arm'), 'read-aloud line follows the choice');
+  ok((await checks('g5-reach')).some(r => r.startsWith('warn:Reach was measured with the right arm')), 'changed arm: old measurement flagged');
+  ok((await checks('g6-required')).includes('bad:Reach calibrated') && await E(() => document.getElementById('g-start').disabled), 'changed arm: Start blocked until reach is redone');
+  ok(await openStep() === 5 && (await cyan()).join() === 'reach', 'guide stays on Calibrate with Redo reach cyan');
+  await st({ reachHand: 'RIGHT' }); await frame(); await tick();
+  ok(await E(() => !document.getElementById('g-start').disabled), 'arm matches the measurement again: Start available');
 
   console.log('REOPEN AND RESEND');
   await p.click('[data-open="2"]'); await tick();

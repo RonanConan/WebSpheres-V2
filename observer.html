@@ -357,7 +357,8 @@
                 <div class="step-body">
                     <div class="sub" data-sub="reach">
                         <div class="label">Reach</div>
-                        <p class="say">“Stretch one arm straight out in front of you, as far as is comfortable.”</p>
+                        <div class="g-row"><div class="label">Reaching arm</div><div class="opts"><button tabindex="-1" data-reach="LEFT">Left</button><button tabindex="-1" data-reach="RIGHT">Right</button></div></div>
+                        <p class="say" id="g5-reach-say">“Stretch one arm straight out in front of you, as far as is comfortable.”</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" data-calib="reach">Calibrate reach</button></div>
                         <ul class="checks" id="g5-reach"></ul>
                     </div>
@@ -423,6 +424,7 @@
                         <div class="g-actions"><button tabindex="-1" class="g-primary" id="g7-b-recentre">Recentre</button></div>
                         <div id="g7-b-recal" hidden>
                             <div class="label" style="margin-top:0.9rem">Recalibrate</div>
+                            <div class="g-row"><div class="label">Reaching arm</div><div class="opts"><button tabindex="-1" data-reach="LEFT">Left</button><button tabindex="-1" data-reach="RIGHT">Right</button></div></div>
                             <p class="say" id="g7-b-say" hidden></p>
                             <div class="opts" style="margin-top:0.35rem"><button tabindex="-1" data-bcalib="reach">Redo reach</button><button tabindex="-1" data-bcalib="height">Redo height</button><button tabindex="-1" data-bcalib="lap">Redo home</button></div>
                             <ul class="checks" id="g7-b-recal-status"></ul>
@@ -463,6 +465,7 @@
                         <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
                         <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
                         <div class="g-row"><div class="label">Participant ID</div><div class="g-inline"><input id="u-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-id-go">Change</button></div></div>
+                        <div class="g-row"><div class="label">Reaching arm</div><div class="opts"><button tabindex="-1" data-reach="LEFT">Left</button><button tabindex="-1" data-reach="RIGHT">Right</button></div></div>
                         <div class="g-row"><div class="label">Calibration</div>
                             <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
                             <ul class="checks" id="g7-calib"></ul>
@@ -1848,7 +1851,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.5.4';
+    const APP_VERSION = '2.5.5';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const MODE_PER_RUN = { standard: '352 trials per run', short: '110 trials per run', fmode: '44 trials per run (2 sets of 22)', block: '110 trials per run (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
@@ -2018,6 +2021,11 @@
         return guide.summary;
     }
 
+    function reachStale(s) {
+        const c = s && s.calib;
+        return !!(c && c.reach.done && s.reachHand && c.reach.hand !== s.reachHand);
+    }
+
     function guideStatus() {
         const s = receiver.headsetState;
         const live = receiver.isLive();
@@ -2029,7 +2037,7 @@
             2: !!(s && s.participantId && s.experimenter) && formMatches,
             3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || ((s.plan.runs[(s.run || 1) - 1] || {}).condition === s.condition && s.mode === s.plan.mode && s.homeMode === s.plan.home)),
             4: !!(s && s.recentred),
-            5: !!(calib && calib.reach.done && calib.height.done && calib.lap.done),
+            5: !!(calib && calib.reach.done && !reachStale(s) && calib.height.done && calib.lap.done),
             6: !!(s && s.phase !== 'setup'),
             7: !!(s && s.phase === 'complete')
         };
@@ -2046,7 +2054,7 @@
         if (guide.sub) return guide.sub;
         const c = s && s.calib;
         if (!c) return 'reach';
-        return ['reach', 'height', 'lap'].find(k => !c[k].done) || 'lap';
+        return ['reach', 'height', 'lap'].find(k => !c[k].done || (k === 'reach' && reachStale(s))) || 'lap';
     }
 
     function syncCue(st, open) {
@@ -2189,7 +2197,14 @@
         stepVal(2, () => `${s.participantId}, ${HAND_LABEL[s.dominantHand] || '–'}`);
         stepVal(3, () => `${s.plan.runs.length} ${s.plan.runs.length === 1 ? 'run' : 'runs'} · ${MODE_TRIALS[s.plan.mode] * s.plan.runs.length} trials`);
         stepVal(5, () => `Reach ${fmt(c.reach.distance, 2)} m, height ${fmt(c.height.height, 2)} m`);
-        const nextCalib = c ? ['reach', 'height', 'lap'].find(k => !c[k].done) : 'reach';
+        const nextCalib = c ? ['reach', 'height', 'lap'].find(k => !c[k].done || (k === 'reach' && reachStale(s))) : 'reach';
+        const reachWord = s && s.reachHand ? s.reachHand.toLowerCase() : 'one';
+        const reachSay = `“Stretch ${s && s.reachHand ? 'your' : ''} ${reachWord} arm straight out in front of you, as far as is comfortable.”`.replace('“Stretch  one', '“Stretch one');
+        if ($('g5-reach-say').textContent !== reachSay) $('g5-reach-say').textContent = reachSay;
+        document.querySelectorAll('[data-reach]').forEach(b => {
+            b.classList.toggle('on', !!s && b.dataset.reach === s.reachHand);
+            b.disabled = !s || !st.live || guide.busy || s.setupLocked || s.phase === 'complete';
+        });
         document.querySelectorAll('#guide .sub').forEach(el => el.classList.toggle('active', el.dataset.sub === sub));
         document.querySelectorAll('[data-calib]').forEach(b => {
             const k = b.dataset.calib;
@@ -2197,7 +2212,8 @@
             b.classList.toggle('g-primary', k === nextCalib);
             b.textContent = `${c && c[k].done ? 'Redo' : 'Calibrate'} ${CALIB_LABEL[k]}`;
         });
-        setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · reach ${fmt(c.reach.distance, 2)} m · target radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
+        const staleLine = () => ['warn', `Reach was measured with the ${c.reach.hand.toLowerCase()} arm, but the reaching arm is now ${s.reachHand.toLowerCase()}. Redo reach to use the ${s.reachHand.toLowerCase()} arm.`];
+        setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · reach ${fmt(c.reach.distance, 2)} m · target radius ${fmt(c.reach.radius, 2)} m`], ...(reachStale(s) ? [staleLine()] : [])] : [['bad', 'Not calibrated']]);
         setChecks('g5-height', c && c.height.done ? [['ok', `Height ${fmt(c.height.height, 2)} m`]] : [['bad', 'Not calibrated']]);
         const box = handsInBox();
         const boxAt = (name, h) => ['ok', `${name} at x ${fmt(h.x, 2)}, y ${fmt(h.y, 2)}, z ${fmt(h.z, 2)} m`];
@@ -2218,7 +2234,7 @@
             tick3(st.done[3], 'Run plan received by headset'),
             ...(guide.resume ? [tick3(false, 'The headset page reloaded. Choose Continue or New session.')] : []),
             tick3(!!(s && s.recentred), 'Recentred'),
-            tick3(!!(c && c.reach.done), 'Reach calibrated'),
+            tick3(!!(c && c.reach.done && !reachStale(s)), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
             tick3(!!(c && c.lap.done), 'Home calibrated')
         ];
@@ -2275,7 +2291,7 @@
                 document.querySelectorAll('[data-ucalib], #u-exp-go, #u-id-go, #g-relock').forEach(b => { b.disabled = idle; });
                 if (document.activeElement !== $('u-exp')) $('u-exp').value = s.experimenter || '';
                 if (document.activeElement !== $('u-id')) $('u-id').value = s.participantId || '';
-                setChecks('g7-calib', c ? [['ok', `Reach radius ${fmt(c.reach.radius, 2)} m`], ['ok', `Height ${fmt(c.height.height, 2)} m`], ...boxLines] : []);
+                setChecks('g7-calib', c ? [['ok', `Reach radius ${fmt(c.reach.radius, 2)} m`], ...(reachStale(s) ? [staleLine()] : []), ['ok', `Height ${fmt(c.height.height, 2)} m`], ...boxLines] : []);
             }
             guide.unlockedShown = unlocked;
         }
@@ -2445,7 +2461,7 @@
         BACKUP_FILES.forEach(f => { backup[f] = []; });
         backup.headers = {};
         backup.run = notStarted ? previous.run : previous.run + 1;
-        guide.resume = { nextRun: backup.run, kept: backup.archive.length, plan: previous.plan, dominantHand: previous.dominantHand, experimenter: previous.experimenter, participantId: previous.participantId, mode: previous.mode, homeMode: previous.homeMode };
+        guide.resume = { nextRun: backup.run, kept: backup.archive.length, plan: previous.plan, dominantHand: previous.dominantHand, reachHand: previous.reachHand, experimenter: previous.experimenter, participantId: previous.participantId, mode: previous.mode, homeMode: previous.homeMode };
     }
 
     function renderResume(st) {
@@ -2465,7 +2481,7 @@
         if (!next) return;
         guide.busy = true;
         $('g-resume-msg').textContent = 'Sending…';
-        const steps = [['setDominant', r.dominantHand], ['setExperimenter', r.experimenter], ['setParticipant', r.participantId], ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
+        const steps = [['setDominant', r.dominantHand], ...(r.reachHand ? [['setReachHand', r.reachHand]] : []), ['setExperimenter', r.experimenter], ['setParticipant', r.participantId], ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
         for (const [name, value] of steps) {
             const result = await sendCmd(name, value);
             if (!result.ok) {
@@ -3132,7 +3148,7 @@
         $('g7-b-recal').hidden = !link.recal;
         $('g7-b-say').hidden = !pending;
         if (pending) $('g7-b-say').textContent = document.querySelector(`#guide .sub[data-sub="${pending}"] .say`).textContent;
-        setChecks('g7-b-recal-status', [tick3(recalDone, redone.length ? `Recalibrated: ${redone.map(k => CALIB_LABEL[k]).join(', ')}` : guide.recalSkipped ? 'Skipped' : 'Not redone', true)]);
+        setChecks('g7-b-recal-status', [tick3(recalDone, redone.length ? `Recalibrated: ${redone.map(k => CALIB_LABEL[k]).join(', ')}` : guide.recalSkipped ? 'Skipped' : 'Not redone', true), ...(reachStale(s) ? [['warn', `Reach was measured with the ${s.calib.reach.hand.toLowerCase()} arm, but the reaching arm is now ${s.reachHand.toLowerCase()}. Redo reach to use the ${s.reachHand.toLowerCase()} arm.`]] : [])]);
         document.querySelectorAll('[data-bcalib], #g7-b-skip, #g7-b-finish').forEach(b => { b.disabled = !st.live || guide.busy; });
         $('g7-b-add').disabled = guide.busy;
         const start = $('g7-b-start');
@@ -3366,6 +3382,10 @@
         $('g-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('g-id').blur(); confirmSetup(); } });
         $('g-confirm').addEventListener('click', confirmSetup);
         $('g-recentre').addEventListener('click', () => receiver.requestRecentre());
+        document.querySelectorAll('[data-reach]').forEach(b => b.addEventListener('click', () => {
+            const s = receiver.headsetState;
+            runGuideCmd(s && s.phase !== 'setup' ? 7 : 5, 'setReachHand', b.dataset.reach, `The reaching arm is now the ${b.dataset.reach.toLowerCase()} arm.`);
+        }));
         document.querySelectorAll('#guide .sub').forEach(el => el.addEventListener('click', () => { guide.sub = el.dataset.sub; renderGuide(); }));
         document.querySelectorAll('[data-calib]').forEach(b => b.addEventListener('click', (e) => {
             e.stopPropagation();

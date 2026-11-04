@@ -67,7 +67,7 @@
     const rand = (a, b) => a + Math.random() * (b - a);
     const LAP = { L: { x: -0.2, y: 0.62, z: -0.3 }, R: { x: 0.2, y: 0.62, z: -0.3 } };
 
-    function makeParticipant(sm, spectator, score, left, right) {
+    function makeParticipant(sm, spectator, left, right) {
         const hands = { L: left, R: right };
         const reachPose = { x: rand(0.08, 0.14), y: rand(1.05, 1.12), z: -rand(0.7, 0.76) };
         const participant = { frozen: false, trial: null };
@@ -138,7 +138,7 @@
                 stepTrial(now);
                 const trial = participant.trial;
                 const setup = sm.phase === 'setup' || sm.phase === 'between';
-                const reachSide = setup && spectator.cue === 'reach' ? (score.dominantHand === 'LEFT' ? 'L' : 'R') : null;
+                const reachSide = setup && spectator.cue === 'reach' ? (sm.reachHand() === 'LEFT' ? 'L' : 'R') : null;
                 ['L', 'R'].forEach((side) => {
                     if (trial && trial.moving && trial.side === side) return;
                     if (side === reachSide) goTo(hands[side], { x: (side === 'L' ? -1 : 1) * reachPose.x, y: reachPose.y, z: reachPose.z }, 800);
@@ -192,8 +192,7 @@
         spectator.leftHandData = left.data;
         spectator.rightHandData = right.data;
 
-        const score = component('#score-display', 'score-manager');
-        const participant = makeParticipant(sm, spectator, score, left, right);
+        const participant = makeParticipant(sm, spectator, left, right);
         window.__practice = { left, right, sm, dm, spectator, participant };
         scene.setAttribute('practice-participant', '');
     }

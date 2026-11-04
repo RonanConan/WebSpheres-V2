@@ -1,4 +1,4 @@
-const APP_VERSION = '2.5.4';
+const APP_VERSION = '2.5.5';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -307,6 +307,7 @@ AFRAME.registerComponent('spectator-manager', {
             experimenter: dataM?.experimenter ?? '',
             homeMode: sm?.homeMode ?? 'one-box',
             dominantHand: scoreM?.dominantHand ?? 'RIGHT',
+            reachHand: sm?.reachHand && scoreM ? sm.reachHand() : 'RIGHT',
             condition: scoreM?.currentCondition ?? 1,
             mode: sm?.mode ?? 'standard',
             totalTrials: sm?.totalTrials ?? 352,
@@ -412,7 +413,8 @@ AFRAME.registerComponent('spectator-manager', {
     },
 
     setCue: function (id) {
-        const text = id ? this.CUES[id] : '';
+        const sphere = document.querySelector('#sphere-manager')?.components?.['sphere-manager'];
+        const text = id === 'reach' && sphere?.reachHand ? `Stretch your ${sphere.reachHand().toLowerCase()} arm straight out` : id ? this.CUES[id] : '';
         if (id && !text) return;
         this.cue = id || null;
         const box = document.querySelector('#participant-cue');
