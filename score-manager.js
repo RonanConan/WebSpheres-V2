@@ -15,7 +15,7 @@ AFRAME.registerComponent('score-manager', {
         this.leftHandCriticalChance = 0.3;
         this.rightHandCriticalChance = 0.3;
         this.currentCondition = 1;
-        this.dominantHand = 'LEFT';
+        this.dominantHand = 'RIGHT';
 
         // Milestone tracking - persisted
         this.lastMilestoneReached = 0;

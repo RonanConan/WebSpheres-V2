@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.5.2', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.5.3', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -53,11 +53,11 @@ const KH = 'Timestamp,HandX\n';
   await tick(500);
   console.log('STEP 1 — CONNECT');
   ok(await E(() => document.getElementById('app').classList.contains('left-open') && document.getElementById('left-slot').offsetWidth === 380), 'guide panel open by default in the 380 px left slot');
-  ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('warn:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
+  ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('info:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.2, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.5.2' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.3, headset 1.9.0. Hard-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.5.3' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -147,13 +147,13 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 6 && (await allCmds()).includes('cue:ready'), 'step 5: headset cue "ready"');
   await frame(); await tick();
   const req = await checks('g6-required');
-  ok(req.length === 9 && req.every(r => r.startsWith('ok:')), 'all 9 required checks ✓ (' + req.map(r => r.split(':')[1]).join(', ') + ')');
+  ok(req.length === 10 && req.every(r => r.startsWith('ok:')), 'all 10 required checks ✓ (' + req.map(r => r.split(':')[1]).join(', ') + ')');
   ok((await checks('g6-advisory')).every(r => r.startsWith('ok:')) && (await text('g-start')) === 'Start run 1' && await E(() => !document.getElementById('g-start').disabled), 'advisory ✓ → "Start" enabled');
   await frame({ leftValid: false, left: null }); await tick();
   ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start run 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.5.2', participantId: '' }); await tick();
+  await setState({ version: '2.5.3', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });

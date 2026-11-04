@@ -1,4 +1,4 @@
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.5.3';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -306,7 +306,7 @@ AFRAME.registerComponent('spectator-manager', {
             participantId: dataM?.participantId ?? '',
             experimenter: dataM?.experimenter ?? '',
             homeMode: sm?.homeMode ?? 'one-box',
-            dominantHand: scoreM?.dominantHand ?? 'LEFT',
+            dominantHand: scoreM?.dominantHand ?? 'RIGHT',
             condition: scoreM?.currentCondition ?? 1,
             mode: sm?.mode ?? 'standard',
             totalTrials: sm?.totalTrials ?? 352,
@@ -574,7 +574,7 @@ AFRAME.registerComponent('spectator-manager', {
             height: sm?.height ?? 1.2,
             score: scoreM?.score ?? 0,
             condition: scoreM?.currentCondition ?? 1,
-            dominantHand: scoreM?.dominantHand ?? 'LEFT',
+            dominantHand: scoreM?.dominantHand ?? 'RIGHT',
             fireMode: scoreM?.isFireMode ?? false,
             isPaused: sm?.isPaused ?? true,
             trialCount: dataM?.trialNumber ?? 0,

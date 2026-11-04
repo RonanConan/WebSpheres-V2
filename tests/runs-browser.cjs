@@ -137,7 +137,7 @@ async function syncSuite(b) {
   await o.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
-  const BASE = { type: 'state', version: '2.5.2', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
+  const BASE = { type: 'state', version: '2.5.3', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
   const stateRun2 = Object.assign({}, BASE, { run: 2, backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, completedRuns: [{ run: 1, prefix: 'P1_run1_', trials: 2, kinL: 1, kinR: 1, info: 'Key,Value\nRun,1\n', ms: 1000, recentres: 1, pauses: 0 }] });
   const rows = (run, file, from, lines) => emit({ type: 'rows', run, file, from, header: 'H\n', lines });
   const bk = () => O(() => { const k = window.__obs.backup; return { run: k.run, archived: k.archive.length, t: k.trials.length, l: k.kinL.length, r: k.kinR.length }; });
@@ -194,7 +194,7 @@ async function offlineSuite(b) {
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const runs = [{ condition: 1, off: true, recal: false }, { condition: 2, off: false, recal: false }];
-  const STATE = { type: 'state', version: '2.5.2', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.5.3', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
   const cmds = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue'));
   const dirty = () => O(() => window.__obs.guide.planDirty);
@@ -346,14 +346,13 @@ async function guidedSuite(b) {
   ok(hp.mode === 'fmode' && hp.cond === 1 && hp.plan.runs.length === 3 && hp.plan.runs[1].off && hp.plan.runs[1].recal && hp.plan.runs[1].condition === 2, 'headset received length, first reward and plan');
   ok(await shown('#v-run-item') && (await text('v-run')) === '1 / 3', 'top bar shows Run');
 
-  await o.click('[data-next="4"]');
+  await H(() => { document.querySelector('#spectator-manager').components['spectator-manager'].activeSpace = {}; });
   await waitStep(5);
   await H(() => { const c = document.querySelector('a-scene').camera.el.getAttribute('position'); window.__track('L', [c.x - 0.1, c.y - 0.1, c.z - 0.45]); window.__track('R', [c.x + 0.1, c.y, c.z - 0.6]); });
   await o.click('[data-calib="reach"]'); await waitText('g5-reach', 'hand');
   await o.click('[data-calib="height"]'); await waitText('g5-height', 'Height');
   await H(() => window.__home(true));
   await o.click('[data-calib="lap"]'); await waitText('g5-lap', 'Home box at');
-  await o.click('[data-next="5"]');
   await waitStep(6);
   await o.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 4000 });
   ok((await text('g-start')).startsWith('Start run 1'), 'button reads Start run 1');

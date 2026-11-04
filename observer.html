@@ -60,7 +60,8 @@
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .group { display: flex; }
         .group button + button { margin-left: -1px; }
-        #recentre { font-size: 1rem; font-weight: 700; letter-spacing: 0.06em; padding: 0 1.4rem; background: var(--accent); color: #031418; border-color: var(--accent); }
+        #recentre { font-size: 1rem; font-weight: 700; letter-spacing: 0.06em; padding: 0 1.4rem; }
+        #recentre.want { background: var(--accent); color: #031418; border-color: var(--accent); }
         #recentre:disabled { background: #151a24; color: var(--muted); border-color: var(--line); opacity: 1; }
         #recentre-note { flex: 1 1 9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; color: var(--muted); }
         #recentre-note.busy { color: var(--warn); }
@@ -111,6 +112,11 @@
         .g-row { margin: 0.8rem 0; }
         .g-row .label { margin-bottom: 0.35rem; }
         .g-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+        .g-actions[hidden] { display: none; }
+        .step-val { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.85rem; }
+        .step-head > span:nth-child(2) { flex: none; }
+        .g6-all summary { padding: 0.3rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
+        .g6-all .label { margin-top: 0.5rem; }
         .g-primary { background: var(--accent); border-color: var(--accent); color: #031418; font-weight: 700; }
         .g-primary.amber { background: var(--warn); border-color: var(--warn); color: #1a1000; }
         .g-primary:disabled { background: #151a24; border-color: var(--line); color: var(--muted); opacity: 1; }
@@ -295,7 +301,7 @@
                 </div>
             </section>
             <section class="step" data-step="2">
-                <button tabindex="-1" class="step-head" data-open="2"><span class="step-mark">2</span><span>Participant</span></button>
+                <button tabindex="-1" class="step-head" data-open="2"><span class="step-mark">2</span><span>Participant</span><span class="step-val" id="g2-val"></span></button>
                 <div class="step-body">
                     <div class="g-row"><div class="label">Experimenter</div><input id="g-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Participant ID</div><input id="g-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"></div>
@@ -307,7 +313,7 @@
                 </div>
             </section>
             <section class="step" data-step="3">
-                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Run plan</span></button>
+                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Run plan</span><span class="step-val" id="g3-val"></span></button>
                 <div class="step-body">
                     <ul class="checks" id="g3-checks"></ul>
                     <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-plan-send">Send to headset</button></div>
@@ -325,7 +331,7 @@
                 </div>
             </section>
             <section class="step" data-step="5">
-                <button tabindex="-1" class="step-head" data-open="5"><span class="step-mark">5</span><span>Calibrate</span></button>
+                <button tabindex="-1" class="step-head" data-open="5"><span class="step-mark">5</span><span>Calibrate</span><span class="step-val" id="g5-val"></span></button>
                 <div class="step-body">
                     <div class="sub" data-sub="reach">
                         <div class="label">Reach</div>
@@ -352,11 +358,14 @@
             <section class="step" data-step="6">
                 <button tabindex="-1" class="step-head" data-open="6"><span class="step-mark">6</span><span>Check</span></button>
                 <div class="step-body">
-                    <div class="label">Required</div>
-                    <ul class="checks" id="g6-required"></ul>
-                    <div class="label">Recommended</div>
-                    <ul class="checks" id="g6-advisory"></ul>
+                    <ul class="checks" id="g6-top"></ul>
                     <ul class="checks" id="g6-wake"></ul>
+                    <details class="g6-all"><summary>All checks</summary>
+                        <div class="label">Required</div>
+                        <ul class="checks" id="g6-required"></ul>
+                        <div class="label">Recommended</div>
+                        <ul class="checks" id="g6-advisory"></ul>
+                    </details>
                     <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start run 1</button></div>
                     <p class="g-msg" id="g6-msg"></p>
                 </div>
@@ -402,7 +411,7 @@
                             <div class="opts"><button tabindex="-1" data-ucalib="reach">Redo reach</button><button tabindex="-1" data-ucalib="height">Redo height</button><button tabindex="-1" data-ucalib="lap">Redo home</button></div>
                             <ul class="checks" id="g7-calib"></ul>
                         </div>
-                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-relock">Relock setup</button></div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary amber" id="g-relock">Relock setup</button></div>
                     </div>
                     </div>
                     <div id="g7-between" hidden>
@@ -1803,7 +1812,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.5.2';
+    const APP_VERSION = '2.5.3';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
@@ -2094,8 +2103,8 @@
         }
 
         setChecks('g1-checks', [
-            tick3(st.live, st.live ? 'Connected' : (s ? 'Reconnecting…' : 'Searching for headset…'), !s),
-            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Hard-refresh both pages.`) : ['warn', 'Version checked on connection']
+            s || st.live ? tick3(st.live, st.live ? 'Connected' : 'Reconnecting…') : ['info', 'Searching for headset…'],
+            s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Hard-refresh both pages.`) : ['info', 'Version checked on connection']
         ]);
         $('g1-note').textContent = st.live ? '' : 'Open WebSpheres on the Quest. Enter VR or AR. Connects automatically.';
 
@@ -2105,22 +2114,38 @@
         $('g-id').disabled = locked;
         $('g-exp').disabled = locked;
         if (s) {
+            const sentLine = (label, sent, typed) => typed && typed !== sent ? ['warn', `${label} not sent: ${typed}`] : tick3(!!sent, `${label}: ${sent || 'not sent'}`);
             setChecks('g2-checks', [
-                tick3(!!s.experimenter, s.experimenter ? `Experimenter: ${s.experimenter}` : 'Experimenter: not sent'),
-                tick3(!!s.participantId, s.participantId ? `Participant ID: ${s.participantId}` : 'Participant ID: not sent'),
-                tick3(!guide.formDirty || guide.form.dom === s.dominantHand, `Dominant hand: ${HAND_LABEL[s.dominantHand] || '–'}`, true)
+                sentLine('Experimenter', s.experimenter, $('g-exp').value.trim()),
+                sentLine('Participant ID', s.participantId, $('g-id').value.trim()),
+                sentLine('Dominant hand', HAND_LABEL[s.dominantHand], HAND_LABEL[guide.form.dom])
             ]);
         }
+        $('g-confirm').classList.toggle('g-primary', !st.done[2]);
+        [2, 3, 4].forEach(n => { document.querySelector(`[data-next="${n}"]`).closest('.g-actions').hidden = !st.done[n]; });
 
         $('g-recentre').disabled = !st.live;
+        $('g-recentre').classList.toggle('g-primary', !(s && s.recentred));
+        const wantRecentre = !!s && st.live && !$('app').classList.contains('left-open') && (s.phase === 'setup' ? !s.recentred : s.phase === 'between' && !(s.betweenRecentres > 0));
+        $('recentre').classList.toggle('want', wantRecentre);
         setChecks('g4-checks', [tick3(!!(s && s.recentred), s && s.recentred ? 'Recentred' : 'Not recentred'), ...recentreLine()]);
 
         const c = s && s.calib;
         const sub = activeSub(s);
+        const stepVal = (n, text) => {
+            const el = $(`g${n}-val`);
+            const shown = st.done[n] && open !== n ? text() : '';
+            if (el.textContent !== shown) { el.textContent = shown; el.title = shown; }
+        };
+        stepVal(2, () => `${s.participantId}, ${HAND_LABEL[s.dominantHand] || '–'}`);
+        stepVal(3, () => `${s.plan.runs.length} ${s.plan.runs.length === 1 ? 'run' : 'runs'} · ${MODE_TRIALS[s.plan.mode] * s.plan.runs.length} trials`);
+        stepVal(5, () => `Reach ${fmt(c.reach.distance, 2)} m, height ${fmt(c.height.height, 2)} m`);
+        const nextCalib = c ? ['reach', 'height', 'lap'].find(k => !c[k].done) : 'reach';
         document.querySelectorAll('#guide .sub').forEach(el => el.classList.toggle('active', el.dataset.sub === sub));
         document.querySelectorAll('[data-calib]').forEach(b => {
             const k = b.dataset.calib;
             b.disabled = locked || !st.live || guide.busy;
+            b.classList.toggle('g-primary', k === nextCalib);
             b.textContent = `${c && c[k].done ? 'Redo' : 'Calibrate'} ${CALIB_LABEL[k]}`;
         });
         setChecks('g5-reach', c && c.reach.done ? [['ok', `${HAND_LABEL[c.reach.hand] || c.reach.hand} hand · distance ${fmt(c.reach.distance, 2)} m · radius ${fmt(c.reach.radius, 2)} m`]] : [['bad', 'Not calibrated']]);
@@ -2140,6 +2165,7 @@
             tick3(st.done[2], 'Setup received by headset'),
             tick3(st.done[3], 'Run plan received by headset'),
             ...(guide.resume ? [tick3(false, 'Headset reloaded: choose Continue or New session')] : []),
+            tick3(!!(s && s.recentred), 'Recentred'),
             tick3(!!(c && c.reach.done), 'Reach calibrated'),
             tick3(!!(c && c.height.done), 'Height calibrated'),
             tick3(!!(c && c.lap.done), 'Home calibrated')
@@ -2152,6 +2178,10 @@
         ];
         setChecks('g6-required', required);
         setChecks('g6-advisory', advisory);
+        const allChecks = required.concat(advisory);
+        const failing = allChecks.filter(r => r[0] !== 'ok');
+        const passed = allChecks.length - failing.length;
+        setChecks('g6-top', [...failing, ...(passed ? [['ok', failing.length ? `${passed} of ${allChecks.length} passed` : `All ${allChecks.length} passed`]] : [])]);
         setChecks('g6-wake', wake.failedAt ? [['warn', 'Laptop may sleep. Check power settings.']] : []);
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
@@ -2311,11 +2341,12 @@
         const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
         const sent = st.done[3];
         setChecks('g3-checks', [
-            tick3(sent, `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_LABEL[plan.mode]} each`, true),
-            tick3(sent, plan.runs.map(r => COND_LABEL[r.condition]).join(', '), true),
-            tick3(sent, `Home: ${HOME_LABEL[plan.home]}`, true)
+            [sent ? 'ok' : 'info', `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_LABEL[plan.mode]} each`],
+            [sent ? 'ok' : 'info', plan.runs.map(r => COND_LABEL[r.condition]).join(', ')],
+            [sent ? 'ok' : 'info', `Home: ${HOME_LABEL[plan.home]}`]
         ]);
         $('g-plan-send').disabled = !st.live || guide.busy || !inSetup;
+        $('g-plan-send').classList.toggle('g-primary', !sent);
         const firstOpen = between ? s.run : 0;
         const key = JSON.stringify([plan, firstOpen, between]);
         if (key === guide.planKey) return;
@@ -3046,6 +3077,7 @@
         $('g7-b-add').disabled = guide.busy;
         const start = $('g7-b-start');
         start.textContent = next ? `Start run ${s.run + 1}` : 'Start next run';
+        start.classList.toggle('g-primary', off || recentred);
         start.disabled = !st.live || guide.busy || s.closing || !next || !recalDone || (off && !(guide.removedTick && s.inVR && recentred));
     }
 
@@ -3064,6 +3096,7 @@
         }
         guide.busy = false;
         guide.planDirty = false;
+        guide.expanded = null;
         setMsg(3, 'Received by headset', 'ok');
         renderGuide();
     }
@@ -3258,6 +3291,7 @@
         }
         guide.busy = false;
         guide.formDirty = false;
+        guide.expanded = null;
         setMsg(2, 'Received by headset', 'ok');
         renderGuide();
     }

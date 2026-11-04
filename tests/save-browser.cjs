@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.5.2';
+const VERSION = '2.5.3';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
