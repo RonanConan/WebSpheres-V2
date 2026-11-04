@@ -32,7 +32,7 @@
     }
 
     function makeHand(side, controller) {
-        const hand = { side, controller, x: 0, y: 0, z: 0, valid: true, shape: handShape(side) };
+        const hand = { side, controller, x: 0, y: 0, z: 0, valid: true, shape: handShape(side), base: { x: 0, y: 0, z: 0 }, rest: { x: 0, y: 0, z: 0 }, goal: null, motion: null, phase: Math.random() * 6 };
         const htc = controller.components['hand-tracking-controls'];
         controller.components['tracked-controls'] = { play: () => {}, pause: () => {}, remove: () => {} };
 
@@ -64,6 +64,89 @@
         return hand;
     }
 
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const LAP = { L: { x: -0.2, y: 0.62, z: -0.3 }, R: { x: 0.2, y: 0.62, z: -0.3 } };
+
+    function makeParticipant(sm, spectator, score, left, right) {
+        const hands = { L: left, R: right };
+        const reachPose = { x: rand(0.08, 0.14), y: rand(1.05, 1.12), z: -rand(0.7, 0.76) };
+        const participant = { frozen: false, trial: null };
+
+        const goTo = (hand, to, ms, bow) => {
+            const goal = hand.goal;
+            if (goal && Math.hypot(goal.x - to.x, goal.y - to.y, goal.z - to.z) < 0.001) return;
+            hand.goal = { x: to.x, y: to.y, z: to.z };
+            hand.motion = { from: { x: hand.base.x, y: hand.base.y, z: hand.base.z }, to: hand.goal, start: performance.now(), ms, bow: bow || { x: 0, y: 0, z: 0 } };
+        };
+
+        const advance = (hand, now) => {
+            const m = hand.motion;
+            if (m) {
+                const s = Math.min(1, (now - m.start) / m.ms);
+                const e = s * s * s * (10 - 15 * s + 6 * s * s);
+                const arc = Math.sin(Math.PI * e);
+                ['x', 'y', 'z'].forEach((k) => { hand.base[k] = m.from[k] + (m.to[k] - m.from[k]) * e + m.bow[k] * arc; });
+                if (s >= 1) hand.motion = null;
+            }
+            const sway = (rate, phase) => 0.002 * Math.sin(now / rate + phase);
+            hand.place(hand.base.x + sway(700, hand.phase), hand.base.y + sway(900, hand.phase + 1), hand.base.z + sway(800, hand.phase + 2));
+        };
+
+        const restFor = (side) => {
+            const lap = sm.calib.lap;
+            if (!lap.done) return LAP[side];
+            const j = hands[side].rest;
+            const base = sm.homeMode === 'per-hand' ? (side === 'L' ? sm.homeLeft : sm.homeRight) : (() => {
+                const home = sm.homeRectangle.getAttribute('position');
+                return { x: home.x + (side === 'L' ? -0.16 : 0.16), y: home.y, z: home.z };
+            })();
+            return { x: base.x + j.x, y: base.y + j.y, z: base.z + j.z };
+        };
+
+        const chooseSide = (x) => (Math.random() < 1 / (1 + Math.exp(x / 0.12)) ? 'L' : 'R');
+
+        const stepTrial = (now) => {
+            const live = (sm.phase === 'running' || sm.phase === 'pausing') && sm.currentState === 'visible' ? sm.activeSphere : null;
+            if (participant.trial && participant.trial.sphere !== live) participant.trial = null;
+            if (live && !participant.trial) {
+                const at = live.getAttribute('position');
+                participant.trial = { sphere: live, side: chooseSide(at.x), decideAt: now + rand(250, 650), moving: false };
+            }
+            const trial = participant.trial;
+            if (trial && !trial.moving && now >= trial.decideAt) {
+                const at = trial.sphere.getAttribute('position');
+                const bow = { x: rand(-0.11, 0.11), y: rand(0.02, 0.1), z: rand(-0.07, 0.07) };
+                goTo(hands[trial.side], at, rand(450, 800), bow);
+                hands[trial.side].rest = { x: rand(-0.04, 0.04), y: rand(-0.02, 0.02), z: rand(-0.05, 0.05) };
+                trial.moving = true;
+            }
+        };
+
+        participant.step = () => {
+            const now = performance.now();
+            if (!participant.frozen) {
+                stepTrial(now);
+                const trial = participant.trial;
+                const setup = sm.phase === 'setup' || sm.phase === 'between';
+                const reachSide = setup && spectator.cue === 'reach' ? (score.dominantHand === 'LEFT' ? 'L' : 'R') : null;
+                ['L', 'R'].forEach((side) => {
+                    if (trial && trial.moving && trial.side === side) return;
+                    if (side === reachSide) goTo(hands[side], { x: (side === 'L' ? -1 : 1) * reachPose.x, y: reachPose.y, z: reachPose.z }, 800);
+                    else goTo(hands[side], restFor(side), rand(450, 750));
+                });
+                advance(left, now);
+                advance(right, now);
+            }
+        };
+        return participant;
+    }
+
+    AFRAME.registerComponent('practice-participant', {
+        tick: function () {
+            if (window.__practice && window.__practice.participant) window.__practice.participant.step();
+        }
+    });
+
     function install(scene) {
         const component = (selector, name) => document.querySelector(selector).components[name];
         const sm = component('#sphere-manager', 'sphere-manager');
@@ -90,14 +173,19 @@
 
         const left = makeHand('L', sm.leftController);
         const right = makeHand('R', sm.rightController);
-        left.place(-0.2, 0.9, -0.36);
-        right.place(0.2, 0.9, -0.36);
+        Object.assign(left.base, LAP.L);
+        Object.assign(right.base, LAP.R);
+        left.place(LAP.L.x, LAP.L.y, LAP.L.z);
+        right.place(LAP.R.x, LAP.R.y, LAP.R.z);
         sm.leftJoints = left.joints;
         sm.rightJoints = right.joints;
         spectator.leftHandData = left.data;
         spectator.rightHandData = right.data;
 
-        window.__practice = { left, right, sm, dm, spectator };
+        const score = component('#score-display', 'score-manager');
+        const participant = makeParticipant(sm, spectator, score, left, right);
+        window.__practice = { left, right, sm, dm, spectator, participant };
+        scene.setAttribute('practice-participant', '');
     }
 
     document.addEventListener('DOMContentLoaded', () => {

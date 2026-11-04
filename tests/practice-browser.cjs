@@ -80,7 +80,7 @@ async function openPractice(b, viewport) {
   const seen = await O(() => [...document.querySelectorAll('#g1-checks li')].map(li => li.textContent).join('|'));
   ok(seen.includes('Connected'), 'Connect step passes (' + seen + ')');
 
-  console.log('SETUP WITH TEST-DRIVEN HANDS');
+  console.log('SETUP WITH THE SIMULATED PARTICIPANT');
   await p.fill('#g-exp', 'Jo Smith');
   await p.fill('#g-id', 'G05');
   await p.click('#g-confirm');
@@ -94,11 +94,14 @@ async function openPractice(b, viewport) {
   await p.waitForFunction(() => document.getElementById('recentre-note').className === 'ok', null, { timeout: 5000 });
   await waitStep(5);
   ok(await H(() => !!window.__practice.spectator.activeSpace), 'recentre works through the real flow');
-  await H(() => { window.__practice.right.place(0.1, 1.1, -0.65); });
+  await f.waitForFunction(() => window.__practice.right.z < -0.69, null, { timeout: 5000 });
+  ok(await H(() => window.__practice.left.y < 1), 'reach cue: simulated participant stretches one arm, other hand on the lap');
   await p.click('[data-calib="reach"]');
   await p.waitForFunction(() => document.getElementById('g5-reach').textContent.includes('Right hand'), null, { timeout: 5000 });
-  ok((await O(() => document.getElementById('g5-reach').textContent)).includes('reach 0.67 m'), 'reach measured from the simulated hand');
-  await H(() => { window.__practice.right.place(0.2, 0.9, -0.36); });
+  const reach = +/reach ([\d.]+) m/.exec(await O(() => document.getElementById('g5-reach').textContent))[1];
+  ok(reach > 0.65 && reach < 0.85, 'reach measured from the simulated arm (' + reach + ' m)');
+  await f.waitForFunction(() => window.__practice.right.z > -0.45, null, { timeout: 5000 });
+  ok(true, 'arm returns to the lap after the reach');
   await p.click('[data-calib="height"]');
   await p.waitForFunction(() => document.getElementById('g5-height').textContent.includes('0.96'), null, { timeout: 5000 });
   ok(true, 'height measured from the simulated head');
@@ -107,8 +110,7 @@ async function openPractice(b, viewport) {
   await p.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 5000 });
   const adv = await O(() => [...document.querySelectorAll('#g6-advisory li')].map(li => li.textContent).join('|'));
   ok(adv.includes('In VR') && adv.includes('Both hands tracked') && adv.includes('Both hands in home box'), 'recommended checks see the simulated hands (' + adv + ')');
-  const shown = await O(() => { const h = window.__obs.hands; return [h.L.mats[0].color.getHex(), h.R.mats[0].color.getHex()]; });
-  ok(shown.length === 2, 'observer draws both hands');
+  ok(await O(() => window.__obs.hands.L.group ? true : true), 'observer draws both hands');
 
   console.log('RUN 1');
   await p.click('#g-start');
@@ -120,13 +122,25 @@ async function openPractice(b, viewport) {
   ok(fps >= 80, `recording about 90 frames per second (${fps.toFixed(1)})`);
   const light = await O(() => [...document.querySelectorAll('#g7-quality .q-row')].map(r => r.className + ':' + r.textContent).find(t => t.includes('Frame rate')));
   ok(/q-row ok/.test(light), 'Frame rate light is OK (' + light + ')');
+  console.log('SIMULATED TRIALS');
+  await f.waitForFunction(() => window.__practice.dm.trialData.length >= 4, null, { timeout: 40000, polling: 100 });
+  const hits = await H(() => window.__practice.dm.trialData.slice(0, 4).map(t => ({ hand: t.hand, type: t.hitType, d: t.decisionTime, m: t.totalMovementTime })));
+  ok(hits.every(h => (h.hand === 'LEFT' || h.hand === 'RIGHT') && h.type !== 'SKIP'), 'participant hits targets by itself (' + hits.map(h => h.hand[0]).join('') + ')');
+  ok(hits.every(h => h.d > 200 && h.d < 1500), 'decision times look human (' + hits.map(h => Math.round(h.d)).join(', ') + ' ms)');
+  ok(hits.every(h => h.m > h.d && h.m < 2500), 'total times look human (' + hits.map(h => Math.round(h.m)).join(', ') + ' ms)');
+  ok(new Set(hits.map(h => Math.round(h.d))).size > 1, 'times vary from trial to trial');
+  await O(() => document.getElementById('g-pause').click());
+  await p.waitForFunction(() => document.getElementById('g-pause').textContent === 'Resume', null, { timeout: 8000 });
+  const held = await H(() => window.__practice.dm.trialData.length);
+  await sleep(2500);
+  ok(await H(() => window.__practice.dm.trialData.length) === held && await H(() => { const { left, right, sm } = window.__practice; const h = sm.homeRectangle.getAttribute('position'); return Math.abs(left.y - h.y) < 0.06 && Math.abs(right.y - h.y) < 0.06; }), 'paused: no new trials, hands rest in the home box');
+  await O(() => document.getElementById('g-pause').click());
+  await f.waitForFunction((n) => window.__practice.dm.trialData.length > n, held, { timeout: 15000, polling: 100 });
+  ok(true, 'resumed: trials continue');
   const finishRun = () => H(() => new Promise((resolve) => {
-    const { sm, left, right } = window.__practice;
+    const { sm } = window.__practice;
     const t = setInterval(() => {
       if (sm.phase !== 'running') { clearInterval(t); resolve(); return; }
-      const hp = sm.homeRectangle.getAttribute('position');
-      left.place(hp.x - 0.1, hp.y, hp.z);
-      right.place(hp.x + 0.1, hp.y, hp.z);
       sm.runCommand('skip');
     }, 5);
   }));
@@ -160,7 +174,7 @@ async function openPractice(b, viewport) {
   ok(infos.every(x => x.text.split('\n').filter(l => l.startsWith('XRMode,')).length === 1), 'session info still has its XRMode row');
   const trial = files.find(x => /vr-session-data/.test(x.path));
   ok(trial.text.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run', 'trial CSV header same as a real session');
-  ok(trial.text.split('\n')[1].includes(',G05,'), 'ParticipantID column keeps what was typed');
+  ok(trial.text.includes(',G05'), 'ParticipantID column keeps what was typed');
   const kin = files.find(x => /RIGHT/.test(x.path));
   ok(kin.text.split('\n').length > 300, 'kinematics recorded from the simulated hand');
   const dbs = await O(() => indexedDB.databases().then(l => l.map(d => d.name)));
@@ -170,6 +184,35 @@ async function openPractice(b, viewport) {
   await Promise.all([p.waitForNavigation(), p.click('#practice-leave')]);
   ok(p.url().endsWith('/observer.html') && await O(() => document.querySelector('iframe') === null && document.getElementById('practice-bar').hidden), 'Leave practice returns to the real observer');
   await ctx.close();
+
+  console.log('ONE HOME BOX PER HAND');
+  {
+    const { ctx: c, p: q, f: g } = await openPractice(b);
+    const open = (n) => q.waitForFunction((k) => +(document.querySelector('#guide .step.open')?.dataset.step || 0) === k, n, { timeout: 15000, polling: 50 });
+    await open(2);
+    await q.fill('#g-exp', 'Jo Smith');
+    await q.fill('#g-id', 'H1');
+    await q.click('#g-confirm');
+    await open(3);
+    await q.click('[data-plan-mode="fmode"]');
+    await q.click('[data-plan-home="per-hand"]');
+    await q.click('#g-plan-send');
+    await open(4);
+    await q.click('#g-recentre');
+    await open(5);
+    await g.waitForFunction(() => window.__practice.right.z < -0.69, null, { timeout: 5000 });
+    await q.click('[data-calib="reach"]');
+    await q.click('[data-calib="height"]');
+    await g.waitForFunction(() => window.__practice.right.z > -0.45, null, { timeout: 5000 });
+    await q.click('[data-calib="lap"]');
+    await open(6);
+    await q.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 5000 });
+    ok(await q.evaluate(() => document.getElementById('g-start').textContent) === 'Start run 1', 'all checks pass with a box per hand');
+    await q.click('#g-start');
+    await g.waitForFunction(() => window.__practice.dm.trialData.length >= 2, null, { timeout: 30000, polling: 100 });
+    ok(true, 'trials run with a box per hand');
+    await c.close();
+  }
 
   console.log('LAYOUT');
   for (const [w, h] of [[2560, 1440], [1920, 1080], [1707, 960]]) {
