@@ -30,7 +30,7 @@
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
         #app { display: grid; grid-template-columns: 0 minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; }
-        #app.left-open { grid-template-columns: 380px minmax(0, 1fr); }
+        #app.left-open { grid-template-columns: min(calc(380px * var(--scale)), 45vw) minmax(0, 1fr); }
         #left-slot { grid-column: 1; grid-row: 1 / 4; display: none; background: var(--bar); border-right: 1px solid var(--line); overflow-y: auto; overflow-anchor: none; }
         #app.left-open #left-slot { display: block; }
         #topbar, #bottombar { grid-column: 2; display: flex; align-items: center; background: var(--bar); overflow: hidden; white-space: nowrap; }
@@ -66,7 +66,7 @@
         #recentre-note.busy { color: var(--warn); }
         #recentre-note.ok { color: var(--ok); }
         #recentre-note.fail { color: var(--err); }
-        .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--bar); border-left: 1px solid var(--line); padding: 0 1.2rem 1.2rem; overflow-y: auto; transform: translateX(100%); visibility: hidden; transition: transform 0.15s ease, visibility 0s linear 0.15s; }
+        .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(calc(440px * var(--scale)), 100%); background: var(--bar); border-left: 1px solid var(--line); padding: 0 1.2rem 1.2rem; overflow-y: auto; transform: translateX(100%); visibility: hidden; transition: transform 0.15s ease, visibility 0s linear 0.15s; }
         .drawer.open { transform: none; visibility: visible; transition: transform 0.15s ease; }
         .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
         .drawer-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
@@ -152,7 +152,7 @@
         #g-skip { margin-left: auto; }
         #stage-alert { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 0.6rem 1rem; background: var(--warn); color: #1a1000; font-weight: 700; line-height: 1.35; pointer-events: none; }
         #stage-alert[hidden] { display: none; }
-        #stage:has(.drawer.open) #stage-alert { right: min(440px, 100%); }
+        #stage:has(.drawer.open) #stage-alert { right: min(calc(440px * var(--scale)), 100%); }
         .plan-charts { margin-top: 1.5rem; }
         .plan-charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0 1.5rem; }
         .chart-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 40px; cursor: pointer; line-height: 1.3; }

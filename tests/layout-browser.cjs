@@ -5,7 +5,7 @@ const FRAME = { seq: 1, head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 
 (async () => {
   const b = await launch();
   console.log('LAYOUT (Chromium)');
-  for (const [w, h] of [[1440, 900], [1280, 720]]) {
+  for (const [w, h] of [[2560, 1440], [1920, 1080], [1440, 900], [1280, 720]]) {
     const p = await b.newPage({ viewport: { width: w, height: h } });
     const errs = [];
     p.on('pageerror', e => errs.push(e.message));
@@ -23,6 +23,7 @@ const FRAME = { seq: 1, head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 
             if (pn) document.querySelector(`[data-panel="${pn}"]`).click();
           }, [scale, slot, panel]);
           await p.waitForTimeout(220);
+          await p.waitForFunction(() => document.getAnimations().length === 0);
           const r = await p.evaluate(() => {
             const rect = (el) => el.getBoundingClientRect();
             const bars = ['topbar', 'bottombar'].map(id => document.getElementById(id));
@@ -54,6 +55,9 @@ const FRAME = { seq: 1, head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 
               hscroll: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
               panelInStage: !pr || (pr.top >= stage.top - 0.5 && pr.bottom <= stage.bottom + 0.5 && pr.right <= stage.right + 0.5 && pr.left >= stage.left - 0.5),
               noteVisible: rect(note).width > 40,
+              slotW: rect(document.getElementById('left-slot')).width,
+              drawerW: open && open.classList.contains('drawer') ? rect(open).width : null,
+              stageW: stage.width,
               fit: (() => { const s = document.getElementById('stage'), c = window.__obs.camera, a = s.clientWidth / s.clientHeight; return c.isPerspectiveCamera ? Math.abs(c.aspect - a) < 1e-6 : Math.abs((c.right - c.left) / (c.top - c.bottom) - a) < 1e-6; })()
             };
           });
@@ -61,6 +65,8 @@ const FRAME = { seq: 1, head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 
           const good = !r.clipped.length && !r.overlaps.length && r.stack && !r.hscroll && r.panelInStage && r.btnH >= 44 && r.fit;
           ok(good, tag + (good ? '' : ' → ' + JSON.stringify(r)));
           if (!panel) ok(r.noteVisible || slot, tag + ': recentre status text has room');
+          if (slot && !panel) ok(Math.abs(r.slotW - Math.min(380 * scale, 0.45 * w)) < 1, tag + `: guide scales with text (${Math.round(r.slotW)} px)`);
+          if (r.drawerW !== null) ok(Math.abs(r.drawerW - Math.min(440 * scale, r.stageW)) < 1, tag + `: panel scales with text (${Math.round(r.drawerW)} px)`);
         }
       }
     }
