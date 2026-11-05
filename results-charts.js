@@ -460,7 +460,7 @@ const ResultsCharts = (() => {
                 ctx.fillRect(x0, box.y - 26, x1 - x0, box.h + 26);
                 ctx.globalAlpha = 1;
             }
-            const note = `${run.label}${run.recentres.length ? ` · Recentred ${run.recentres.length}×` : ''}`;
+            const note = `${run.label}${run.recentres.length ? `, recentred ${run.recentres.length}×` : ''}`;
             ctx.font = `600 13px ${FONT}`;
             text(ctx, ctx.measureText(note).width < x1 - x0 - 12 ? note : `Run ${run.run}`, x0 + 6, box.y - 10, run.recentres.length ? theme.warn : theme.text, 13, 'left', 600);
             cfg.lines.forEach(line => {
@@ -490,12 +490,12 @@ const ResultsCharts = (() => {
                     const m = marks(run);
                     const X1 = MAP.left, X2 = MAP.left + L.topW + MAP.gap + MAP.left;
                     const plotY = Y + MAP.rowHead;
-                    text(ctx, `${run.label} · From above`, X1 - 58, Y + 14, theme.text, 14, 'left', 600);
+                    text(ctx, `${run.label}, from above`, X1 - 58, Y + 14, theme.text, 14, 'left', 600);
                     text(ctx, `Total ${cm2(a.total)} cm²`, X1 + L.topW, Y + 14, theme.text, 14, 'right', 700);
-                    text(ctx, `Left ${cm2(a.left.area)} · Right ${cm2(a.right.area)} · Overlap ${cm2(a.overlap)}${m.radius ? ` · Target distance ${Math.round(m.radius)} cm` : ''}`, X1 + L.topW, Y + 33, theme.muted, 13, 'right');
+                    text(ctx, `Left ${cm2(a.left.area)}; right ${cm2(a.right.area)}; overlap ${cm2(a.overlap)}${m.radius ? `; target distance ${Math.round(m.radius)} cm` : ''}`, X1 + L.topW, Y + 33, theme.muted, 13, 'right');
                     text(ctx, 'From the side', X2 - 58, Y + 14, theme.text, 14, 'left', 600);
                     text(ctx, `Total ${cm2(b.total)} cm²`, X2 + L.sideW, Y + 14, theme.text, 14, 'right', 700);
-                    text(ctx, `Left ${cm2(b.left.area)} · Right ${cm2(b.right.area)}`, X2 + L.sideW, Y + 33, theme.muted, 13, 'right');
+                    text(ctx, `Left ${cm2(b.left.area)}; right ${cm2(b.right.area)}`, X2 + L.sideW, Y + 33, theme.muted, 13, 'right');
                     const P = mapPlot(ctx, X1, plotY, L.lim.x, L.lim.f, L.S, 'Left–right of home centre (cm)', 'Forward of home (cm)', theme);
                     drawOverlay(ctx, P.gx, P.gy, a.left, a.right, theme, [[framesOf(run, 'L'), theme.left, 0, 2], [framesOf(run, 'R'), theme.right, 0, 2]]);
                     ctx.save();
@@ -535,7 +535,10 @@ const ResultsCharts = (() => {
                     });
                     if (m.targets.length) {
                         const far = m.targets.reduce((n, t) => (t.f > n.f ? t : n));
-                        text(ctx, 'Targets', Q.gx(far.f) + 8, Q.gy(far.h) - 6, theme.text, 12, 'left', 600);
+                        ctx.font = `600 12px ${FONT}`;
+                        const fits = Q.gx(far.f) + 8 + ctx.measureText('Targets').width <= X2 + L.sideW;
+                        if (fits) text(ctx, 'Targets', Q.gx(far.f) + 8, Q.gy(far.h) - 6, theme.text, 12, 'left', 600);
+                        else text(ctx, 'Targets', X2 + L.sideW, Q.gy(far.h) - 10, theme.text, 12, 'right', 600);
                     }
                     if (m.homes.length) text(ctx, 'Home', Q.gx(Math.min(...m.homes.map(h => h.f))), Q.gy(m.homes[0].h) + 20, theme.text, 12, 'center', 600);
                     if (run.recentres.length) text(ctx, `The headset was recentred ${run.recentres.length}× during this run. Positions recorded before and after may not align.`, X1 - 58, plotY + L.plotH + MAP.axis + 10, theme.warn, 12);

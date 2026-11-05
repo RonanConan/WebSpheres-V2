@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.5.5';
+const VERSION = '2.6.0';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };
@@ -61,7 +61,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await st({ plan: PLAN, plannedRuns: 2 }); await frame(); await tick();
   ok((await checks('g3-checks')).every(r => r.startsWith('ok:')), 'plan facts ticked once sent');
   ok(await openStep() === 4, 'sending moves on to Position');
-  ok((await text('g3-val')) === '2 runs · 88 trials', 'collapsed Run plan shows runs and trials');
+  ok((await text('g3-val')) === '2 runs, 88 trials', 'collapsed Run plan shows runs and trials');
 
   console.log('VIEW BUTTONS');
   const viewsOff = () => E(() => [...document.querySelectorAll('[data-view]')].every(b => b.disabled));
@@ -99,7 +99,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok((await cyan()).join() === 'lap', 'height done: Calibrate home cyan');
   await p.click('[data-open="4"]'); await tick();
   ok(await E(() => !document.getElementById('g-recentre').classList.contains('g-primary')), 'already recentred: Recentre in the guide neutral');
-  ok((await text('g3-val')) === '2 runs · 88 trials', 'values stay on collapsed steps');
+  ok((await text('g3-val')) === '2 runs, 88 trials', 'values stay on collapsed steps');
   await st({ calib: CALIB(true, true, true) }); await frame(); await tick();
 
   console.log('CHECK');
@@ -193,7 +193,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
 
   console.log('RESULTS');
   const onColour = (cls) => E((c) => { const box = document.createElement('div'); box.className = c; const btn = document.createElement('button'); btn.className = 'on'; box.appendChild(btn); document.body.appendChild(box); const col = getComputedStyle(btn).color; box.remove(); return col; }, cls);
-  ok(await onColour('ws3d-bar') === 'rgb(3, 20, 24)' && await onColour('ws-option') === 'rgb(3, 20, 24)', 'selected Results buttons use dark text on cyan');
+  ok(await onColour('ws3d-bar') === 'rgb(255, 255, 255)' && await onColour('ws-option') === 'rgb(255, 255, 255)', 'selected Results buttons match the selected style elsewhere');
   ok(await E(() => window.__obs.hands.L.mats[0].color.getHex() === 0x3a86ea && window.__obs.hands.R.mats[0].color.getHex() === 0xe5534b), 'live hands use the chart colours');
 
   console.log('FINISH');

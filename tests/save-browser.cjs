@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.5.5';
+const VERSION = '2.6.0';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -176,7 +176,7 @@ async function laptopSuite(b) {
   await emit(Object.assign({}, STATE, { notesCsv: '' }));
   await load();
   await sleep(350);
-  ok(await shown('#g-recovery .g-banner') && (await text('g-recovery')).includes('Unsaved session: P1 · 1 run stored on this laptop'), 'tab reopened: unsaved session offered');
+  ok(await shown('#g-recovery .g-banner') && (await text('g-recovery')).includes('Unsaved session: P1, 1 run stored on this laptop'), 'tab reopened: unsaved session offered');
   await O(() => document.querySelector('#g-recovery button').click());
   await sleep(600);
   const rec = await openDownload(o.dl.at(-1), OUT);

@@ -59,7 +59,7 @@ const near = (a, b, e) => Math.abs(a - b) < (e || 1e-4);
 
   await view('top');
   await p.setViewportSize({ width: 1280, height: 720 }); await settle();
-  ok(await E(() => { const c = window.__obs.camera; const s = document.getElementById('stage'); return s.clientWidth === 1280 && Math.abs((c.right - c.left) - 1.3 * s.clientWidth / s.clientHeight) < 1e-6; }), 'resize updates orthographic width');
+  ok(await E(() => { const c = window.__obs.camera; const s = document.getElementById('stage'); return s.clientWidth === 1253 && Math.abs((c.right - c.left) - 1.3 * s.clientWidth / s.clientHeight) < 1e-6; }), 'resize updates orthographic width');
   await view('orbit');
   ok(await E(() => { const s = document.getElementById('stage'); return Math.abs(window.__obs.camera.aspect - s.clientWidth / s.clientHeight) < 1e-6; }), 'resize updates perspective aspect');
 

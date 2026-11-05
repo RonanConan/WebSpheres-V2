@@ -4,7 +4,7 @@ const { openDownload, readZip } = require('./unzip.cjs');
 const { ok, done } = counter('CHARTS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-charts-'));
-const VERSION = '2.5.5';
+const VERSION = '2.6.0';
 const kin = (t, x, z, o) => {
   const a = Object.assign({ target: true, valid: 1, rec: 0, hx: 0, hz: -0.4, y: 1 }, o);
   return `${t},${x},${a.y},${z},${a.hx},0.9,${a.hz},${a.target ? '0.1,1.2,-0.5' : ',,'},${a.valid},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,${a.rec}\n`;
@@ -58,6 +58,25 @@ async function numbersSuite(b) {
   ok(result.median[0] === 200 && result.median[1] === 5 && result.median[2] === null, 'median correct for even, odd and empty');
   ok(result.targets === 1, 'target positions collected');
   ok(result.timesTitle === 'Decision and movement time by target', 'chart named for what it shows');
+  const label = await p.evaluate(() => {
+    const C = ResultsCharts;
+    const rows = (x, z) => Array.from({ length: 80 }, (_, i) => { const k = Math.sin(i / 80 * Math.PI); return `${i * 40},${x * k},${0.9 + 0.1 * k},${-0.4 + (z + 0.4) * k},0,0.9,-0.4,${x},1.0,${z},1,0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,0
+`; });
+    const draw = (z, width) => {
+      const run = C.parseRun({ run: 1, label: 'Run 1', kinL: rows(-0.5, z), kinR: rows(0.5, z), trials: [], quality: { lines: [] } });
+      const real = CanvasRenderingContext2D.prototype.fillText;
+      let found = null, edge = 0;
+      CanvasRenderingContext2D.prototype.fillText = function (s, x) { if (/^Total /.test(s)) edge = Math.max(edge, x); if (s === 'Targets') { const w = this.measureText(s).width; found = this.textAlign === 'right' ? { right: x, left: x - w, align: this.textAlign } : { right: x + w, left: x, align: this.textAlign }; } };
+      C.render(document.createElement('canvas'), 'workspaceMap', { runs: [run], session: 'P1', dominant: 'Right', dominantCode: 'RIGHT', homeHalf: 0.4 }, { shape: C.SHAPE_DEFAULT }, 'light', width, 1);
+      CanvasRenderingContext2D.prototype.fillText = real;
+      return found && Object.assign(found, { edge });
+    };
+    const out = [];
+    for (const width of [900, 1100, 1200, 1400]) for (let z = -0.6; z >= -0.98; z -= 0.01) out.push(draw(z, width));
+    return out;
+  });
+  const over = label.filter(l => !l || l.right > l.edge + 0.5 || l.left < 0);
+  ok(over.length === 0, 'Targets label stays inside the side view at every reach and width (' + over.length + ' of ' + label.length + ' outside)');
   await p.context().close();
 }
 
@@ -249,6 +268,7 @@ async function panelSuite(b) {
   const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial number (across the session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial number (across the session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in run (min:s)'] };
   Object.entries(axes).forEach(([id, want]) => ok(want.every(w => written[id].includes(w)), `${id}: axes titled`));
   ok(Object.values(written).flat().every(s => !/ball/i.test(s)), 'no specialist wording on any figure');
+  ok(Object.values(written).flat().every(s => !s.includes('·')), 'no middle dots on any figure');
   ok(!written.quality.includes('Within limits') && written.times.includes('Movement time') && written.handChoice.includes('Hits'), 'legends and hit counts present; no limits legend on the timeline');
   await o.setViewportSize({ width: 2560, height: 1440 }); await sleep(1500);
   const shapes = await O(() => [...document.querySelectorAll('.res-chart canvas:not(#ws3d-canvas)')].map(c => { const r = c.getBoundingClientRect(); return { w: r.width, shown: r.width / r.height, drawn: c.width / c.height }; }));

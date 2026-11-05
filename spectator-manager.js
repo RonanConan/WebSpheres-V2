@@ -1,4 +1,4 @@
-const APP_VERSION = '2.5.5';
+const APP_VERSION = '2.6.0';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {

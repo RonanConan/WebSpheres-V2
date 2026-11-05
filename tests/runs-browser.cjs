@@ -137,7 +137,7 @@ async function syncSuite(b) {
   await o.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
-  const BASE = { type: 'state', version: '2.5.5', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
+  const BASE = { type: 'state', version: '2.6.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
   const stateRun2 = Object.assign({}, BASE, { run: 2, backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, completedRuns: [{ run: 1, prefix: 'P1_run1_', trials: 2, kinL: 1, kinR: 1, info: 'Key,Value\nRun,1\n', ms: 1000, recentres: 1, pauses: 0 }] });
   const rows = (run, file, from, lines) => emit({ type: 'rows', run, file, from, header: 'H\n', lines });
   const bk = () => O(() => { const k = window.__obs.backup; return { run: k.run, archived: k.archive.length, t: k.trials.length, l: k.kinL.length, r: k.kinR.length }; });
@@ -194,7 +194,7 @@ async function offlineSuite(b) {
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const runs = [{ condition: 1, off: true, recal: false }, { condition: 2, off: false, recal: false }];
-  const STATE = { type: 'state', version: '2.5.5', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.6.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_run1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
   const cmds = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue'));
   const dirty = () => O(() => window.__obs.guide.planDirty);
@@ -311,11 +311,11 @@ async function guidedSuite(b) {
   ok(await shown('#plan-builder'), 'Run plan step: builder fills the main area');
   ok(await O(() => document.querySelectorAll('[data-card]').length) === 1, 'new sessions start with one run');
   await o.click('[data-plan-mode="fmode"]');
-  ok((await text('plan-builder')).includes('1 run · 44 trials'), 'length changes the totals');
+  ok((await text('plan-builder')).includes('1 run, 44 trials'), 'length changes the totals');
   await o.click('#plan-add'); await o.click('#plan-add');
   ok(await O(() => document.querySelectorAll('[data-card]').length) === 3, 'Add run adds cards');
   ok(await O(() => [...document.querySelectorAll('[data-card]')].map(c => c.classList.contains('boost')).join()) === 'false,true,false', 'added runs alternate reward');
-  ok((await text('plan-builder')).includes('3 runs · 132 trials'), 'totals follow');
+  ok((await text('plan-builder')).includes('3 runs, 132 trials'), 'totals follow');
   await o.click('#plan-add');
   await o.click('[data-plan-remove="3"]');
   ok(await O(() => document.querySelectorAll('[data-card]').length) === 3, 'remove takes a card away');
@@ -367,7 +367,7 @@ async function guidedSuite(b) {
   ok(await shown('#plan-builder') && await shown('#g7-between') && !(await shown('#g-pause')), 'between runs: plan shown, run controls gone');
   ok(!(await O(() => [...document.querySelectorAll('[data-plan-remove]')].some(b => b.dataset.planRemove === '0'))), 'finished run is locked');
   ok(await O(() => document.querySelector('[data-card="1"]').classList.contains('next')), 'next run marked');
-  ok((await text('g7-b-title')) === 'Run 1 of 3 complete' && (await text('g7-b-next')).startsWith('Next run: 2 · Boost'), 'title and next run');
+  ok((await text('g7-b-title')) === 'Run 1 of 3 complete' && (await text('g7-b-next')).startsWith('Next run: 2, Boost'), 'title and next run');
   await waitText('g7-b-copy', 'All data received for the completed run', 10000);
   ok(!(await shown('#g7-b-off')) && !(await shown('#g7-b-break')), 'headset on: no break steps');
   ok((await text('conn-state')) !== 'Break: headset off', 'headset on: normal connection status');

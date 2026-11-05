@@ -63,7 +63,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await H(() => { const c = document.querySelector('a-scene').camera.el.getAttribute('position'); window.__track('L', [c.x - 0.1, c.y - 0.1, c.z - 0.45]); window.__track('R', [c.x + 0.1, c.y, c.z - 0.6]); });
   await o.click('[data-calib="reach"]');
   await o.waitForFunction(() => document.getElementById('g5-reach').textContent.includes('Right hand'), null, { timeout: 4000 });
-  ok((await o.evaluate(() => document.getElementById('g5-reach').textContent)).startsWith('✓Right hand · reach 0.61 m'), 'reach: headset picked the extended right hand, shown on the laptop');
+  ok((await o.evaluate(() => document.getElementById('g5-reach').textContent)).startsWith('✓Right hand, reach 0.61 m'), 'reach: headset picked the extended right hand, shown on the laptop');
   await waitCue('');
   await o.click('[data-calib="height"]');
   await waitCue('Rest both hands on your lap');

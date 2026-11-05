@@ -127,7 +127,7 @@ const { ok, done } = counter('OBSERVER BROWSER');
   const w0 = await E(() => document.getElementById('stage').clientWidth);
   await E(() => window.__obs.setLeftSlot(true)); await page.clock.runFor(100);
   const open = await E(() => ({ w: document.getElementById('stage').clientWidth, slot: document.getElementById('left-slot').getBoundingClientRect().width, a: window.__obs.camera.aspect, h: document.getElementById('stage').clientHeight, sw: document.documentElement.scrollWidth }));
-  ok(Math.abs(open.slot - 380) < 1 && Math.abs(w0 - open.w - 380) < 1, 'left slot opens to 380 px and the scene shrinks to fit');
+  ok(Math.abs(open.slot - 486) < 1 && Math.abs(w0 - open.w - 486) < 1, 'left slot opens to 486 px and the scene shrinks to fit');
   ok(Math.abs(open.a - open.w / open.h) < 1e-6 && open.sw <= 1440, '3D view re-projects for the narrower scene, no horizontal scroll');
   await E(() => window.__obs.setLeftSlot(false)); await page.clock.runFor(100);
   ok(await E((w) => document.getElementById('stage').clientWidth === w && !document.getElementById('left-slot').offsetWidth, w0), 'left slot collapses back (guide hidden)');

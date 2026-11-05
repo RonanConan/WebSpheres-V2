@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.5.5', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.6.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -52,12 +52,12 @@ const KH = 'Timestamp,HandX\n';
   await p.goto('https://test.local/observer.html');
   await tick(500);
   console.log('STEP 1 — CONNECT');
-  ok(await E(() => document.getElementById('app').classList.contains('left-open') && document.getElementById('left-slot').offsetWidth === 380), 'guide panel open by default in the 380 px left slot');
+  ok(await E(() => document.getElementById('app').classList.contains('left-open') && document.getElementById('left-slot').offsetWidth === 486), 'guide panel open by default in the 486 px left slot');
   ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('info:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.5.5, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.5.5' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.6.0, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.6.0' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -126,7 +126,7 @@ const KH = 'Timestamp,HandX\n';
   ok((await cmds())[0] === 'calibrate:reach' && (await text('g5-msg')) === 'Reach calibrated', 'Calibrate reach → command, result shown');
   ok((await allCmds()).includes('cue:null'),'moves to Height: cue cleared (no cue for height)');
   await setState({ calib: Object.assign({}, S.calib, { reach: { done: true, hand: 'RIGHT', distance: 0.62, radius: 0.496 } }) }); await tick();
-  ok((await checks('g5-reach'))[0] === 'ok:Right hand · reach 0.62 m · target radius 0.50 m' && (await E(() => document.querySelector('[data-calib="reach"]').textContent)) === 'Redo reach', 'reach result: hand, distance, radius, with Redo');
+  ok((await checks('g5-reach'))[0] === 'ok:Right hand, reach 0.62 m, target radius 0.50 m' && (await E(() => document.querySelector('[data-calib="reach"]').textContent)) === 'Redo reach', 'reach result: hand, distance, radius, with Redo');
   await E(() => { window.__c.sent.length = 0; });
   await click('[data-calib="height"]'); await tick();
   await setState({ calib: Object.assign({}, S.calib, { height: { done: true, height: 1.04 } }) }); await tick();
@@ -153,7 +153,7 @@ const KH = 'Timestamp,HandX\n';
   ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start run 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.5.5', participantId: '' }); await tick();
+  await setState({ version: '2.6.0', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });
@@ -215,7 +215,7 @@ const KH = 'Timestamp,HandX\n';
   for (let i = 0; i < 11; i++) { await frame(); await setState({ trialCount: 7 + i, backup: Object.assign({}, S.backup, { kinL: 4 + i }) }); await tick(1000); }
   ok(/^Laptop copy 1[01] s behind headset$/.test(await alert()), `"Backup behind by N s" when more than 10 s behind ("${await alert()}")`);
   for (let i = 0; i < 4; i++) { await frame({ leftValid: false, left: null }); await setState({}); await tick(1000); }
-  ok(/^Laptop copy \d+ s behind headset · Left hand not tracked/.test(await alert()), `laptop copy alert comes first ("${await alert()}")`);
+  ok(/^Laptop copy \d+ s behind headset\. Left hand not tracked/.test(await alert()), `laptop copy alert comes first ("${await alert()}")`);
   await E(([kh, n]) => window.__c.emit('data', JSON.stringify({ type: 'rows', file: 'kinL', from: 4, header: kh, lines: Array.from({ length: n }, (_, i) => `${100 + i},0.1,1,-0.3,0,0.9,-0.4,,,,1,0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,0\n`) })), [KH, S.backup.kinL - 4]);
   await frame(); await setState({}); await tick(300);
   ok((await alert()) === '', 'clears once the backup catches up');

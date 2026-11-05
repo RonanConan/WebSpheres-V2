@@ -7,7 +7,7 @@ const MOCK_PEER = path.join(__dirname, 'mock-peer.js');
 const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.173.0/';
 const THREE_DIR = path.join(TOOLS, 'node_modules', 'three');
 const JS = 'application/javascript';
-const typeOf = f => f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? JS : 'audio/mpeg';
+const typeOf = f => f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? JS : f.endsWith('.woff2') ? 'font/woff2' : f.endsWith('.txt') ? 'text/plain' : 'audio/mpeg';
 
 function serve(page, opts) {
   const peer = (opts && opts.peer) || 'mock';

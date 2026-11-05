@@ -65,7 +65,7 @@ const FRAME = { seq: 1, head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 
           const good = !r.clipped.length && !r.overlaps.length && r.stack && !r.hscroll && r.panelInStage && r.btnH >= 44 && r.fit;
           ok(good, tag + (good ? '' : ' → ' + JSON.stringify(r)));
           if (!panel) ok(r.noteVisible || slot, tag + ': recentre status text has room');
-          if (slot && !panel) ok(Math.abs(r.slotW - Math.min(380 * scale, 0.45 * w)) < 1, tag + `: guide scales with text (${Math.round(r.slotW)} px)`);
+          if (slot && !panel) ok(Math.abs(r.slotW - Math.min(486 * scale, 0.45 * w)) < 1, tag + `: guide scales with text (${Math.round(r.slotW)} px)`);
           if (r.drawerW !== null) ok(Math.abs(r.drawerW - Math.min(440 * scale, r.stageW)) < 1, tag + `: panel scales with text (${Math.round(r.drawerW)} px)`);
         }
       }

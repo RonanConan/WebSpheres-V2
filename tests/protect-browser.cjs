@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('PROTECT BROWSER');
-const VERSION = '2.5.5';
+const VERSION = '2.6.0';
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: { reach: { done: true, hand: 'RIGHT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const FAKE_WAKE = `
   window.__wake = { requests: 0, released: 0, fail: false, locks: [] };
@@ -119,12 +119,12 @@ async function open(b, init) {
   {
     const { ctx, p, st, frame, tick } = await open(b, FAKE_WAKE);
     await st({ phase: 'running', participantId: 'P9', experimenter: 'Jo', setupLocked: true }); await frame(); await tick();
-    const g = await p.evaluate(() => { const r = (i) => { const x = document.getElementById(i).getBoundingClientRect(); return { l: x.left, r: x.right, t: x.top, b: x.bottom }; }; return { pause: r('g-pause'), skip: r('g-skip'), end: r('g-end'), save: r('g-save-headset') }; });
+    const g = await p.evaluate(() => { const r = (i) => { const x = document.getElementById(i).getBoundingClientRect(); return { l: x.left, r: x.right, t: x.top, b: x.bottom }; }; return { pause: r('g-pause'), skip: r('g-skip'), end: r('g-end'), save: r('g-save-headset'), spoke: r('g-note-spoke') }; });
     ok(g.skip.t >= g.pause.b, 'Skip target on a lower row than Pause');
-    ok(g.skip.l >= g.pause.r, 'Skip target not directly under Pause');
+    ok(g.spoke.t >= g.pause.b && g.save.t >= g.spoke.b && g.skip.t >= g.save.b && g.skip.t - g.pause.b >= 120, 'Skip target at least two rows below Pause');
     await st({ setupLocked: false }); await tick();
-    const unlocked = await p.evaluate(() => [document.getElementById('g-skip').getBoundingClientRect().left, document.getElementById('g-pause').getBoundingClientRect().right]);
-    ok(unlocked[0] >= unlocked[1], 'Skip target stays clear of Pause with Unlock setup hidden');
+    const unlocked = await p.evaluate(() => [document.getElementById('g-skip').getBoundingClientRect().top, document.getElementById('g-pause').getBoundingClientRect().bottom]);
+    ok(unlocked[0] - unlocked[1] >= 120, 'Skip target stays clear of Pause with Unlock setup hidden');
     await st({ setupLocked: true }); await tick();
     ok(g.end.t === g.skip.t && g.skip.l > g.end.r, 'Skip target and End run at opposite ends of a row');
     ok(g.save.t > g.pause.b && g.save.b <= g.end.t, 'Save headset copy on a lower row than Pause, above End run');
