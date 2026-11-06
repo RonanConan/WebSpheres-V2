@@ -163,7 +163,7 @@ async function openPractice(b, viewport) {
   ok(headCols.yaw > 50 && headCols.x > 20, `head columns in the kinematics file change over time (${headCols.yaw} orientations, ${headCols.x} positions)`);
 
   console.log('SPEED');
-  ok(await O(() => [...document.querySelectorAll('[data-speed]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join()) === '1×*,3×,5×', 'speed buttons start at 1×');
+  ok(await O(() => [...document.querySelectorAll('[data-speed]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join()) === '1×*,3×,5×,10×', 'speed buttons start at 1×');
   await p.click('[data-speed="5"]');
   ok(await O(() => document.querySelector('[data-speed="5"]').classList.contains('on')) && await H(() => window.__practiceClock.speed === 5), '5× selected');
   const s0 = await H(() => ({ sim: window.__practiceClock.simulated(), real: window.__practiceClock.realNow(), trials: window.__practice.dm.trialData.length }));
@@ -184,8 +184,42 @@ async function openPractice(b, viewport) {
   await sleep(1500);
   const fpsLight = await O(() => [...document.querySelectorAll('#g7-quality .q-row')].map(r => r.className + ':' + r.textContent).find(t => t.includes('Frame rate')));
   ok(/q-row ok/.test(fpsLight), 'Frame rate light stays OK at 5× (' + fpsLight + ')');
+  await p.click('[data-speed="10"]');
+  ok(await O(() => document.querySelector('[data-speed="10"]').classList.contains('on') && !document.querySelector('[data-speed="5"]').classList.contains('on')) && await H(() => window.__practiceClock.speed === 10), '10× selected');
+  const u0 = await H(() => ({ sim: window.__practiceClock.simulated(), real: window.__practiceClock.realNow(), trials: window.__practice.dm.trialData.length }));
+  await sleep(6000);
+  const u1 = await H(() => ({ sim: window.__practiceClock.simulated(), real: window.__practiceClock.realNow(), trials: window.__practice.dm.trialData.length }));
+  const rate10 = (u1.sim - u0.sim) / (u1.real - u0.real);
+  console.log(`    measured speed at 10×: ${rate10.toFixed(2)}× (${u1.trials - u0.trials} trials in ${((u1.real - u0.real) / 1000).toFixed(1)} s)`);
+  ok(rate10 > 7, `10× runs well above 5× (${rate10.toFixed(2)}×)`);
+  const faster = await H((from) => {
+    const rows = document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.slice(-300).map(r => +r.split(',')[0]);
+    const gaps = rows.slice(1).map((t, i) => t - rows[i]).sort((a, b) => a - b);
+    const trials = window.__practice.dm.trialData.slice(from).filter(t => t.hitType !== 'SKIP');
+    return { gap: gaps[gaps.length >> 1], maxGap: gaps.at(-1), decisions: trials.map(t => t.decisionTime), totals: trials.map(t => t.totalMovementTime) };
+  }, u0.trials);
+  ok(faster.gap >= 10 && faster.gap <= 13 && faster.maxGap <= 25, `kinematics rows stay about 11 ms apart at 10× (median ${faster.gap} ms, largest ${faster.maxGap} ms)`);
+  ok(faster.decisions.length >= 5 && faster.decisions.every(d => d > 200 && d < 1500) && faster.totals.every((t, i) => t > faster.decisions[i] && t < 2500), 'decision and total times at 10× look like 1× (' + faster.decisions.join(', ') + ' ms)');
+  const conn10 = await O(() => ({ live: window.__obs.receiver.isLive(), text: document.getElementById('conn-state').textContent }));
+  const phase10 = await H(() => window.__practice.sm.phase);
+  ok(conn10.live && phase10 === 'between', `connection stays up at 10×, through the end of the block (${conn10.text}, phase ${phase10})`);
+  await sleep(1000);
+  const fpsLight10 = await O(() => [...document.querySelectorAll('#g7-quality .q-row')].map(r => r.className + ':' + r.textContent).find(t => t.includes('Frame rate')));
+  ok(/q-row ok/.test(fpsLight10), 'Frame rate light stays OK at 10× (' + fpsLight10 + ')');
   await p.click('[data-speed="1"]');
   ok(await H(() => window.__practiceClock.speed === 1), 'back to 1×');
+  await sleep(2500);
+  const copy = await O(() => ({ trials: window.__obs.backup.trials.length, kinL: window.__obs.backup.kinL.length }));
+  const head = await H(() => ({ trials: window.__practice.dm.trialData.length, kinL: document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.length }));
+  ok(copy.trials === head.trials && head.kinL - copy.kinL < 400, `laptop copy keeps up after 10× (trials ${copy.trials}/${head.trials}, left-hand rows ${copy.kinL}/${head.kinL})`);
+
+  console.log('SIMULATED HAND CHOICE');
+  const choice = await H(() => {
+    const p = window.__practice.participant.leftChance;
+    return { centre: p(0), dominantSide: p(0.16), otherSide: p(-0.16), crossover: p(-0.06) };
+  });
+  ok(Math.abs(choice.crossover - 0.5) < 0.01 && choice.centre < 0.45 && choice.centre > 0.3, `right-handed: the even split moves 6 cm to the left; centre target ${Math.round(choice.centre * 100)}% left hand`);
+  ok(choice.dominantSide < 0.15 && choice.otherSide > 0.65, `right side ${Math.round(choice.dominantSide * 100)}% left hand, left side ${Math.round(choice.otherSide * 100)}% left hand`);
   const finishRun = () => H(() => new Promise((resolve) => {
     const { sm } = window.__practice;
     const t = setInterval(() => {

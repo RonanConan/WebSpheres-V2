@@ -815,7 +815,7 @@ const ResultsCharts = (() => {
             height: (width, data) => 88 + (timesScale(data).over ? 18 : 0) + panels(width, data.runs.length).rows * (LINE_H + 76),
             draw: (ctx, width, data, opts, theme, hits) => {
                 const scale = timesScale(data);
-                const lines = ['Median time for each target, using successful hits only. Shaded bands show the middle 50% of trials.', 'Decision time: from target appearance to leaving home. Movement time: from leaving home to target hit.'];
+                const lines = ['Median time for each target, using successful hits only. Shaded bands show the middle 50% of trials.', 'Decision time: from target appearance until a hand has completely left the home box. Movement time: from then until the target is hit.'];
                 if (scale.over) lines.push(scale.over === 1 ? `1 trial took much longer than the rest (${(scale.longest / 1000).toFixed(1)} s). It still counts towards the medians, but the axis is not stretched to fit it.` : `${scale.over} trials took much longer than the rest (up to ${(scale.longest / 1000).toFixed(1)} s). They still count towards the medians, but the axis is not stretched to fit them.`);
                 const top = header(ctx, width, data, theme, 'Decision and movement time by target', lines);
                 legend(ctx, width, 38, theme, [{ label: 'Movement time', color: theme.text, line: true }, { label: 'Decision time', color: theme.muted, line: true, dash: [5, 4] }]);

@@ -72,7 +72,7 @@
     window.__practiceClock = {
         get speed() { return clock.speed; },
         setSpeed(value) {
-            if (![1, 3, 5].includes(value)) return false;
+            if (![1, 3, 5, 10].includes(value)) return false;
             clock.speed = value;
             clock.lastReal = real.now();
             if (window.__practice && window.__practice.onSpeed) window.__practice.onSpeed(value);
@@ -234,10 +234,19 @@
         };
 
         const otherSide = (side) => (side === 'L' ? 'R' : 'L');
-        const chooseSide = (x) => {
-            const side = Math.random() < 1 / (1 + Math.exp(x / 0.12)) ? 'L' : 'R';
+        const DOMINANT_SHIFT = 0.06;
+        const CENTRE_SLOWING = 130;
+        const leftChance = (x) => {
+            const dominant = document.querySelector('#score-display').components['score-manager'].dominantHand;
+            const crossover = dominant === 'LEFT' ? DOMINANT_SHIFT : -DOMINANT_SHIFT;
+            return 1 / (1 + Math.exp((x - crossover) / 0.12));
+        };
+        const chooseSide = (p) => {
+            const side = Math.random() < p ? 'L' : 'R';
             return hands[side].valid ? side : otherSide(side);
         };
+        const decisionWait = (p) => rand(200, 380) + CENTRE_SLOWING * (1 - Math.abs(2 * p - 1));
+        participant.leftChance = leftChance;
         participant.setLost = (side, lost) => hands[side].setValid(!lost);
 
         const stepTrial = (now) => {
@@ -245,7 +254,8 @@
             if (participant.trial && participant.trial.sphere !== live) participant.trial = null;
             if (live && !participant.trial) {
                 const at = live.getAttribute('position');
-                participant.trial = { sphere: live, side: chooseSide(at.x), decideAt: now + rand(250, 650), lookAt: now + rand(120, 250), moving: false };
+                const p = leftChance(at.x - sm.homeRectangle.getAttribute('position').x);
+                participant.trial = { sphere: live, side: chooseSide(p), decideAt: now + decisionWait(p), lookAt: now + rand(120, 250), moving: false };
             }
             const trial = participant.trial;
             if (trial && !hands[trial.side].valid && hands[otherSide(trial.side)].valid) {
