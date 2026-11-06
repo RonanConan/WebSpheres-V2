@@ -3,8 +3,8 @@ const ResultsCharts = (() => {
     const PAD = 12;
     const TARGETS = 11;
     const THEMES = {
-        dark: { bg: '#0b0e14', text: '#dfe5f0', muted: '#8d97a8', grid: '#252c3a', left: '#3a86ea', right: '#e5534b', overlap: '#aab1bd', ok: '#245a3f', warn: '#ffb347', bad: '#ff5c5c', none: '#232a38' },
-        light: { bg: '#ffffff', text: '#1a1d24', muted: '#5b6472', grid: '#e3e6eb', left: '#2a78d6', right: '#d43b3b', overlap: '#9aa1ad', ok: '#bfe3cd', warn: '#d98a00', bad: '#d43b3b', none: '#eceef1' }
+        dark: { bg: '#0b0e14', accent: '#00e5ff', text: '#dfe5f0', muted: '#8d97a8', grid: '#252c3a', left: '#3a86ea', right: '#e5534b', overlap: '#aab1bd', ok: '#245a3f', warn: '#ffb347', bad: '#ff5c5c', none: '#232a38' },
+        light: { bg: '#ffffff', accent: '#0a8ca0', text: '#1a1d24', muted: '#5b6472', grid: '#e3e6eb', left: '#2a78d6', right: '#d43b3b', overlap: '#9aa1ad', ok: '#bfe3cd', warn: '#d98a00', bad: '#d43b3b', none: '#eceef1' }
     };
     const SHAPE_DEFAULT = { gap3D: 16, smooth3D: 0.5, gap2D: 8, smooth2D: 0.5 };
     const SHAPE_OPTIONS = [
@@ -223,10 +223,26 @@ const ResultsCharts = (() => {
         });
     }
 
+    function upperFence(values) {
+        if (!values.length) return 0;
+        const low = quantile(values, 0.25), high = quantile(values, 0.75);
+        return high + 3 * (high - low);
+    }
+
+    function timesScale(data) {
+        const rows = data.runs.map(timesByTarget);
+        const trials = data.runs.flatMap(run => run.trials.filter(t => t.hit !== 'SKIP' && t.target >= 1 && t.target <= TARGETS && t.dt > 0).map(t => ({ decision: t.dt, movement: t.mt > t.dt ? t.mt - t.dt : 0 })));
+        const limit = Math.max(upperFence(trials.map(t => t.decision)), upperFence(trials.filter(t => t.movement > 0).map(t => t.movement)));
+        const inside = rows.flat().flatMap(r => [r.decision, r.decisionHigh, r.movement, r.movementHigh]).filter(v => v !== null && v <= limit);
+        const max = niceMax(Math.max(1, ...inside));
+        const over = trials.filter(t => t.decision > limit || t.movement > limit);
+        return { rows, max, over: over.length, longest: over.length ? Math.max(...over.map(t => Math.max(t.decision, t.movement))) : 0 };
+    }
+
     function niceMax(value) {
         if (!(value > 0)) return 1;
         const power = 10 ** Math.floor(Math.log10(value));
-        const unit = [1, 2, 2.5, 5, 10].find(u => u * power >= value);
+        const unit = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find(u => u * power >= value);
         return unit * power;
     }
 
@@ -432,7 +448,6 @@ const ResultsCharts = (() => {
 
     const SESSION_H = 420;
     const LINE_H = 240;
-    const QUALITY_RUN_H = 195;
     const PANEL_MAX = 720;
     const TARGET_TITLE = 'Target (1 = far left, 11 = far right)';
 
@@ -449,7 +464,7 @@ const ResultsCharts = (() => {
             return;
         }
         const px = (trial) => box.x + (box.w * trial) / total;
-        if (cfg.reference !== undefined) referenceLine(ctx, box, box.y + box.h - (box.h * cfg.reference) / max, theme);
+        if (cfg.reference !== undefined && cfg.reference <= max) referenceLine(ctx, box, box.y + box.h - (box.h * cfg.reference) / max, theme);
         let offset = 0;
         data.runs.forEach((run, i) => {
             const x0 = px(offset), x1 = px(offset + trials[i]);
@@ -462,7 +477,7 @@ const ResultsCharts = (() => {
             }
             const note = `${run.label}${run.recentres.length ? `, recentred ${run.recentres.length}×` : ''}`;
             ctx.font = `600 13px ${FONT}`;
-            text(ctx, ctx.measureText(note).width < x1 - x0 - 12 ? note : `Run ${run.run}`, x0 + 6, box.y - 10, run.recentres.length ? theme.warn : theme.text, 13, 'left', 600);
+            text(ctx, ctx.measureText(note).width < x1 - x0 - 12 ? note : `Block ${run.run}`, x0 + 6, box.y - 10, run.recentres.length ? theme.warn : theme.text, 13, 'left', 600);
             cfg.lines.forEach(line => {
                 const points = sets[i].map(s => ({ x: px(at + (s.first + s.last) / 2), s, value: s[line.key] }));
                 seriesLine(ctx, box, points, max, line.color, theme, hits, (p) => `Trials ${at + p.s.first}–${at + p.s.last}: ${line.tip(p.s, p.value)}`);
@@ -476,7 +491,190 @@ const ResultsCharts = (() => {
 
     const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 
+    const STRIP_LEFT = 130;
+    const STRIP_RIGHT = 84;
+    const ROW_H = 27;
+    const PIN_R = 9;
+    const NOTE_LINE = 18;
+
+    function noteLevels(times, ms, share) {
+        const gap = (share || 0.035) * ms;
+        const last = [-Infinity, -Infinity];
+        return times.map(t => {
+            if (!(ms > 0) || t - last[0] >= gap) {
+                last[0] = t;
+                return 0;
+            }
+            if (t - last[1] >= gap) {
+                last[1] = t;
+                return 1;
+            }
+            last[0] = t;
+            return 0;
+        });
+    }
+
+    let measurer = null;
+    function wrapText(ctx, value, maxW) {
+        const words = String(value).split(/\s+/).filter(Boolean);
+        const lines = [];
+        let line = '';
+        const push = (word) => {
+            while (ctx.measureText(word).width > maxW && word.length > 1) {
+                let cut = word.length - 1;
+                while (cut > 1 && ctx.measureText(word.slice(0, cut)).width > maxW) cut--;
+                lines.push(word.slice(0, cut));
+                word = word.slice(cut);
+            }
+            return word;
+        };
+        words.forEach(word => {
+            const next = line ? `${line} ${word}` : word;
+            if (ctx.measureText(next).width <= maxW) line = next;
+            else {
+                if (line) lines.push(line);
+                line = push(word);
+            }
+        });
+        if (line) lines.push(line);
+        return lines.length ? lines : [''];
+    }
+
+    function noteRows(ctx, width, notes) {
+        ctx.font = `400 13px ${FONT}`;
+        const textX = 150;
+        return notes.map(n => wrapText(ctx, n.text, Math.max(120, width - textX)));
+    }
+
+    function measureCtx() {
+        if (!measurer) measurer = document.createElement('canvas').getContext('2d');
+        return measurer;
+    }
+
+    function qualityTop(data) {
+        return 38 + (data.runs.some(run => run.report && run.report.notes.length) ? 2 : 1) * 18 + 4 + 6;
+    }
+
+    function qualityBlockH(width, run) {
+        const q = run.quality;
+        if (!q || !q.lines.length) return 56;
+        const rep = run.report || { notes: [], recentres: [], facts: [] };
+        const notesH = rep.notes.length ? 46 : ROW_H;
+        const list = rep.notes.length ? 30 + noteRows(measureCtx(), width, rep.notes).reduce((h, rows) => h + rows.length * NOTE_LINE + 6, 0) : 0;
+        return 24 + (rep.facts.length ? 26 : 0) + notesH + ROW_H + q.lines.length * ROW_H + 48 + list + 18;
+    }
+
+    function pin(ctx, x, y, n, theme) {
+        ctx.beginPath();
+        ctx.arc(x, y, PIN_R, 0, Math.PI * 2);
+        ctx.fillStyle = theme.text;
+        ctx.fill();
+        ctx.fillStyle = theme.bg;
+        ctx.font = `700 11px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(n), x, y + 0.5);
+        ctx.textBaseline = 'alphabetic';
+    }
+
+    function qualityBlock(ctx, width, y0, run, theme, hits) {
+        text(ctx, run.label, 0, y0 + 14, theme.text, 14, 'left', 600);
+        const q = run.quality;
+        if (!q || !q.lines.length) {
+            text(ctx, 'No data', 0, y0 + 36, theme.muted, 13);
+            return;
+        }
+        const rep = run.report || { notes: [], recentres: [], facts: [] };
+        const left = STRIP_LEFT, w = width - STRIP_LEFT - STRIP_RIGHT;
+        const ms = q.ms || 0;
+        const at = (t) => left + (ms > 0 ? (w * Math.min(ms, Math.max(0, t))) / ms : 0);
+        text(ctx, 'Whole block', width, y0 + 14, theme.muted, 12, 'right');
+        let y = y0 + 24;
+        if (rep.facts.length) {
+            let x = 0;
+            rep.facts.forEach(([key, value]) => {
+                ctx.font = `400 13px ${FONT}`;
+                text(ctx, key, x, y + 15, theme.muted, 13);
+                x += ctx.measureText(key).width + 6;
+                ctx.font = `700 13px ${FONT}`;
+                text(ctx, value, x, y + 15, theme.text, 13, 'left', 700);
+                x += ctx.measureText(value).width + 22;
+            });
+            y += 26;
+        }
+        const notesY = y;
+        const notesH = rep.notes.length ? 46 : ROW_H;
+        text(ctx, 'Notes', 0, notesY + notesH - 12, theme.text, 13);
+        text(ctx, String(rep.notes.length), width, notesY + notesH - 12, theme.text, 13, 'right', 600);
+        y += notesH;
+        text(ctx, 'Recentres', 0, y + 15, theme.text, 13);
+        text(ctx, String(rep.recentreCount !== undefined ? rep.recentreCount : rep.recentres.length), width, y + 15, theme.text, 13, 'right', 600);
+        rep.recentres.forEach(t => {
+            ctx.fillStyle = theme.accent;
+            ctx.fillRect(at(t) - 2, y + 2, 4, 19);
+            hits.push({ x: at(t) - 5, y: y + 2, w: 10, h: 19, text: `Recentre at ${clock(t)}` });
+        });
+        y += ROW_H;
+        const stripTop = y;
+        q.lines.forEach((line, row) => {
+            const ly = y + row * ROW_H;
+            text(ctx, line.label, 0, ly + 15, theme.text, 13);
+            const cell = w / line.kinds.length;
+            line.kinds.forEach((kind, c) => {
+                const x = left + c * cell;
+                ctx.fillStyle = theme[kind] || theme.none;
+                ctx.fillRect(x, ly, Math.max(1, cell - 2), 21);
+                hits.push({ x, y: ly, w: cell, h: 21, text: line.tips[c] });
+            });
+            text(ctx, line.summary, width, ly + 15, theme.text, 13, 'right', 600);
+        });
+        const levels = noteLevels(rep.notes.map(n => n.time), ms);
+        rep.notes.forEach((n, i) => {
+            const x = Math.round(at(n.time)) + 0.5;
+            const py = notesY + notesH - 17 - levels[i] * 20;
+            ctx.strokeStyle = theme.text;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, py + PIN_R);
+            ctx.lineTo(x, notesY + notesH - 2);
+            ctx.stroke();
+            pin(ctx, x, py, i + 1, theme);
+            hits.push({ x: x - PIN_R, y: py - PIN_R, w: PIN_R * 2, h: PIN_R * 2, text: `Note ${i + 1} at ${clock(n.time)}${n.estimated ? ' (estimated)' : ''}, trial ${n.trial}: ${n.text}` });
+        });
+        y = stripTop + q.lines.length * ROW_H;
+        const seconds = ms / 1000;
+        const step = [15, 30, 60, 120, 300, 600, 1200].find(v => seconds / v <= 8) || 2400;
+        if (seconds > 0) for (let v = 0; v <= seconds; v += step) text(ctx, clock(v * 1000), left + (w * v) / seconds, y + 13, theme.muted, 12, v ? 'center' : 'left');
+        text(ctx, 'Time in block (min:s)', left + w / 2, y + 33, theme.text, 13, 'center');
+        y += 48;
+        if (!rep.notes.length) return;
+        text(ctx, 'Notes', 0, y + 14, theme.text, 13, 'left', 600);
+        y += 30;
+        const rows = noteRows(ctx, width, rep.notes);
+        rep.notes.forEach((n, i) => {
+            pin(ctx, PIN_R, y + 4, i + 1, theme);
+            text(ctx, `${clock(n.time)}${n.estimated ? ' est.' : ''}`, 28, y + 9, theme.muted, 13);
+            text(ctx, `Trial ${n.trial}`, 82, y + 9, theme.muted, 13);
+            rows[i].forEach((line, k) => text(ctx, line, 150, y + 9 + k * NOTE_LINE, theme.text, 13));
+            y += rows[i].length * NOTE_LINE + 6;
+        });
+    }
+
     const CHARTS = {
+        quality: {
+            title: 'Data quality timeline',
+            height: (width, data) => qualityTop(data) + data.runs.reduce((h, run) => h + qualityBlockH(width, run), 0),
+            draw: (ctx, width, data, opts, theme, hits) => {
+                const lines = ['Each cell represents part of the block. Amber and red indicate potential data-quality problems. Hover to see the value.'];
+                if (data.runs.some(run => run.report && run.report.notes.length)) lines.push('Numbered circles mark notes. The text of each note is listed under its block.');
+                const top = header(ctx, width, data, theme, 'Data quality timeline', lines);
+                let y0 = top + 6;
+                data.runs.forEach(run => {
+                    qualityBlock(ctx, width, y0, run, theme, hits);
+                    y0 += qualityBlockH(width, run);
+                });
+            }
+        },
         workspaceMap: {
             title: 'Workspace map',
             height: (width, data, opts) => 80 + data.runs.length * mapLayout(width, data, opts).rowH,
@@ -541,7 +739,7 @@ const ResultsCharts = (() => {
                         else text(ctx, 'Targets', X2 + L.sideW, Q.gy(far.h) - 10, theme.text, 12, 'right', 600);
                     }
                     if (m.homes.length) text(ctx, 'Home', Q.gx(Math.min(...m.homes.map(h => h.f))), Q.gy(m.homes[0].h) + 20, theme.text, 12, 'center', 600);
-                    if (run.recentres.length) text(ctx, `The headset was recentred ${run.recentres.length}× during this run. Positions recorded before and after may not align.`, X1 - 58, plotY + L.plotH + MAP.axis + 10, theme.warn, 12);
+                    if (run.recentres.length) text(ctx, `The headset was recentred ${run.recentres.length}× during this block. Positions recorded before and after may not align.`, X1 - 58, plotY + L.plotH + MAP.axis + 10, theme.warn, 12);
                 });
             }
         },
@@ -604,9 +802,9 @@ const ResultsCharts = (() => {
                 const top = header(ctx, width, data, theme, 'Hand use across session', [`Percentage of hits made with the non-dominant hand, calculated in groups of ${SET_SIZE} trials. Dominant hand: ${data.dominant}.`]);
                 sessionPlot(ctx, width, top, data, theme, hits, {
                     sets: (run) => handUseSets(run, data.dominantCode),
-                    max: () => 100,
+                    max: (all) => Math.min(100, niceMax(Math.max(10, ...all.map(s => s.value).filter(v => v !== null)))),
                     reference: 50,
-                    format: v => String(v),
+                    format: v => String(Math.round(v * 10) / 10),
                     yTitle: 'Non-dominant hand (% of hits)',
                     lines: [{ key: 'value', color: data.dominantCode === 'LEFT' ? theme.right : theme.left, tip: (s, v) => `${Math.round(v)}% of ${s.n} hits` }]
                 });
@@ -614,13 +812,16 @@ const ResultsCharts = (() => {
         },
         times: {
             title: 'Decision and movement time by target',
-            height: (width, data) => 88 + panels(width, data.runs.length).rows * (LINE_H + 76),
+            height: (width, data) => 88 + (timesScale(data).over ? 18 : 0) + panels(width, data.runs.length).rows * (LINE_H + 76),
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Decision and movement time by target', ['Median time for each target, using successful hits only. Shaded bands show the middle 50% of trials.', 'Decision time: from target appearance to leaving home. Movement time: from leaving home to target hit.']);
+                const scale = timesScale(data);
+                const lines = ['Median time for each target, using successful hits only. Shaded bands show the middle 50% of trials.', 'Decision time: from target appearance to leaving home. Movement time: from leaving home to target hit.'];
+                if (scale.over) lines.push(scale.over === 1 ? `1 trial took much longer than the rest (${(scale.longest / 1000).toFixed(1)} s). It still counts towards the medians, but the axis is not stretched to fit it.` : `${scale.over} trials took much longer than the rest (up to ${(scale.longest / 1000).toFixed(1)} s). They still count towards the medians, but the axis is not stretched to fit them.`);
+                const top = header(ctx, width, data, theme, 'Decision and movement time by target', lines);
                 legend(ctx, width, 38, theme, [{ label: 'Movement time', color: theme.text, line: true }, { label: 'Decision time', color: theme.muted, line: true, dash: [5, 4] }]);
                 const p = panels(width, data.runs.length);
-                const rows = data.runs.map(timesByTarget);
-                const max = niceMax(Math.max(1, ...rows.flat().flatMap(r => [r.decisionHigh || 0, r.movementHigh || 0])));
+                const rows = scale.rows;
+                const max = scale.max;
                 data.runs.forEach((run, i) => {
                     const at = p.at(i);
                     const y0 = top + at.row * (LINE_H + 76);
@@ -642,53 +843,37 @@ const ResultsCharts = (() => {
                         ctx.fill();
                         ctx.globalAlpha = 1;
                     };
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(box.x, box.y, box.w, box.h);
+                    ctx.clip();
                     band('decisionLow', 'decisionHigh', theme.muted);
                     band('movementLow', 'movementHigh', theme.text);
-                    const points = (key) => rows[i].map((r, t) => ({ x: px(t), r, value: r[key] }));
-                    const tip = (name) => (q) => `Target ${q.r.target}: ${name} ${Math.round(q.value)} ms, ${q.r.n} hits`;
+                    ctx.restore();
+                    const points = (key) => rows[i].map((r, t) => ({ x: px(t), r, real: r[key], value: r[key] === null ? null : Math.min(r[key], max) }));
+                    const tip = (name) => (q) => `Target ${q.r.target}: ${name} ${Math.round(q.real)} ms, ${q.r.n} hits`;
                     seriesLine(ctx, box, points('movement'), max, theme.text, theme, hits, tip('movement'));
                     seriesLine(ctx, box, points('decision'), max, theme.muted, theme, hits, tip('decision'), [5, 4]);
+                    rows[i].forEach((r, t) => {
+                        const high = [r.decision, r.movement].filter(v => v !== null && v > max);
+                        if (!high.length) return;
+                        const x = px(t);
+                        ctx.fillStyle = theme.warn;
+                        ctx.beginPath();
+                        ctx.moveTo(x, box.y - 9);
+                        ctx.lineTo(x - 5, box.y - 1);
+                        ctx.lineTo(x + 5, box.y - 1);
+                        ctx.closePath();
+                        ctx.fill();
+                        const label = `${Math.round(Math.max(...high)).toLocaleString('en-GB')} ms`;
+                        text(ctx, label, t > TARGETS / 2 ? x - 9 : x + 9, box.y + 14, theme.warn, 12, t > TARGETS / 2 ? 'right' : 'left', 600);
+                    });
                     rows[i].forEach((r, t) => text(ctx, String(r.target), px(t), box.y + box.h + 18, theme.muted, 12, 'center'));
                     text(ctx, TARGET_TITLE, box.x + box.w / 2, box.y + box.h + 40, theme.text, 13, 'center');
                 });
             }
         },
-        quality: {
-            title: 'Data quality timeline',
-            height: (width, data) => 66 + data.runs.length * QUALITY_RUN_H,
-            draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Data quality timeline', ['Each block represents part of a run. Amber and red indicate potential data-quality problems. Hover to see the value.']);
-                data.runs.forEach((run, i) => {
-                    const y0 = top + 6 + i * QUALITY_RUN_H;
-                    text(ctx, run.label, 0, y0 + 14, theme.text, 14, 'left', 600);
-                    const q = run.quality;
-                    if (!q || !q.lines.length) {
-                        text(ctx, 'No data', 0, y0 + 36, theme.muted, 13);
-                        return;
-                    }
-                    const left = 130, right = 84;
-                    const w = width - left - right;
-                    text(ctx, 'Whole run', width, y0 + 14, theme.muted, 12, 'right');
-                    q.lines.forEach((line, row) => {
-                        const y = y0 + 24 + row * 27;
-                        text(ctx, line.label, 0, y + 15, theme.text, 13);
-                        const cell = w / line.kinds.length;
-                        line.kinds.forEach((kind, c) => {
-                            const x = left + c * cell;
-                            ctx.fillStyle = theme[kind] || theme.none;
-                            ctx.fillRect(x, y, Math.max(1, cell - 2), 21);
-                            hits.push({ x, y, w: cell, h: 21, text: line.tips[c] });
-                        });
-                        text(ctx, line.summary, width, y + 15, theme.text, 13, 'right', 600);
-                    });
-                    const yAxisEnd = y0 + 24 + q.lines.length * 27;
-                    const seconds = (q.ms || 0) / 1000;
-                    const step = [15, 30, 60, 120, 300, 600, 1200].find(v => seconds / v <= 8) || 2400;
-                    if (seconds > 0) for (let v = 0; v <= seconds; v += step) text(ctx, clock(v * 1000), left + (w * v) / seconds, yAxisEnd + 13, theme.muted, 12, v ? 'center' : 'left');
-                    text(ctx, 'Time in run (min:s)', left + w / 2, yAxisEnd + 33, theme.text, 13, 'center');
-                });
-            }
-        }
+
     };
 
     function render(canvas, id, data, opts, themeName, width, scale) {
@@ -712,5 +897,5 @@ const ResultsCharts = (() => {
 
     const IDS = Object.keys(CHARTS);
     const titleOf = (id) => CHARTS[id].title;
-    return { IDS, titleOf, parseRun, trialSets, workspaceSets, handUseSets, handChoice, timesByTarget, median, render, shape2D, shape3D, view3D, limits3D, framesOf, marks, SHAPE_DEFAULT, SHAPE_OPTIONS };
+    return { IDS, titleOf, niceMax, timesScale, noteLevels, parseRun, trialSets, workspaceSets, handUseSets, handChoice, timesByTarget, median, render, shape2D, shape3D, view3D, limits3D, framesOf, marks, SHAPE_DEFAULT, SHAPE_OPTIONS };
 })();

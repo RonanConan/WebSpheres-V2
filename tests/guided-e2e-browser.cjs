@@ -119,7 +119,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const hostZip = host.dl.find(d => d.suggestedFilename() === lap[0]);
   const hostFiles = hostZip ? await openDownload(hostZip, OUT) : [];
   const lapFiles = await openDownload(odl[0], OUT);
-  const same = hostFiles.filter(f => f.path.startsWith('run1/')).length === 4 && hostFiles.length === lapFiles.length && hostFiles.every(f => lapFiles.some(x => x.path === f.path && x.text === f.text));
+  const same = hostFiles.filter(f => f.path.startsWith('block1/')).length === 4 && hostFiles.length === lapFiles.length && hostFiles.every(f => lapFiles.some(x => x.path === f.path && x.text === f.text));
   ok(same, 'laptop files byte-identical to the headset\'s');
   const sum = await o.evaluate(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const r = {}; for (let i = 0; i < s.length; i += 2) r[s[i]] = s[i + 1]; return r; });
   ok(sum['Trials completed'] === '44 / 44' && sum['Pauses'] === '1' && +sum['Skips'] >= 1, `summary: ${sum['Trials completed']} trials, ${sum['Skips']} skips, ${sum['Pauses']} pause`);

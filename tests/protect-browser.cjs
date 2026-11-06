@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('PROTECT BROWSER');
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: { reach: { done: true, hand: 'RIGHT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const FAKE_WAKE = `
   window.__wake = { requests: 0, released: 0, fail: false, locks: [] };
@@ -126,8 +126,8 @@ async function open(b, init) {
     const unlocked = await p.evaluate(() => [document.getElementById('g-skip').getBoundingClientRect().top, document.getElementById('g-pause').getBoundingClientRect().bottom]);
     ok(unlocked[0] - unlocked[1] >= 120, 'Skip target stays clear of Pause with Unlock setup hidden');
     await st({ setupLocked: true }); await tick();
-    ok(g.end.t === g.skip.t && g.skip.l > g.end.r, 'Skip target and End run at opposite ends of a row');
-    ok(g.save.t > g.pause.b && g.save.b <= g.end.t, 'Save headset copy on a lower row than Pause, above End run');
+    ok(g.end.t === g.skip.t && g.skip.l > g.end.r, 'Skip target and End block at opposite ends of a row');
+    ok(g.save.t > g.pause.b && g.save.b <= g.end.t, 'Save headset copy on a lower row than Pause, above End block');
     await p.click('#g-skip'); await tick(100);
     const cmds = await p.evaluate(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd').map(m => m.name));
     ok(cmds.includes('skip'), 'Skip target still sends skip');

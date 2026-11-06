@@ -4,7 +4,7 @@ const { openDownload, readZip } = require('./unzip.cjs');
 const { ok, done } = counter('CHARTS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-charts-'));
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const kin = (t, x, z, o) => {
   const a = Object.assign({ target: true, valid: 1, rec: 0, hx: 0, hz: -0.4, y: 1 }, o);
   return `${t},${x},${a.y},${z},${a.hx},0.9,${a.hz},${a.target ? '0.1,1.2,-0.5' : ',,'},${a.valid},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,${a.rec}\n`;
@@ -19,7 +19,7 @@ async function numbersSuite(b) {
   await p.waitForFunction(() => typeof ResultsCharts !== 'undefined');
   const result = await p.evaluate(({ kinL, kinR, trials }) => {
     const C = ResultsCharts;
-    const run = C.parseRun({ run: 1, label: 'Run 1', kinL, kinR, trials, quality: { lines: [] } });
+    const run = C.parseRun({ run: 1, label: 'Block 1', kinL, kinR, trials, quality: { lines: [] } });
     const hu = C.handUseSets(run, 'RIGHT');
     return {
       frames: C.framesOf(run, 'L').count, first: [...C.framesOf(run, 'L').pts.subarray(0, 3)].map(v => Math.round(v * 10) / 10),
@@ -63,7 +63,7 @@ async function numbersSuite(b) {
     const rows = (x, z) => Array.from({ length: 80 }, (_, i) => { const k = Math.sin(i / 80 * Math.PI); return `${i * 40},${x * k},${0.9 + 0.1 * k},${-0.4 + (z + 0.4) * k},0,0.9,-0.4,${x},1.0,${z},1,0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,0
 `; });
     const draw = (z, width) => {
-      const run = C.parseRun({ run: 1, label: 'Run 1', kinL: rows(-0.5, z), kinR: rows(0.5, z), trials: [], quality: { lines: [] } });
+      const run = C.parseRun({ run: 1, label: 'Block 1', kinL: rows(-0.5, z), kinR: rows(0.5, z), trials: [], quality: { lines: [] } });
       const real = CanvasRenderingContext2D.prototype.fillText;
       let found = null, edge = 0;
       CanvasRenderingContext2D.prototype.fillText = function (s, x) { if (/^Total /.test(s)) edge = Math.max(edge, x); if (s === 'Targets') { const w = this.measureText(s).width; found = this.textAlign === 'right' ? { right: x, left: x - w, align: this.textAlign } : { right: x + w, left: x, align: this.textAlign }; } };
@@ -77,6 +77,66 @@ async function numbersSuite(b) {
   });
   const over = label.filter(l => !l || l.right > l.edge + 0.5 || l.left < 0);
   ok(over.length === 0, 'Targets label stays inside the side view at every reach and width (' + over.length + ' of ' + label.length + ' outside)');
+  await p.context().close();
+}
+
+async function axesSuite(b) {
+  console.log('AXES AND TIMELINE NOTES');
+  const p = await (await b.newContext()).newPage();
+  await serve(p);
+  await p.goto('https://test.local/observer.html');
+  await p.waitForFunction(() => typeof ResultsCharts !== 'undefined');
+  const rows = [];
+  let n = 0;
+  for (let target = 1; target <= 11; target++) for (let k = 0; k < 4; k++) {
+    const dt = target === 4 && k === 3 ? 13912 : 500 + target * 20 + k * 30;
+    rows.push(trial(++n, n * 1500, target, target < 6 ? 'LEFT' : 'RIGHT', 'normal', dt, dt + 250));
+  }
+  const spiky = rows.slice();
+  spiky[33] = trial(34, 51000, 9, 'RIGHT', 'normal', 11084, 11400);
+  spiky[34] = trial(35, 52500, 9, 'RIGHT', 'normal', 15809, 16100);
+  const r = await p.evaluate(({ rows, spiky }) => {
+    const C = ResultsCharts;
+    const block = (trials, extra) => Object.assign(C.parseRun({ run: 1, label: 'Block 1', kinL: [], kinR: [], trials, quality: { lines: [] } }), extra || {});
+    const capture = (id, data, width) => {
+      const seen = [];
+      const real = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (s) { seen.push(String(s)); };
+      const canvas = document.createElement('canvas');
+      const hits = C.render(canvas, id, data, { shape: C.SHAPE_DEFAULT }, 'light', width || 1200, 1);
+      CanvasRenderingContext2D.prototype.fillText = real;
+      return { seen, hits: hits.map(h => h.text), height: canvas.height };
+    };
+    const base = { session: 'P1', dominant: 'Right', dominantCode: 'RIGHT', homeHalf: 0.4 };
+    const one = Object.assign({ runs: [block(rows)] }, base);
+    const two = Object.assign({ runs: [block(spiky)] }, base);
+    const uses = Array.from({ length: 22 }, (_, i) => `${i + 1},${i * 1000},${(i % 11) + 1},${i < 4 ? 'LEFT' : 'RIGHT'},2,normal,400,900,0,P1,1\n`);
+    const quality = { ms: 600000, lines: [{ label: 'Left-hand tracking', kinds: ['ok', 'warn'], tips: ['a', 'b'], summary: '99%' }] };
+    const report = (text) => ({ facts: [['Duration', '10:00'], ['Notes', '2']], notes: [{ time: 136953, trial: 7, text: 'Spoke to participant', estimated: false }, { time: 172438, trial: 9, text, estimated: true }], recentres: [300000], recentreCount: 1 });
+    const timeline = (text) => Object.assign({ runs: [block(rows, { quality, report: report(text) })] }, base);
+    return {
+      nice: [C.niceMax(1001), C.niceMax(860), C.niceMax(96), C.niceMax(18)],
+      scale: C.timesScale(one),
+      times: capture('times', one).seen,
+      spiky: C.timesScale(two),
+      spikyText: capture('times', two).seen,
+      handUse: capture('handUse', Object.assign({ runs: [block(uses)] }, base)).seen,
+      short: capture('quality', timeline('Short')),
+      long: capture('quality', timeline('A very long note about the participant needing a break '.repeat(20))),
+      levels: C.noteLevels([0, 10000, 12000, 300000], 600000),
+      first: C.IDS[0]
+    };
+  }, { rows, spiky });
+  ok(r.nice.join() === '1200,1000,100,20', 'axis tops round up in small steps (' + r.nice.join() + ')');
+  ok(r.scale.max <= 1000 && r.scale.over === 1 && r.scale.longest === 13912, `one 13.9 s trial no longer sets the axis (top ${r.scale.max}, ${r.scale.over} above)`);
+  ok(r.times.includes('1 trial took much longer than the rest (13.9 s). It still counts towards the medians, but the axis is not stretched to fit it.'), 'times chart says a trial is off the scale');
+  ok(r.spiky.max <= 1200 && r.spikyText.includes('5,927 ms') && r.spikyText.includes('3 trials took much longer than the rest (up to 15.8 s). They still count towards the medians, but the axis is not stretched to fit them.'), `median above the axis is labelled with its value (top ${r.spiky.max})`);
+  ok(r.handUse.includes('20') && !r.handUse.includes('100') && !r.handUse.includes('50'), 'hand use axis fits 18%, with no 50% line above it');
+  ok(r.first === 'quality', 'data quality timeline is the first chart');
+  ok(['1', '2', 'Spoke to participant', 'Duration', '10:00', 'Recentres', 'Notes', '2:16', 'Trial 7', '2:52 est.'].every(s => r.short.seen.includes(s)), 'results timeline shows facts, numbered notes and the note list');
+  ok(r.short.hits.some(h => h.startsWith('Note 1 at 2:16, trial 7: Spoke')) && r.short.hits.includes('Recentre at 5:00'), 'hover names each note and recentre');
+  ok(r.long.height > r.short.height + 40 && r.long.seen.filter(s => s.includes('needing a break')).length > 4, `long note text wraps onto more lines (${r.short.height} to ${r.long.height} px)`);
+  ok(r.levels.join() === '0,1,0,0', 'notes too close together step up a level');
   await p.context().close();
 }
 
@@ -107,15 +167,16 @@ async function panelSuite(b) {
   console.log('RUN PLAN TICKS');
   await emit(STATE);
   await sleep(350);
-  ok(await shown('#plan-builder') && (await text('plan-builder')).includes('Results at end of session'), 'Run plan offers the charts');
+  ok(await shown('#plan-builder') && (await text('plan-builder')).includes('Results at end of session'), 'Block plan offers the charts');
   ok(await O(() => document.querySelectorAll('[data-plan-chart]').length) === 6, 'all six charts listed');
-  ok(await O(() => [...document.querySelectorAll('[data-plan-chart]')].every(c => !c.checked)), 'none ticked to begin with');
+  ok(await O(() => [...document.querySelectorAll('[data-plan-chart]')].every(c => c.checked === (c.dataset.planChart === 'quality'))), 'only the timeline ticked to begin with');
+  ok(await O(() => document.querySelector('[data-plan-chart]').dataset.planChart === 'quality'), 'timeline listed first');
   await o.check('[data-plan-chart="workspaceMap"]');
   await o.check('[data-plan-chart="handChoice"]');
   await sleep(50);
   await o.click('#g-plan-send'); await sleep(100);
   const sent = await O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.name === 'setPlan').at(-1).value);
-  ok(sent.charts.join() === 'workspaceMap,handChoice', 'ticks sent with the plan');
+  ok(sent.charts.join() === 'quality,workspaceMap,handChoice', 'ticks sent with the plan');
   const plan = { mode: 'fmode', home: 'one-box', charts: sent.charts, runs: RUNS };
   await emit(Object.assign({}, STATE, { plan }));
   await sleep(300);
@@ -123,7 +184,7 @@ async function panelSuite(b) {
   console.log('DURING THE SESSION');
   await emit(Object.assign({}, STATE, { phase: 'running', plan, setupLocked: true }));
   await sleep(300);
-  ok(!(await shown('#results')) && !(await shown('#g-results')), 'no results during a run');
+  ok(!(await shown('#results')) && !(await shown('#g-results')), 'no results during a block');
 
   console.log('RESULTS');
   const kinL = [], kinR = [];
@@ -138,11 +199,11 @@ async function panelSuite(b) {
   await emit(done1);
   await sleep(700);
   ok(await shown('#results'), 'charts ticked: Results opens at session end');
-  ok((await charts()).join() === 'workspaceMap,handChoice', 'only ticked charts drawn');
+  ok((await charts()).join() === 'quality,workspaceMap,handChoice', 'only ticked charts drawn, timeline first');
   ok(dl.length === 1 && dl[0].suggestedFilename() === 'P1_TS.zip', 'data zip saved on its own, no figures downloaded');
   ok(await O(() => !document.querySelector('[data-res-view]') && !document.querySelector('[data-res-frames]')), 'old hand and frame buttons gone');
   ok((await text('res-showing')) === 'Workspace shape settings — 3D: fill gaps up to 16 cm and smooth by 0.5 cm; 2D: fill gaps up to 8 cm and smooth by 0.5 cm.', 'settings stated in words');
-  ok((await text('res-save')) === 'Save figures (2)', 'Save figures counts what is selected');
+  ok((await text('res-save')) === 'Save figures (3)', 'Save figures counts what is selected');
   const colourAt = (id, hex) => O(([chart, rgb]) => {
     const c = document.querySelector(`[data-chart="${chart}"] canvas`);
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -231,11 +292,11 @@ async function panelSuite(b) {
   const { spawnSync } = require('child_process');
   const zipBytes = fs.readFileSync(f);
   const entries = readBinaryZip(zipBytes);
-  ok(entries.length === 3 && entries.every(e => /^P1_[a-z0-9-]+-[\dT-]+\.png$/.test(e.name)) && entries.some(e => e.name.includes('workspace-map')) && entries.some(e => e.name.includes('hand-choice')) && entries.some(e => e.name.includes('workspace-3d-run1')), 'one PNG per selected chart, plus 3D at the current angle (' + entries.map(e => e.name).join(', ') + ')');
+  ok(entries.length === 3 && entries.every(e => /^P1_[a-z0-9-]+-[\dT-]+\.png$/.test(e.name)) && entries.some(e => e.name.includes('workspace-map')) && entries.some(e => e.name.includes('hand-choice')) && entries.some(e => e.name.includes('workspace-3d-block1')), 'one PNG per selected chart, plus 3D at the current angle (' + entries.map(e => e.name).join(', ') + ')');
   ok(entries.every(e => e.data.subarray(1, 4).toString() === 'PNG'), 'valid PNG files');
   const corner = await O(async (b64) => { const res = await fetch(`data:image/png;base64,${b64}`); const bmp = await createImageBitmap(await res.blob()); const c = new OffscreenCanvas(bmp.width, bmp.height); const x = c.getContext('2d'); x.drawImage(bmp, 0, 0); return { w: bmp.width, px: [...x.getImageData(2, 2, 1, 1).data] }; }, entries[0].data.toString('base64'));
   ok(corner.w === 2400 && corner.px[0] === 255 && corner.px[1] === 255 && corner.px[2] === 255, 'saved figures on white at high resolution');
-  const shot3D = entries.find(e => e.name.includes('workspace-3d-run1'));
+  const shot3D = entries.find(e => e.name.includes('workspace-3d-block1'));
   const corner3D = await O(async (b64) => { const res = await fetch(`data:image/png;base64,${b64}`); const bmp = await createImageBitmap(await res.blob()); const c = new OffscreenCanvas(bmp.width, bmp.height); const x = c.getContext('2d'); x.drawImage(bmp, 0, 0); return { w: bmp.width, h: bmp.height, px: [...x.getImageData(2, 2, 1, 1).data] }; }, shot3D.data.toString('base64'));
   ok(corner3D.w === 2400 && corner3D.h === 1500 && corner3D.px[0] === 255, '3D figure on white at high resolution');
   ok((await text('res-msg')) === 'Download started: 3 figures in a ZIP.', 'says what was saved');
@@ -265,7 +326,7 @@ async function panelSuite(b) {
     CanvasRenderingContext2D.prototype.fillText = real;
     return out;
   });
-  const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial number (across the session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial number (across the session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in run (min:s)'] };
+  const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial number (across the session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial number (across the session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in block (min:s)'] };
   Object.entries(axes).forEach(([id, want]) => ok(want.every(w => written[id].includes(w)), `${id}: axes titled`));
   ok(Object.values(written).flat().every(s => !/ball/i.test(s)), 'no specialist wording on any figure');
   ok(Object.values(written).flat().every(s => !s.includes('·')), 'no middle dots on any figure');
@@ -283,7 +344,7 @@ async function panelSuite(b) {
   await sleep(300);
   await emit(done1);
   await sleep(600);
-  ok((await charts()).join() === 'workspaceMap,workspaceTime,handChoice,handUse,times', 'chart ticks kept after Add run and finishing again');
+  ok((await charts()).join() === 'workspaceMap,workspaceTime,handChoice,handUse,times', 'chart ticks kept after Add block and finishing again');
 
   console.log('CHART FAILS TO DRAW');
   await O(() => { window.__render = ResultsCharts.render; ResultsCharts.render = function (c, id) { if (id === 'handUse') throw new Error('bad chart'); return window.__render.apply(ResultsCharts, arguments); }; });
@@ -314,7 +375,7 @@ async function panelSuite(b) {
   const mem = (d) => m.evaluate((x) => window.__c.emit('data', JSON.stringify(x)), d);
   await mem(Object.assign({}, STATE, { sessionId: 'M' }));
   await sleep(350);
-  ok(await m.evaluate(() => document.getElementById('plan-builder').textContent.includes('Runs') && !document.querySelector('[data-plan-chart]')), 'run plan works without the charts');
+  ok(await m.evaluate(() => document.getElementById('plan-builder').textContent.includes('Blocks') && !document.querySelector('[data-plan-chart]')), 'block plan works without the charts');
   await m.evaluate(() => { document.querySelector('[data-plan-mode="short"]').click(); });
   await sleep(300);
   ok(await m.evaluate(() => document.querySelector('[data-plan-mode="short"]').classList.contains('on')), 'guide still updates');
@@ -369,7 +430,7 @@ async function panelSuite(b) {
   ok(await n.evaluate(() => document.getElementById('results').checkVisibility() && document.getElementById('res-save').disabled), 'can still open Results; nothing selected');
   await n.check('[data-res-chart="workspaceMap"]'); await sleep(350);
   ok(await n.evaluate(() => !!document.querySelector('[data-chart="workspaceMap"] canvas') && !document.getElementById('res-save').disabled), 'unticked chart available afterwards');
-  ok(await n.evaluate(() => [...window.__obs.guide.results.parsed.values()].at(-1).label) === 'Run 1: No boost through trial 200, then Boost', 'run label shows a mid-run condition change');
+  ok(await n.evaluate(() => [...window.__obs.guide.results.parsed.values()].at(-1).label) === 'Block 1: No boost through trial 200, then Boost', 'run label shows a mid-run condition change');
   await c2.close();
 }
 
@@ -394,6 +455,7 @@ function readBinaryZip(buf) {
 (async () => {
   const b = await launch();
   await numbersSuite(b);
+  await axesSuite(b);
   await panelSuite(b);
   await b.close();
   done();

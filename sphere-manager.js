@@ -360,7 +360,7 @@ AFRAME.registerComponent('sphere-manager', {
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const scoreManager = document.querySelector('#score-display').components['score-manager'];
         const phase = this.phase;
-        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setReachHand', 'setCondition', 'toggleCondition', 'setMode', 'calibrate'];
+        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setReachHand', 'setCondition', 'toggleCondition', 'setMode', 'setCustomTrials', 'calibrate'];
         if (setupCommands.includes(name)) {
             const open = this.setupOpen();
             if (!open.ok) return open;
@@ -398,9 +398,16 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'setMode':
                 if (!['standard', 'short', 'fmode', 'block'].includes(value)) return { ok: false, reason: 'Unknown mode' };
-                if (phase !== 'setup') return { ok: false, reason: 'Set the run length before starting the session.' };
+                if (phase !== 'setup') return { ok: false, reason: 'Set the block length before starting the session.' };
                 this.setMode(value);
                 return { ok: true };
+            case 'setCustomTrials': {
+                if (!Number.isInteger(value) || value < 11 || value > 1100) return { ok: false, reason: 'The custom trial count must be a whole number from 11 to 1,100.' };
+                if (value % 11) return { ok: false, reason: `${value} trials cannot be split evenly across the 11 targets. Use a multiple of 11, such as ${Math.max(11, Math.floor(value / 11) * 11)} or ${Math.ceil(value / 11) * 11}.` };
+                if (phase !== 'setup') return { ok: false, reason: 'Set the block length before starting the session.' };
+                this.setCustomTrials(value);
+                return { ok: true };
+            }
             case 'calibrate':
                 if (!['reach', 'height', 'lap'].includes(value)) return { ok: false, reason: 'Unknown calibration' };
                 return this.runCalibration(value);
@@ -409,7 +416,7 @@ AFRAME.registerComponent('sphere-manager', {
                 this.startSession();
                 return { ok: true };
             case 'pause':
-                if (phase !== 'running') return { ok: false, reason: 'You can only pause during a run.' };
+                if (phase !== 'running') return { ok: false, reason: 'You can only pause during a block.' };
                 this.requestPause();
                 return { ok: true };
             case 'resume':
@@ -424,7 +431,7 @@ AFRAME.registerComponent('sphere-manager', {
                 if (phase === 'setup') return this.doCommand('start');
                 if (phase === 'running') return this.doCommand('pause');
                 if (phase === 'pausing' || phase === 'paused') return this.doCommand('resume');
-                if (phase === 'between') return { ok: false, reason: 'Use Start next run' };
+                if (phase === 'between') return { ok: false, reason: 'Use Start next block' };
                 return { ok: false, reason: 'Session complete' };
             case 'endEarly':
                 if (!this.isRunActive()) return { ok: false, reason: 'No session running' };
@@ -440,19 +447,19 @@ AFRAME.registerComponent('sphere-manager', {
             case 'setPlan':
                 return this.setPlan(value);
             case 'resumeAt':
-                if (phase !== 'setup') return { ok: false, reason: 'You can only resume a session before a new run starts.' };
-                if (!Number.isInteger(value) || value < 2 || value > dataManager.plannedRuns()) return { ok: false, reason: 'That run is not in the current plan.' };
+                if (phase !== 'setup') return { ok: false, reason: 'You can only resume a session before a new block starts.' };
+                if (!Number.isInteger(value) || value < 2 || value > dataManager.plannedRuns()) return { ok: false, reason: 'That block is not in the current plan.' };
                 dataManager.runNumber = value;
                 dataManager.breakBefore = 'headset-reload';
                 return { ok: true };
             case 'nextRun':
-                if (phase !== 'between') return { ok: false, reason: 'You can only start the next run between runs.' };
-                if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
-                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more runs in the plan.' };
+                if (phase !== 'between') return { ok: false, reason: 'You can only start the next block between blocks.' };
+                if (dataManager.runClosing) return { ok: false, reason: 'Block still closing. Try again.' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more blocks in the plan.' };
                 this.startNextRun();
                 return { ok: true };
             case 'finishSession':
-                if (phase !== 'between') return { ok: false, reason: 'You can only finish the session between runs.' };
+                if (phase !== 'between') return { ok: false, reason: 'You can only finish the session between blocks.' };
                 this.phase = 'complete';
                 this.setupLocked = true;
                 this.setHeadsetCue('done');
@@ -460,8 +467,8 @@ AFRAME.registerComponent('sphere-manager', {
                 return { ok: true };
             case 'reopenSession':
                 if (phase !== 'complete') return { ok: false, reason: 'Session not complete' };
-                if (dataManager.runClosing) return { ok: false, reason: 'Run still closing. Try again.' };
-                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more runs in the plan.' };
+                if (dataManager.runClosing) return { ok: false, reason: 'Block still closing. Try again.' };
+                if (dataManager.runNumber >= dataManager.plannedRuns()) return { ok: false, reason: 'There are no more blocks in the plan.' };
                 this.phase = 'between';
                 this.setupLocked = false;
                 this.setHeadsetCue('paused');
@@ -503,12 +510,12 @@ AFRAME.registerComponent('sphere-manager', {
     },
 
     setPlan: function (value) {
-        if (this.isRunActive()) return { ok: false, reason: 'You can only change the plan before a session or between runs.' };
+        if (this.isRunActive()) return { ok: false, reason: 'You can only change the plan before a session or between blocks.' };
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const runs = value && value.runs;
-        if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'A plan can contain 1\u201320 runs.' };
-        if (runs.length < dataManager.runNumber) return { ok: false, reason: 'You cannot remove completed runs from the plan.' };
-        if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Each run must use condition 1 or 2.' };
+        if (!Array.isArray(runs) || runs.length < 1 || runs.length > 20) return { ok: false, reason: 'A plan can contain 1\u201320 blocks.' };
+        if (runs.length < dataManager.runNumber) return { ok: false, reason: 'You cannot remove completed blocks from the plan.' };
+        if (!runs.every(r => r && (r.condition === 1 || r.condition === 2))) return { ok: false, reason: 'Each block must use condition 1 or 2.' };
         const charts = Array.isArray(value.charts) ? value.charts.filter(c => typeof c === 'string').slice(0, 20) : [];
         dataManager.plan = { mode: this.mode, home: this.homeMode, charts, runs: runs.map(r => ({ condition: r.condition, off: !!r.off, recal: !!r.recal })) };
         if (this.phase === 'between' && !dataManager.runClosing) dataManager.saveForBreak();
@@ -779,6 +786,14 @@ AFRAME.registerComponent('sphere-manager', {
         this.mode = mode;
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         dataManager.updateTotalTrials(this.totalTrials);
+    },
+
+    setCustomTrials: function (total) {
+        this.setMode('standard');
+        this.appearancesPerSphere = total / 11;
+        this.totalTrials = total;
+        this.mode = 'custom';
+        document.querySelector('#data-manager').components['data-manager'].updateTotalTrials(total);
     },
 
     skipTarget: function () {

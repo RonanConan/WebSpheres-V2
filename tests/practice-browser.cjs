@@ -137,6 +137,55 @@ async function openPractice(b, viewport) {
   await O(() => document.getElementById('g-pause').click());
   await f.waitForFunction((n) => window.__practice.dm.trialData.length > n, held, { timeout: 15000, polling: 100 });
   ok(true, 'resumed: trials continue');
+  console.log('SIMULATED HEAD');
+  const look = await H(() => new Promise((resolve) => {
+    const { sm, dm, participant } = window.__practice;
+    const seen = [];
+    let current = null;
+    let count = dm.trialData.length;
+    const t = setInterval(() => {
+      const visible = sm.currentState === 'visible' ? sm.activeSphere : null;
+      if (visible) current = { x: visible.getAttribute('position').x };
+      if (dm.trialData.length > count) {
+        count = dm.trialData.length;
+        if (current && dm.trialData.at(-1).hitType !== 'SKIP') seen.push({ x: current.x, yaw: participant.head.camera.rotation.y });
+        current = null;
+      }
+      if (seen.length >= 6) { clearInterval(t); resolve(seen); }
+    }, 5);
+  }));
+  const sided = look.filter(s => Math.abs(s.x) > 0.12);
+  ok(sided.length > 0 && sided.every(s => Math.sign(s.yaw) === -Math.sign(s.x) && Math.abs(s.yaw) > 0.1), 'head has turned towards the target by the time it is hit (' + look.map(s => `${s.x.toFixed(2)}:${s.yaw.toFixed(2)}`).join(' ') + ')');
+  const headCols = await H(() => {
+    const rows = document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.slice(-400).map(r => r.split(','));
+    return { yaw: new Set(rows.map(c => c[22])).size, x: new Set(rows.map(c => c[18])).size };
+  });
+  ok(headCols.yaw > 50 && headCols.x > 20, `head columns in the kinematics file change over time (${headCols.yaw} orientations, ${headCols.x} positions)`);
+
+  console.log('SPEED');
+  ok(await O(() => [...document.querySelectorAll('[data-speed]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join()) === '1×*,3×,5×', 'speed buttons start at 1×');
+  await p.click('[data-speed="5"]');
+  ok(await O(() => document.querySelector('[data-speed="5"]').classList.contains('on')) && await H(() => window.__practiceClock.speed === 5), '5× selected');
+  const s0 = await H(() => ({ sim: window.__practiceClock.simulated(), real: window.__practiceClock.realNow(), trials: window.__practice.dm.trialData.length }));
+  await sleep(6000);
+  const s1 = await H(() => ({ sim: window.__practiceClock.simulated(), real: window.__practiceClock.realNow(), trials: window.__practice.dm.trialData.length }));
+  const rate = (s1.sim - s0.sim) / (s1.real - s0.real);
+  console.log(`    measured speed at 5×: ${rate.toFixed(2)}× (${s1.trials - s0.trials} trials in ${((s1.real - s0.real) / 1000).toFixed(1)} s)`);
+  ok(rate > 3.5, `5× runs well above normal speed (${rate.toFixed(2)}×)`);
+  const fast = await H((from) => {
+    const rows = document.querySelector('#kinematics-manager').components['kinematics-manager'].leftHandData.slice(-300).map(r => +r.split(',')[0]);
+    const gaps = rows.slice(1).map((t, i) => t - rows[i]).sort((a, b) => a - b);
+    const trials = window.__practice.dm.trialData.slice(from).filter(t => t.hitType !== 'SKIP');
+    return { gap: gaps[gaps.length >> 1], decisions: trials.map(t => t.decisionTime), totals: trials.map(t => t.totalMovementTime) };
+  }, s0.trials);
+  ok(fast.gap >= 10 && fast.gap <= 13, `kinematics rows stay about 11 ms apart at 5× (median ${fast.gap} ms)`);
+  ok(fast.decisions.length >= 3 && fast.decisions.every(d => d > 200 && d < 1500), 'decision times at 5× look like 1× (' + fast.decisions.join(', ') + ' ms)');
+  ok(await O(() => document.getElementById('conn-state').textContent.toLowerCase().includes('connected')), 'connection stays up at 5×');
+  await sleep(1500);
+  const fpsLight = await O(() => [...document.querySelectorAll('#g7-quality .q-row')].map(r => r.className + ':' + r.textContent).find(t => t.includes('Frame rate')));
+  ok(/q-row ok/.test(fpsLight), 'Frame rate light stays OK at 5× (' + fpsLight + ')');
+  await p.click('[data-speed="1"]');
+  ok(await H(() => window.__practiceClock.speed === 1), 'back to 1×');
   const finishRun = () => H(() => new Promise((resolve) => {
     const { sm } = window.__practice;
     const t = setInterval(() => {
@@ -147,7 +196,7 @@ async function openPractice(b, viewport) {
   await finishRun();
 
   console.log('HEADSET-OFF BREAK');
-  await p.waitForFunction(() => document.getElementById('g7-head').textContent === 'Between runs', null, { timeout: 8000 });
+  await p.waitForFunction(() => document.getElementById('g7-head').textContent === 'Between blocks', null, { timeout: 8000 });
   ok(await O(() => document.getElementById('g7-b-start').disabled), 'Start locked during a headset-off break');
   ok(p.dl.length === 0, 'break saves no file on this laptop');
   await p.click('#g7-b-recentre');
@@ -158,7 +207,7 @@ async function openPractice(b, viewport) {
 
   console.log('RUN 2 AND FINISH');
   await finishRun();
-  await p.waitForFunction(() => document.getElementById('g7-b-finish') && !document.getElementById('g7-b-finish').disabled && document.getElementById('g7-head').textContent === 'Between runs' || +(document.querySelector('#guide .step.open')?.dataset.step || 0) === 8, null, { timeout: 8000 });
+  await p.waitForFunction(() => document.getElementById('g7-b-finish') && !document.getElementById('g7-b-finish').disabled && document.getElementById('g7-head').textContent === 'Between blocks' || +(document.querySelector('#guide .step.open')?.dataset.step || 0) === 8, null, { timeout: 8000 });
   await waitStep(8);
   await p.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Download started'), null, { timeout: 15000 });
   await sleep(1500);
@@ -170,10 +219,10 @@ async function openPractice(b, viewport) {
   const files = await openDownload(p.dl[0], OUT);
   ok(files.length >= 8 && files.every(x => x.path.split('/').pop().startsWith('PRACTICE_G05_')), `every file inside marked (${files.length} files)`);
   const infos = files.filter(x => /session-info/.test(x.path));
-  ok(infos.length === 2 && infos.every(x => x.text.trimEnd().split('\n').at(-1) === 'Practice,1'), 'each run\'s session info ends with Practice,1');
+  ok(infos.length === 2 && infos.every(x => x.text.trimEnd().split('\n').at(-1) === 'Practice,1'), 'each block\'s session info ends with Practice,1');
   ok(infos.every(x => x.text.split('\n').filter(l => l.startsWith('XRMode,')).length === 1), 'session info still has its XRMode row');
   const trial = files.find(x => /vr-session-data/.test(x.path));
-  ok(trial.text.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run', 'trial CSV header same as a real session');
+  ok(trial.text.split('\n')[0] === 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Block', 'trial CSV header same as a real session');
   ok(trial.text.includes(',G05'), 'ParticipantID column keeps what was typed');
   const kin = files.find(x => /RIGHT/.test(x.path));
   ok(kin.text.split('\n').length > 300, 'kinematics recorded from the simulated hand');
@@ -211,7 +260,7 @@ async function openPractice(b, viewport) {
     await q.click('[data-calib="lap"]');
     await open(6);
     await q.waitForFunction(() => !document.getElementById('g-start').disabled, null, { timeout: 5000 });
-    ok(await q.evaluate(() => document.getElementById('g-start').textContent) === 'Start run 1', 'all checks pass with a box per hand');
+    ok(await q.evaluate(() => document.getElementById('g-start').textContent) === 'Start block 1', 'all checks pass with a box per hand');
     await q.click('#g-start');
     await g.waitForFunction(() => window.__practice.dm.trialData.length >= 2, null, { timeout: 30000, polling: 100 });
     ok(true, 'trials run with a box per hand');

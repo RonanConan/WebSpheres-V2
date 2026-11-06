@@ -59,6 +59,23 @@ async function openPage(b, block) {
   ok(amber[0] === 'rgb(239, 168, 72)' && amber[1] === 'rgb(26, 16, 0)', 'warning actions use the softer amber with dark text');
   const vars = await p.evaluate(() => { const s = getComputedStyle(document.documentElement); return ['--accent', '--ok', '--warn', '--err', '--left', '--right'].map(k => s.getPropertyValue(k).trim()); });
   ok(vars.join() === '#00e5ff,#3ddc84,#ffb347,#ff5c5c,#3a86ea,#e5534b', 'text, outline and hand colours are unchanged');
+  const plain = await p.evaluate(() => {
+    const textLeft = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().left; };
+    const line = document.querySelector('#g1-checks li span:last-child');
+    const button = document.getElementById('g-practice').getBoundingClientRect();
+    return { text: textLeft(line), button: button.left };
+  });
+  ok(Math.abs(plain.text - plain.button) < 1, `status lines with no marks line up with the step content (${Math.round(plain.text)}/${Math.round(plain.button)})`);
+  const mixed = await p.evaluate(() => {
+    const ul = document.createElement('ul');
+    ul.className = 'checks';
+    ul.innerHTML = '<li><span class="ck ok">✓</span><span>a</span></li><li><span class="ck info"></span><span>b</span></li>';
+    document.querySelector('.step.open .step-body').append(ul);
+    const [a, b] = [...ul.querySelectorAll('li span:last-child')].map(s => s.getBoundingClientRect().left);
+    ul.remove();
+    return Math.abs(a - b);
+  });
+  ok(mixed < 1, 'text stays in line when a list mixes marked and unmarked lines');
   ok(errs.length === 0, `no page errors (${errs.join('; ') || 'none'})`);
   await ctx.close();
 

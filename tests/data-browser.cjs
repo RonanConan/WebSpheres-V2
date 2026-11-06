@@ -5,7 +5,7 @@ const { ok, done } = counter('DATA BROWSER');
 const VIEWER = process.env.WS_VIEWER || path.join(ROOT, 'For Claude', 'reference', 'viewer-src');
 const OLD_HEADER = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount';
 const { openDownload } = require('./unzip.cjs');
-const INFO_KEYS = ['ParticipantID', 'AppVersion', 'SessionStartISO', 'SessionEndISO', 'EndReason', 'DominantHand', 'Condition', 'Mode', 'TotalTrials', 'TrialsCompleted', 'ReachHand', 'ReachDistance', 'Radius', 'Height', 'HomeX', 'HomeY', 'HomeZ', 'RecentreCount', 'Pauses', 'SetupUnlocks', 'Experimenter', 'HomeMode', 'HomeLeftX', 'HomeLeftY', 'HomeLeftZ', 'HomeRightX', 'HomeRightY', 'HomeRightZ', 'SetupChanges', 'Run', 'PlannedRuns', 'Plan', 'BreakBefore', 'RecalibratedBefore', 'XRMode'];
+const INFO_KEYS = ['ParticipantID', 'AppVersion', 'SessionStartISO', 'SessionEndISO', 'EndReason', 'DominantHand', 'Condition', 'Mode', 'TotalTrials', 'TrialsCompleted', 'ReachHand', 'ReachDistance', 'Radius', 'Height', 'HomeX', 'HomeY', 'HomeZ', 'RecentreCount', 'Pauses', 'SetupUnlocks', 'Experimenter', 'HomeMode', 'HomeLeftX', 'HomeLeftY', 'HomeLeftZ', 'HomeRightX', 'HomeRightY', 'HomeRightZ', 'SetupChanges', 'Block', 'PlannedBlocks', 'Plan', 'BreakBefore', 'RecalibratedBefore', 'XRMode'];
 
 async function saveAll(p, from, dir) {
   const out = [];
@@ -68,14 +68,14 @@ const info = (text) => { const lines = text.trimEnd().split('\n'); return { head
   const expect = await E(() => ({ shared: window.__dm.TRIAL_HEADER + window.__dm.trialData.map(t => window.__dm.formatTrialRow(t)).join(''), old: window.__dm.trialData.map(t => `${t.trial},${t.timestamp},${t.target},${t.hand},${t.points},${t.hitType},${t.decisionTime},${t.totalMovementTime},${t.recentreCount}`), kl: window.__km.HEADER + window.__km.leftHandData.join(''), kr: window.__km.HEADER + window.__km.rightHandData.join(''), n: window.__dm.trialNumber }));
   ok(trial === expect.shared, 'trial file is byte-identical to the shared formatter output (what the backup will use)');
   const tl = trial.trimEnd().split('\n');
-  ok(tl[0] === OLD_HEADER + ',ParticipantID,Run', 'header: every original column unchanged and in order, ParticipantID and Run appended last');
+  ok(tl[0] === OLD_HEADER + ',ParticipantID,Block', 'header: every original column unchanged and in order, ParticipantID and Block appended last');
   ok(tl.length - 1 === expect.n && tl.slice(1).every((l, i) => l === expect.old[i] + ',P07,1'), `each row = the original 9 columns exactly as before + ",P07,1" (${expect.n} rows)`);
   ok(fin.find(f => f.name.includes('LEFT')).text === expect.kl && fin.find(f => f.name.includes('RIGHT')).text === expect.kr, 'kinematics files byte-identical to header + stored row strings (26 columns, unchanged format)');
   const si = info(fin.find(f => f.name.includes('session-info')).text);
   ok(si.header === 'Key,Value' && si.keys.join() === INFO_KEYS.join(), 'session info: Key,Value with the 20 keys in the planned order');
   const st = await E(() => ({ start: new Date(window.__dm.sessionStartTime).toISOString(), end: window.__dm.sessionEndTime, reach: window.__sm.calib.reach, r: window.__sm.radius, h: window.__sm.height, pauses: window.__dm.pauses, unlocks: window.__dm.setupUnlocks }));
   const m = si.map;
-  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.6.0' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
+  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.7.0' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
   ok(m.SessionStartISO === st.start && m.SessionEndISO === new Date(st.end).toISOString() && m.SessionEndISO > m.SessionStartISO, 'SessionStartISO and SessionEndISO');
   ok(m.DominantHand === 'RIGHT' && m.Condition === '2' && m.Mode === 'short' && m.TotalTrials === '110' && m.TrialsCompleted === String(expect.n), 'DominantHand, Condition, Mode, TotalTrials, TrialsCompleted');
   ok(m.ReachHand === 'RIGHT' && +m.ReachDistance === st.reach.distance && +m.Radius === st.r && +m.Height === st.h, 'ReachHand, ReachDistance, Radius, Height');

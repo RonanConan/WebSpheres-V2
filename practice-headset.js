@@ -2,13 +2,86 @@
     if (window.parent === window) return;
 
     const FRAME_MS = 1000 / 90;
-    let nextFrame = 0;
-    window.requestAnimationFrame = (callback) => {
-        const now = performance.now();
-        nextFrame = Math.max(now - 100, nextFrame + FRAME_MS);
-        return setTimeout(() => callback(performance.now()), Math.max(0, nextFrame - now));
+    const real = {
+        now: performance.now.bind(performance),
+        date: Date.now,
+        setTimeout: window.setTimeout.bind(window),
+        clearTimeout: window.clearTimeout.bind(window)
     };
-    window.cancelAnimationFrame = (id) => clearTimeout(id);
+    const clock = { speed: 1, now: real.now(), offset: real.date() - real.now(), lastReal: real.now(), nextFrame: real.now() + FRAME_MS, frames: [], frameId: 0, timers: new Map(), timerId: 0, simulated: 0 };
+    const report = (e) => real.setTimeout(() => { throw e; }, 0);
+    const call = (fn, args) => {
+        try { fn(...args); } catch (e) { report(e); }
+    };
+    const addTimer = (fn, delay, args, repeat) => {
+        if (typeof fn !== 'function') return 0;
+        const id = ++clock.timerId;
+        const every = Math.max(1, Number(delay) || 0);
+        clock.timers.set(id, { id, at: clock.now + every, every, fn, args, repeat });
+        return id;
+    };
+    window.setTimeout = (fn, delay, ...args) => addTimer(fn, delay, args, false);
+    window.setInterval = (fn, delay, ...args) => addTimer(fn, delay, args, true);
+    window.clearTimeout = window.clearInterval = (id) => { clock.timers.delete(id); };
+    window.requestAnimationFrame = (callback) => {
+        const id = ++clock.frameId;
+        clock.frames.push({ id, callback });
+        return id;
+    };
+    window.cancelAnimationFrame = (id) => { clock.frames = clock.frames.filter(f => f.id !== id); };
+    performance.now = () => clock.now;
+    Date.now = () => Math.floor(clock.now + clock.offset);
+
+    const nextTimer = () => {
+        let best = null;
+        clock.timers.forEach(t => { if (!best || t.at < best.at || (t.at === best.at && t.id < best.id)) best = t; });
+        return best;
+    };
+    const pump = () => {
+        const started = real.now();
+        const before = clock.now;
+        const budget = Math.min(100, started - clock.lastReal) * clock.speed;
+        clock.lastReal = started;
+        const target = clock.now + budget;
+        let behind = false;
+        while (true) {
+            const timer = nextTimer();
+            const at = Math.min(timer ? timer.at : Infinity, clock.nextFrame);
+            if (at > target) break;
+            if (real.now() - started > 40) {
+                behind = true;
+                break;
+            }
+            clock.now = Math.max(clock.now, at);
+            if (timer && timer.at <= clock.nextFrame) {
+                if (timer.repeat) timer.at = Math.max(timer.at + timer.every, clock.now + 1);
+                else clock.timers.delete(timer.id);
+                call(timer.fn, timer.args);
+            } else {
+                clock.nextFrame += FRAME_MS;
+                const due = clock.frames;
+                clock.frames = [];
+                due.forEach(f => call(f.callback, [clock.now]));
+            }
+        }
+        if (!behind) clock.now = target;
+        clock.simulated += clock.now - before;
+        real.setTimeout(pump, 4);
+    };
+    real.setTimeout(pump, 4);
+    window.__practiceClock = {
+        get speed() { return clock.speed; },
+        setSpeed(value) {
+            if (![1, 3, 5].includes(value)) return false;
+            clock.speed = value;
+            clock.lastReal = real.now();
+            if (window.__practice && window.__practice.onSpeed) window.__practice.onSpeed(value);
+            return true;
+        },
+        realNow: real.now,
+        simNow: () => clock.now,
+        simulated: () => clock.simulated
+    };
     HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };
 
     const JOINT_NAMES = ['Wrist', 'T_Tip', 'T_Distal', 'T_Proximal', 'T_Metacarpal', 'I_Tip', 'I_Distal', 'I_Intermediate', 'I_Proximal', 'I_Metacarpal', 'M_Tip', 'M_Distal', 'M_Intermediate', 'M_Proximal', 'M_Metacarpal', 'R_Tip', 'R_Distal', 'R_Intermediate', 'R_Proximal', 'R_Metacarpal', 'L_Tip', 'L_Distal', 'L_Intermediate', 'L_Proximal', 'L_Metacarpal'];
@@ -72,6 +145,63 @@
         const reachPose = { x: rand(0.08, 0.14), y: rand(1.05, 1.12), z: -rand(0.7, 0.76) };
         const participant = { frozen: false, trial: null };
 
+        const HEAD = { x: 0, y: 1.2, z: 0 };
+        const head = { yaw: 0, pitch: -0.1, lean: 0, leanX: 0, leanZ: 0, motion: null, goal: null, phase: Math.random() * 6, lookAt: 0, homeAt: 0, camera: null };
+        const angles = (to) => {
+            const dx = to.x - HEAD.x, dy = to.y - HEAD.y, dz = to.z - HEAD.z;
+            return { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)), dx, dz };
+        };
+        const turnHead = (to, ms, now) => {
+            const goal = head.goal;
+            if (goal && Math.abs(goal.yaw - to.yaw) < 0.002 && Math.abs(goal.pitch - to.pitch) < 0.002 && Math.abs(goal.lean - to.lean) < 0.001) return;
+            head.goal = to;
+            head.motion = { from: { yaw: head.yaw, pitch: head.pitch, lean: head.lean, leanX: head.leanX, leanZ: head.leanZ }, to, start: now, ms };
+        };
+        const lookTowards = (to, share, lean) => {
+            const a = angles(to);
+            const d = Math.hypot(a.dx, a.dz) || 1;
+            return { yaw: a.yaw * share, pitch: a.pitch * share, lean, leanX: (a.dx / d) * lean, leanZ: (a.dz / d) * lean };
+        };
+        const homeLook = () => {
+            const home = sm.homeRectangle.getAttribute('position');
+            return lookTowards(home, 0.6, 0);
+        };
+        const FORWARD = { yaw: 0, pitch: -0.1, lean: 0, leanX: 0, leanZ: 0 };
+        const stepHead = (now) => {
+            const trial = participant.trial;
+            const running = sm.phase === 'running' || sm.phase === 'pausing';
+            if (spectator.cue || !running) {
+                head.homeAt = 0;
+                turnHead(FORWARD, 500, now);
+            } else if (trial) {
+                head.homeAt = 0;
+                if (!trial.looking && now >= trial.lookAt) {
+                    trial.looking = true;
+                    turnHead(lookTowards(trial.sphere.getAttribute('position'), 0.75, 0), rand(300, 450), now);
+                }
+                if (trial.moving && !trial.leaning) {
+                    trial.leaning = true;
+                    turnHead(lookTowards(trial.sphere.getAttribute('position'), 0.75, rand(0.01, 0.02)), 500, now);
+                }
+            } else {
+                if (!head.homeAt) head.homeAt = now + rand(100, 300);
+                if (now >= head.homeAt) turnHead(homeLook(), rand(350, 500), now);
+            }
+            const m = head.motion;
+            if (m) {
+                const s = Math.min(1, (now - m.start) / m.ms);
+                const e = s * s * s * (10 - 15 * s + 6 * s * s);
+                ['yaw', 'pitch', 'lean', 'leanX', 'leanZ'].forEach((k) => { head[k] = m.from[k] + (m.to[k] - m.from[k]) * e; });
+                if (s >= 1) head.motion = null;
+            }
+            const sway = (rate, phase, size) => size * (Math.sin(now / rate + phase) * 0.7 + Math.sin(now / (rate * 2.7) + phase * 1.3) * 0.3);
+            const cam = head.camera;
+            cam.rotation.order = 'YXZ';
+            cam.rotation.set(head.pitch + sway(900, head.phase, 0.017), head.yaw + sway(1300, head.phase + 2, 0.026), sway(1700, head.phase + 4, 0.006));
+            cam.position.set(HEAD.x + head.leanX + sway(1100, head.phase + 1, 0.003), HEAD.y + sway(1500, head.phase + 3, 0.002), HEAD.z + head.leanZ + sway(1250, head.phase + 5, 0.003));
+        };
+        participant.head = head;
+
         const goTo = (hand, to, ms, bow) => {
             const goal = hand.goal;
             if (goal && Math.hypot(goal.x - to.x, goal.y - to.y, goal.z - to.z) < 0.001) return;
@@ -115,7 +245,7 @@
             if (participant.trial && participant.trial.sphere !== live) participant.trial = null;
             if (live && !participant.trial) {
                 const at = live.getAttribute('position');
-                participant.trial = { sphere: live, side: chooseSide(at.x), decideAt: now + rand(250, 650), moving: false };
+                participant.trial = { sphere: live, side: chooseSide(at.x), decideAt: now + rand(250, 650), lookAt: now + rand(120, 250), moving: false };
             }
             const trial = participant.trial;
             if (trial && !hands[trial.side].valid && hands[otherSide(trial.side)].valid) {
@@ -146,6 +276,7 @@
                 });
                 advance(left, now);
                 advance(right, now);
+                if (head.camera) stepHead(now);
             }
         };
         return participant;
@@ -166,6 +297,7 @@
         const is = scene.is.bind(scene);
         scene.is = (state) => state === 'vr-mode' ? true : is(state);
         scene.camera.el.setAttribute('position', '0 1.2 0');
+        if (scene.camera.el.components['look-controls']) scene.camera.el.setAttribute('look-controls', 'enabled', false);
         if (scene.renderer) scene.renderer.render = () => {};
 
         dm.practice = true;
@@ -193,7 +325,11 @@
         spectator.rightHandData = right.data;
 
         const participant = makeParticipant(sm, spectator, left, right);
-        window.__practice = { left, right, sm, dm, spectator, participant };
+        participant.head.camera = scene.camera.el.object3D;
+        const staleBase = spectator.STALE_CONN_TIMEOUT;
+        const onSpeed = (value) => { spectator.STALE_CONN_TIMEOUT = staleBase * value; };
+        onSpeed(window.__practiceClock.speed);
+        window.__practice = { left, right, sm, dm, spectator, participant, onSpeed };
         scene.setAttribute('practice-participant', '');
     }
 

@@ -59,7 +59,7 @@ const { ok, done } = counter('KEYBOARD-ONLY BROWSER');
   const zip = dl.map(d => d.suggestedFilename());
   ok(zip.length === 1 && /^session-[\dT-]+\.zip$/.test(zip[0]), 'automatic export: one zip, no ID in its name (' + zip.join(', ') + ')');
   const files = await openDownload(dl[0], OUT);
-  ok(files.length === 4 && ['vr-session-data-', 'kinematics-LEFT-', 'kinematics-RIGHT-', 'session-info-'].every(pre => files.some(x => x.path.startsWith('run1/' + pre))), 'zip holds 4 files, current names (no ID)');
+  ok(files.length === 4 && ['vr-session-data-', 'kinematics-LEFT-', 'kinematics-RIGHT-', 'session-info-'].every(pre => files.some(x => x.path.startsWith('block1/' + pre))), 'zip holds 4 files, current names (no ID)');
   const lines = files.find(x => x.name.startsWith('vr-session-data-')).text.trimEnd().split('\n');
   ok(lines.length === 45 && lines.slice(1).every(l => l.split(',').length === 11 && l.endsWith(',,1')), 'trial file: 44 rows, ParticipantID column empty');
   ok(await E(() => !window.__km.isTracking), 'kinematics stopped at the export');

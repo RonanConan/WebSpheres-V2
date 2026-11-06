@@ -5,12 +5,12 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('QUALITY BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-quality-'));
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const row = (t, o) => {
   const a = Object.assign({ target: true, valid: 1, x: 0, y: 1.2, z: 0, rec: 0 }, o);
   return `${t},0.1,1,-0.3,0,0.9,-0.4,${a.target ? '0.1,1.2,-0.4' : ',,'},${a.valid},0,0,0,0,0,0,1,${a.x},${a.y},${a.z},0,0,0,1,${a.rec}\n`;
 };
-const STATE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'running', endReason: '', participantId: 'P1', filePrefix: 'P1_run1_', sessionPrefix: 'P1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] }, inVR: true, closing: false, saving: false, headsetCopyRun: 0, betweenMs: 0, betweenRecentres: 0, recalibrated: [], completedRuns: [], noteMarks: [], notesCsv: '', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: 'Key,Value\n' };
+const STATE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'running', endReason: '', participantId: 'P1', filePrefix: 'P1_block1_', sessionPrefix: 'P1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 1000, trialCount: 5, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] }, inVR: true, closing: false, saving: false, headsetCopyRun: 0, betweenMs: 0, betweenRecentres: 0, recalibrated: [], completedRuns: [], noteMarks: [], notesCsv: '', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: 'Key,Value\n' };
 
 async function observerSuite(b) {
   const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
@@ -66,7 +66,7 @@ async function observerSuite(b) {
   ok((await light('trackR')).text === '100%', 'tracking right: 100%');
   ok((await light('fps')).kind === 'ok' && Math.abs(+(await light('fps')).text - 90) <= 2, 'frame rate about 90 (' + (await light('fps')).text + ')');
   ok((await light('flow')).text === 'OK', 'trial flow OK');
-  ok(await O(() => !document.getElementById('g7-left') && !document.getElementById('g7-run').textContent.includes('Right hand')), 'hand use hidden during the run');
+  ok(await O(() => !document.getElementById('g7-left') && !document.getElementById('g7-run').textContent.includes('Right hand')), 'hand use hidden during the block');
 
   console.log('ROWS AHEAD OF THE LAST STATE');
   for (let i = 0; i < 7; i++) {
@@ -204,7 +204,7 @@ async function observerSuite(b) {
   extra = { noteMarks: marks };
   await state({ phase: 'between', sessionMs: Math.round(t), setupLocked: false, trialCount: nT, recentreCount: 1, pauses: 1 });
   await sleep(350);
-  ok(await O(() => document.getElementById('run-report').checkVisibility() && !!document.querySelector('[data-report-run="1"]')), 'report shown between runs');
+  ok(await O(() => document.getElementById('run-report').checkVisibility() && !!document.querySelector('[data-report-run="1"]')), 'report shown between blocks');
   const rep = await O(() => document.getElementById('run-report').textContent);
   ok(['Duration', 'Skips', 'Pauses', 'Recentres', 'Left-hand tracking', 'Right-hand tracking', 'Frame rate', 'Trial flow'].every(w => rep.includes(w)) && !rep.includes('Head stillness'), 'facts and four timelines listed, no head stillness');
   ok(!/verdict|pass|fail/i.test(rep), 'facts only, no pass or fail');
@@ -217,9 +217,10 @@ async function observerSuite(b) {
   ok(strip.n > 1 && strip.n <= 60, 'timeline has at most 60 cells (' + strip.n + ')');
   ok(strip.kinds.includes('ok') && (strip.kinds.includes('warn') || strip.kinds.includes('bad')), 'timeline shows when tracking dropped');
   ok(/^0:00–\d+:\d\d: \d+%$/.test(strip.title), 'hover gives time and value (' + strip.title + ')');
-  const markRows = await O(() => Object.fromEntries([...document.querySelectorAll('[data-report-run="1"] .rep-line')].filter(l => l.querySelector('.rep-marks')).map(l => [l.children[0].textContent, [l.querySelectorAll('.rep-mark').length, l.children[2].textContent, l.querySelector('.rep-mark')?.title]])));
+  const markRows = await O(() => Object.fromEntries([...document.querySelectorAll('[data-report-run="1"] .rep-line')].filter(l => l.querySelector('.rep-marks')).map(l => [l.children[0].textContent, [l.querySelectorAll('.rep-mark, .rep-pin').length, l.children[2].textContent, l.querySelector('.rep-mark, .rep-pin')?.title]])));
   ok(JSON.stringify(Object.keys(markRows)) === '["Notes","Recentres"]', 'notes and recentres on separate rows');
-  ok(markRows.Notes[0] === 1 && markRows.Notes[1] === '1' && /^Note at /.test(markRows.Notes[2]), 'notes row: experimenter notes only, no alerts');
+  ok(markRows.Notes[0] === 1 && markRows.Notes[1] === '1' && /^Note 1 at /.test(markRows.Notes[2]), 'notes row: experimenter notes only, no alerts');
+  ok(await O(() => { const pin = document.querySelector('[data-report-run="1"] .rep-pin'); const row = pin.parentElement.getBoundingClientRect(); const strip = document.querySelector('[data-report-run="1"] .rep-strip').getBoundingClientRect(); const q = pin.getBoundingClientRect(); const stem = getComputedStyle(pin, '::after'); return pin.textContent === '1' && q.width >= 18 && stem.width === '1px' && Math.abs(q.bottom + parseFloat(stem.height) - row.bottom) < 1.5 && row.bottom <= strip.top && !document.querySelector('.rep-guide'); }), 'note pin is numbered, with a short stem that stays above the tracking rows');
   ok(markRows.Recentres[0] >= 1 && /^Recentre at /.test(markRows.Recentres[2]), 'recentres row: recentres only (' + markRows.Recentres[0] + ')');
   ok(!/within limits|amber limit|red limit/i.test(rep), 'no colour legend under the timeline');
   const flowLine = () => O(() => { const l = [...document.querySelectorAll('[data-report-run="1"] .rep-line')].find(x => x.textContent.startsWith('Trial flow')); const cells = [...l.querySelectorAll('.rep-cell')]; return { stalled: cells.filter(c => c.title.includes('no new trial for 30 s')).map(c => c.className), summary: l.children[2].textContent }; });
@@ -231,7 +232,7 @@ async function observerSuite(b) {
   ok(flowPaused.stalled.length === 0 && !/stall/.test(flowPaused.summary), 'long gap inside a pause: not a stall (' + flowPaused.summary + ')');
   await state({ phase: 'between', sessionMs: Math.round(t), setupLocked: false, trialCount: nT, recentreCount: 1, pauses: 1 });
   await sleep(350);
-  ok(await O(() => !!document.getElementById('plan-add') && document.getElementById('plan-builder').scrollHeight > 0), 'Add run still on the same screen');
+  ok(await O(() => !!document.getElementById('plan-add') && document.getElementById('plan-builder').scrollHeight > 0), 'Add block still on the same screen');
   ok(errs.length === 0, 'no page errors (' + errs.join(' | ') + ')');
   await ctx.close();
 }
@@ -262,7 +263,7 @@ async function headsetSuite(b) {
   await cmd('unlockSetup');
   await cmd('setCondition', 2);
   const csv = (await E(() => window.__dm.notesCsv())).trimEnd().split('\n');
-  ok(csv[0] === 'Run,Trial,RunTimeMs,ReceivedRunTimeMs,DateTime,Type,Text,Old,New,Estimated', 'notes header');
+  ok(csv[0] === 'Block,Trial,BlockTimeMs,ReceivedBlockTimeMs,DateTime,Type,Text,Old,New,Estimated', 'notes header');
   ok(csv[1].startsWith('1,4,1234,') && csv[1].includes(',note,"Told, to sit ""still""",,,0'), 'note row, commas and quotes escaped');
   ok(csv[2].includes(',alert,Frame rate red: 60,,,1'), 'alert row, estimate marked');
   ok(csv.some(l => l.includes(',setup,Setup,locked,unlocked,0')) && csv.some(l => l.includes(',setup,Condition,1,2,0')), 'setup changes in the same file, with old and new');
@@ -273,7 +274,7 @@ async function headsetSuite(b) {
   const ts = await E(() => window.__dm.lastExportTimestamp);
   const nf = files.find(f => f.path === `P01_notes-${ts}.csv`);
   ok(nf && nf.text === (await E(() => window.__dm.notesCsv())), 'notes file at the top of the zip');
-  ok(files.filter(f => f.path.startsWith('run1/')).length === 3, 'run files in their folder (no trials yet, so 3)');
+  ok(files.filter(f => f.path.startsWith('block1/')).length === 3, 'run files in their folder (no trials yet, so 3)');
   await ctx.close();
 }
 

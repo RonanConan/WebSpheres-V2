@@ -1,7 +1,7 @@
 AFRAME.registerComponent('data-manager', {
-    NOTES_HEADER: 'Run,Trial,RunTimeMs,ReceivedRunTimeMs,DateTime,Type,Text,Old,New,Estimated\n',
+    NOTES_HEADER: 'Block,Trial,BlockTimeMs,ReceivedBlockTimeMs,DateTime,Type,Text,Old,New,Estimated\n',
 
-    TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Run\n',
+    TRIAL_HEADER: 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Block\n',
 
     init: function() {
         this.trialData = [];
@@ -120,7 +120,7 @@ AFRAME.registerComponent('data-manager', {
 
     runPrefix: function(participantId, run) {
         const id = (this.practice ? 'PRACTICE_' : '') + (participantId ? participantId + '_' : '');
-        return this.plannedRuns() > 1 ? `${id}run${run}_` : id;
+        return this.plannedRuns() > 1 ? `${id}block${run}_` : id;
     },
 
     filePrefix: function() {
@@ -211,8 +211,8 @@ AFRAME.registerComponent('data-manager', {
             ['HomeRightY', perHand?.right.y ?? ''],
             ['HomeRightZ', perHand?.right.z ?? ''],
             ['SetupChanges', this.setupChanges.join(';')],
-            ['Run', this.runNumber],
-            ['PlannedRuns', this.plannedRuns()],
+            ['Block', this.runNumber],
+            ['PlannedBlocks', this.plannedRuns()],
             ['Plan', this.planText()],
             ['BreakBefore', this.breakBefore],
             ['RecalibratedBefore', this.recalibratedBefore.join(';')],
@@ -271,7 +271,7 @@ AFRAME.registerComponent('data-manager', {
         this.zipping++;
         const zipped = typeof WebSpheresZip === 'undefined'
             ? Promise.reject(new Error('Zip unavailable'))
-            : WebSpheresZip.make(files.map(f => ({ path: f.run ? `run${f.run}/${f.name}` : f.name, parts: f.parts })));
+            : WebSpheresZip.make(files.map(f => ({ path: f.run ? `block${f.run}/${f.name}` : f.name, parts: f.parts })));
         zipped.then(blob => this.downloadBlob(zipName, blob)).catch(loose).then(finish);
     },
 

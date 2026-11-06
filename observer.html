@@ -140,9 +140,13 @@
         .ck { flex: none; width: 1.2rem; font-weight: 700; text-align: center; }
         .ck.ok { color: var(--ok); } .ck.warn { color: var(--warn); } .ck.bad { color: var(--err); }
         .checks li:has(.ck.info) { color: var(--muted); }
+        .checks:not(:has(.ck:not(.info))) .ck { display: none; }
         .g-row { margin: 0.8rem 0; }
         .g-row .label { margin-bottom: 0.35rem; }
         .g-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.8rem; }
+        .g-dl { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--line); }
+        .g-dl[hidden] { display: none; }
+        .g-dl .g-note { margin: 0; }
         .g-actions > button { width: 100%; padding: 0.3rem 0.5rem; line-height: 1.15; white-space: normal; }
         .g-actions > button:only-child, .g-actions > button:first-child:has(+ button[hidden]), .g-actions > button[hidden]:first-child + button { grid-column: 1 / -1; }
         .g-actions[hidden] { display: none; }
@@ -271,11 +275,14 @@
         .rep-cell.ok { background: var(--ok); opacity: 0.55; }
         .rep-cell.warn { background: var(--warn); }
         .rep-cell.bad { background: var(--err); }
-        .rep-marks { position: relative; height: 0.9rem; }
-        .rep-mark { position: absolute; top: 0; width: 2px; height: 0.9rem; background: var(--text); }
-        .rep-mark.recentre { background: var(--accent); }
+        .rep-marks { position: relative; height: 1.3rem; }
+        .rep-marks.pins { height: 3.3rem; }
+        .rep-mark { position: absolute; top: 0.15rem; width: 4px; height: 1rem; margin-left: -2px; border-radius: 2px; background: var(--accent); }
+        .rep-pin, .rep-num { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--text); color: var(--bg); font: 700 0.75rem var(--sans); }
+        .rep-pin { position: absolute; z-index: 1; margin-left: -0.65rem; }
+        .rep-pin::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: var(--stem); background: var(--text); }
         .rep-notes { margin-top: 0.8rem; }
-        .rep-note { display: grid; grid-template-columns: 5rem 5.5rem minmax(0, 1fr); gap: 0.6rem; padding: 0.25rem 0; border-top: 1px solid var(--line); font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .rep-note { display: grid; grid-template-columns: 1.3rem 4.4rem 5rem minmax(0, 1fr); gap: 0.6rem; align-items: start; padding: 0.25rem 0; border-top: 1px solid var(--line); font-size: 0.9rem; line-height: 1.35; overflow-wrap: anywhere; }
         .rep-note > span:nth-child(-n+2) { font-family: var(--mono); color: var(--muted); }
         .rep-axis { display: flex; justify-content: space-between; color: var(--muted); font: 0.75rem var(--mono); }
         #plan-builder { position: absolute; inset: 0; padding: 1.2rem 1.4rem 2rem; overflow-y: auto; background: var(--bg); }
@@ -284,6 +291,17 @@
         .plan-send[hidden] { display: none; }
         .plan-send .g-msg { margin: 0; }
         .plan-settings { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin-bottom: 1.5rem; }
+        .plan-custom { margin-top: 0.7rem; max-width: 30rem; }
+        .plan-custom-top { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+        button.plan-custom-btn { min-height: 2rem; padding: 0 0.8rem; background: transparent; border: 1px dashed var(--warn); color: var(--warn); font-size: 0.85rem; }
+        button.plan-custom-btn:hover:not(:disabled) { border-color: var(--fill-warn-hover); color: var(--fill-warn-hover); }
+        button.plan-custom-btn.on { background: var(--fill-warn); border-style: solid; border-color: var(--fill-warn); color: #1a1000; }
+        .plan-custom-note { margin: 0; color: var(--muted); font-size: 0.82rem; }
+        .plan-custom-row { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+        .plan-custom-row input { width: 7rem; min-height: 2.4rem; padding: 0 0.6rem; font: 1.05rem var(--sans); color: var(--text); background: #0f131b; border: 1px solid var(--edge); border-radius: 0.375rem; }
+        .plan-custom-row input:focus { outline: none; border-color: var(--accent); }
+        .plan-custom-msg { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--muted); }
+        .plan-custom-msg.bad { color: var(--warn); }
         .plan-settings .label { margin-bottom: 0.35rem; }
         .plan-title { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--muted); font-weight: 600; }
         .plan-totals { font: 600 1.15rem var(--mono); margin-bottom: 1.3rem; }
@@ -332,7 +350,7 @@
         #practice-bar button { background: transparent; border-color: #fff; color: #fff; min-height: 0; padding: 0.3rem 0.7rem; font-size: 0.9rem; }
         #practice-bar button:hover:not(:disabled) { border-color: #fff; }
         #practice-bar button.on { background: #fff; color: #3b2690; }
-        #practice-trouble { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
+        #practice-trouble, #practice-speed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; }
         #practice-leave { margin-left: auto; }
         body.practice { display: flex; flex-direction: column; }
         body.practice #app { height: auto; flex: 1 1 auto; min-height: 0; }
@@ -340,7 +358,7 @@
     </style>
 </head>
 <body>
-<div id="practice-bar" hidden><span>Practice session. No headset is connected and the participant is simulated.</span><span id="practice-trouble"><span>Try a problem:</span><button tabindex="-1" data-trouble="left">Lose left hand</button><button tabindex="-1" data-trouble="right">Lose right hand</button><button tabindex="-1" data-trouble="drop">Drop connection</button><button tabindex="-1" data-trouble="stops">Participant stops</button></span><button tabindex="-1" id="practice-leave">Leave practice</button></div>
+<div id="practice-bar" hidden><span>Practice session. No headset is connected and the participant is simulated.</span><span id="practice-trouble"><span>Try a problem:</span><button tabindex="-1" data-trouble="left">Lose left hand</button><button tabindex="-1" data-trouble="right">Lose right hand</button><button tabindex="-1" data-trouble="drop">Drop connection</button><button tabindex="-1" data-trouble="stops">Participant stops</button></span><span id="practice-speed" title="Runs the simulated participant and the practice headset's clock faster. Recorded times stay realistic."><span>Speed:</span><button tabindex="-1" data-speed="1" class="on">1×</button><button tabindex="-1" data-speed="3">3×</button><button tabindex="-1" data-speed="5">5×</button></span><button tabindex="-1" id="practice-leave">Leave practice</button></div>
 <div id="app">
     <aside id="left-slot">
         <div id="guide">
@@ -358,6 +376,10 @@
                     <ul class="checks" id="g1-checks"></ul>
                     <p class="g-note" id="g1-note"></p>
                     <div class="g-actions" id="g1-practice"><button tabindex="-1" id="g-practice">Practise without a headset</button></div>
+                    <div class="g-dl" id="g1-dl">
+                        <p class="g-note" id="g1-dl-text"></p>
+                        <div class="g-actions"><button tabindex="-1" data-test-downloads id="g-test-downloads">Test downloads</button></div>
+                    </div>
                 </div>
             </section>
             <section class="step" data-step="2">
@@ -369,11 +391,15 @@
                     <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Send to headset</button></div>
                     <p class="g-msg" id="g2-msg"></p>
                     <ul class="checks" id="g2-checks"></ul>
+                    <div class="g-dl" id="g2-dl" hidden>
+                        <p class="g-note">Downloads have not been tested on this laptop. Results are saved as downloads, so test them before the session starts.</p>
+                        <div class="g-actions"><button tabindex="-1" data-test-downloads>Test downloads</button></div>
+                    </div>
                     <div class="g-actions"><button tabindex="-1" class="g-next" data-next="2">Next</button></div>
                 </div>
             </section>
             <section class="step" data-step="3">
-                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Run plan</span><span class="step-val" id="g3-val"></span></button>
+                <button tabindex="-1" class="step-head" data-open="3"><span class="step-mark">3</span><span>Block plan</span><span class="step-val" id="g3-val"></span></button>
                 <div class="step-body">
                     <ul class="checks" id="g3-checks"></ul>
                     <div class="g-actions"><button tabindex="-1" class="g-next" data-next="3">Next</button></div>
@@ -425,7 +451,7 @@
                         <div class="label">Recommended</div>
                         <ul class="checks" id="g6-advisory"></ul>
                     </details>
-                    <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start run 1</button></div>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g-start">Start block 1</button></div>
                     <p class="g-msg" id="g6-msg"></p>
                 </div>
             </section>
@@ -466,8 +492,8 @@
                             <ul class="checks" id="g7-b-recal-status"></ul>
                             <div class="g-actions"><button tabindex="-1" id="g7-b-skip">Skip recalibration</button></div>
                         </div>
-                        <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g7-b-start">Start next run</button></div>
-                        <div class="g-actions"><button tabindex="-1" id="g7-b-add">Add run</button><button tabindex="-1" class="g-danger" id="g7-b-finish">Finish session</button></div>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary g-big" id="g7-b-start">Start next block</button></div>
+                        <div class="g-actions"><button tabindex="-1" id="g7-b-add">Add block</button><button tabindex="-1" class="g-danger" id="g7-b-finish">Finish session</button></div>
                     </div>
                     <div id="g7-notes">
                         <div class="g-actions"><button tabindex="-1" id="g-note-spoke">Spoke to participant</button><button tabindex="-1" id="g-note-add">Add note</button></div>
@@ -483,15 +509,15 @@
                         <button tabindex="-1" id="g-unlock">Unlock setup</button>
                     </div>
                     <div class="g-actions">
-                        <button tabindex="-1" class="g-danger" id="g-end">End run</button>
+                        <button tabindex="-1" class="g-danger" id="g-end">End block</button>
                         <button tabindex="-1" id="g-skip">Skip target</button>
                     </div>
                     <div class="g-confirm" id="g-end-confirm" hidden>
-                        <p>End this run now? You will not be able to resume it.</p>
-                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end run</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
+                        <p>End this block now? You will not be able to resume it.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-end-yes">Yes, end block</button><button tabindex="-1" id="g-end-no">Cancel</button></div>
                     </div>
                     <div class="g-confirm" id="g-unlock-confirm" hidden>
-                        <p>Unlock the setup during this session? Changes will be logged, and the setup will lock again when the run resumes.</p>
+                        <p>Unlock the setup during this session? Changes will be logged, and the setup will lock again when the block resumes.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-danger" id="g-unlock-yes">Yes, unlock</button><button tabindex="-1" id="g-unlock-no">Cancel</button></div>
                     </div>
                     <div class="g-unlocked" id="g-unlocked" hidden>
@@ -519,7 +545,7 @@
                     <ul class="checks" id="g8-files"></ul>
                     <div class="g-actions"><button tabindex="-1" id="g-save-again">Download ZIP again</button><button tabindex="-1" id="g-results">Results</button></div>
                     <div class="sum" id="g8-summary"></div>
-                    <div class="g-actions"><button tabindex="-1" id="g-add-run">Add run</button><button tabindex="-1" id="g-new">New session</button></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-add-run">Add block</button><button tabindex="-1" id="g-new">New session</button></div>
                     <p class="g-msg" id="g8-msg"></p>
                     <div class="g-confirm" id="g-new-confirm" hidden>
                         <p>Reload WebSpheres on the headset before reloading this page.</p>
@@ -540,7 +566,7 @@
         <div class="item" id="v-id-item" hidden><span class="label">Participant<button tabindex="-1" class="info" data-info="pid" aria-label="About Participant">i</button></span><span class="value" id="v-id">–</span></div>
         <div class="item" id="data-age" hidden><span class="label">Stream<button tabindex="-1" class="info" data-info="stream" aria-label="About Stream">i</button></span><span class="value" id="data-age-value"></span></div>
         <div class="item"><span class="label">Trial<button tabindex="-1" class="info" data-info="trial" aria-label="About Trial">i</button></span><span class="value" id="v-trial">–</span></div>
-        <div class="item" id="v-run-item" hidden><span class="label">Run<button tabindex="-1" class="info" data-info="run" aria-label="About Run">i</button></span><span class="value" id="v-run">–</span></div>
+        <div class="item" id="v-run-item" hidden><span class="label">Block<button tabindex="-1" class="info" data-info="run" aria-label="About Block">i</button></span><span class="value" id="v-run">–</span></div>
         <div class="item"><span class="label">Score<button tabindex="-1" class="info" data-info="score" aria-label="About Score">i</button></span><span class="value" id="v-score">–</span></div>
         <div class="item"><span class="label">Condition<button tabindex="-1" class="info" data-info="cond" aria-label="About Condition">i</button></span><span class="value" id="v-cond">–</span></div>
         <div class="item"><span class="label">Dominant<button tabindex="-1" class="info" data-info="dom" aria-label="About Dominant">i</button></span><span class="value" id="v-dom">–</span></div>
@@ -560,7 +586,7 @@
             <div id="res-charts"></div>
             <div id="ws3d-park"><div id="ws3d">
                 <div class="ws3d-bar">
-                    <div><div class="label">Run</div><div class="opts" id="ws3d-runs"></div></div>
+                    <div><div class="label">Block</div><div class="opts" id="ws3d-runs"></div></div>
                     <div><div class="label">View</div><div class="opts" id="ws3d-views"></div></div>
                     <div><div class="label">Show</div><div class="ws3d-ticks">
                         <label><input type="checkbox" data-ws-show="left" checked>Left</label>
@@ -1029,7 +1055,7 @@
 
     const finite = (...v) => v.every(Number.isFinite);
     const ACTIVE_PHASES = ['running', 'pausing', 'paused'];
-    const PHASE_LABEL = { setup: 'Not started', running: 'Running', pausing: 'Pausing', paused: 'Paused', between: 'Between runs', complete: 'Complete' };
+    const PHASE_LABEL = { setup: 'Not started', running: 'Running', pausing: 'Pausing', paused: 'Paused', between: 'Between blocks', complete: 'Complete' };
     const STATUS = {
         connecting: ['Connecting', 'var(--warn)'],
         connected: ['Connected', 'var(--ok)'],
@@ -1148,6 +1174,29 @@
                 pumpDownloads();
             }, 1000);
         }
+    }
+
+    const DOWNLOADS_KEY = 'webspheres-downloads-tested';
+    const downloadTest = { now: false, before: (() => { try { return !!localStorage.getItem(DOWNLOADS_KEY); } catch (e) { return false; } })() };
+
+    function testDownloads() {
+        const file = (n) => new Blob([`WebSpheres download test, file ${n} of 2. You can delete this file.\n`], { type: 'text/plain' });
+        saveBlob('webspheres-download-test-1.txt', file(1));
+        setTimeout(() => saveBlob('webspheres-download-test-2.txt', file(2)), 600);
+        downloadTest.now = true;
+        try { localStorage.setItem(DOWNLOADS_KEY, new Date().toISOString()); } catch (e) {}
+    }
+
+    function renderDownloadTest() {
+        const tested = downloadTest.now || downloadTest.before;
+        const text = downloadTest.now
+            ? 'Two test downloads started: webspheres-download-test-1.txt and webspheres-download-test-2.txt. If your browser asked about downloading multiple files, select Allow. You can delete both files. If you selected Block, select the download icon at the right of the address bar to change it, or allow Automatic downloads in this site’s settings.'
+            : downloadTest.before
+                ? 'Downloads were tested on this laptop before. If result files stop appearing in Downloads, test again.'
+                : 'Results are saved as downloads. Select Test downloads now. If your browser asks whether this site can download multiple files, select Allow.';
+        if ($('g1-dl-text').textContent !== text) $('g1-dl-text').textContent = text;
+        $('g-test-downloads').textContent = tested ? 'Test again' : 'Test downloads';
+        $('g2-dl').hidden = tested;
     }
 
     function downloadText(filename, parts) {
@@ -1270,7 +1319,7 @@
         const files = [];
         const prefixOf = (run) => run === (s.run || 1) ? s.filePrefix : ((s.completedRuns || []).find(r => r.run === run) || {}).prefix;
         const addRun = (r, prefix, run, info) => {
-            const add = (name, parts) => files.push({ path: `run${run}/${prefix}${name}-${ts}.csv`, parts });
+            const add = (name, parts) => files.push({ path: `block${run}/${prefix}${name}-${ts}.csv`, parts });
             if (r.trials.length) add('vr-session-data', [r.headers.trials].concat(r.trials));
             if (r.kinL.length) add('kinematics-LEFT', [r.headers.kinL].concat(r.kinL));
             if (r.kinR.length) add('kinematics-RIGHT', [r.headers.kinR].concat(r.kinR));
@@ -1722,14 +1771,14 @@
     };
     const INFO = {
         conn: (rec) => breakOff() ? 'The connection may drop while the headset is off.' : CONN_INFO[receiver.status](rec),
-        run: () => 'Current run, out of the total number of planned runs.',
+        run: () => 'Current block, out of the total number of planned blocks.',
         pid: () => 'The participant ID set on the headset. Also used in file names.',
         qtrack: () => 'Percentage of frames with hand tracking while a target was visible, over the last 30 s.',
         qfps: () => 'Headset frame rate over the last 30 s. A lower rate produces less detailed movement data.',
         qflow: () => 'Skipped targets and long gaps between trials.',
         stream: (rec) => 'The 3D view is not receiving current data.' + rec,
-        trial: () => 'Trials completed in the current run, out of the planned total.',
-        score: () => 'Points earned in the current run.',
+        trial: () => 'Trials completed in the current block, out of the planned total.',
+        score: () => 'Points earned in the current block.',
         cond: () => 'No boost: Both hands have a 30% critical-hit chance.\nBoost: The non-dominant hand has a 55% chance; the dominant hand has a 5% chance.',
         dom: () => 'The dominant hand has a lower critical-hit chance during Boost.',
         fire: () => 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.',
@@ -1887,9 +1936,9 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.6.0';
+    const APP_VERSION = '2.7.0';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
-    const MODE_PER_RUN = { standard: '352 trials per run', short: '110 trials per run', fmode: '44 trials per run (2 sets of 22)', block: '110 trials per run (5 sets of 22)' };
+    const MODE_PER_RUN = { standard: '352 trials per block', short: '110 trials per block', fmode: '44 trials per block (2 sets of 22)', block: '110 trials per block (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
     const HOME_LABEL = { 'one-box': 'One box', 'per-hand': 'One per hand' };
@@ -1900,7 +1949,7 @@
     const guide = {
         expanded: null, lastCurrent: null, sub: null, lastCue: undefined,
         form: { dom: null }, formDirty: false, busy: false,
-        plan: { mode: 'standard', home: 'one-box', charts: [], runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
+        plan: { mode: 'standard', home: 'one-box', charts: ['quality'], runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
         breakShown: false, betweenRun: null, removedTick: false, recalSkipped: false, resume: null, recovery: [], recoveryKey: '',
         results: { open: false, autoOpened: false, shape: null, shapeBuilt: false, charts: new Set(), chartsSet: false, drawnKey: '', drawToken: 0, parsed: new Map(), saving: false, ws: { view: null, failed: false, run: 0, viewName: 'Free', data: null } },
         noteQueue: [], noteSending: false, noteAwaitState: false, noteSeq: 0, notePending: null, notesEarlier: '', lastNote: '', reportKey: '',
@@ -2071,7 +2120,7 @@
         const done = {
             1: live && versionOk,
             2: !!(s && s.participantId && s.experimenter) && formMatches,
-            3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || ((s.plan.runs[(s.run || 1) - 1] || {}).condition === s.condition && s.mode === s.plan.mode && s.homeMode === s.plan.home)),
+            3: !!(s && s.plan) && !guide.planDirty && (!s || s.phase !== 'setup' || ((s.plan.runs[(s.run || 1) - 1] || {}).condition === s.condition && s.mode === s.plan.mode && (s.mode !== 'custom' || s.totalTrials === planTrials(guide.plan)) && s.homeMode === s.plan.home)),
             4: !!(s && s.recentred),
             5: !!(calib && calib.reach.done && !reachStale(s) && calib.height.done && calib.lap.done),
             6: !!(s && s.phase !== 'setup'),
@@ -2176,7 +2225,7 @@
         if (s && s.phase === 'between' && guide.planDirty && st.live && !guide.planSending) sendPlanLive(7);
         syncCue(st, open);
         renderPlan(st, open, inSetup);
-        $('g7-head').textContent = s && s.phase === 'between' ? 'Between runs' : 'Running';
+        $('g7-head').textContent = s && s.phase === 'between' ? 'Between blocks' : 'Running';
         const off = breakOff();
         if (off !== guide.breakShown) {
             guide.breakShown = off;
@@ -2195,10 +2244,11 @@
             s ? tick3(st.versionOk, st.versionOk ? `Versions match (${APP_VERSION})` : `Version mismatch: observer ${APP_VERSION}, headset ${s.version || '?'}. Force-refresh both pages.`) : ['info', 'Version check pending headset connection.']
         ]);
         $('g1-practice').hidden = PRACTICE || !!s;
+        renderDownloadTest();
         $('g1-note').textContent = st.live ? '' : PRACTICE ? 'The practice headset connects automatically.' : 'Open WebSpheres on the Quest and enter VR or AR. The headset will connect automatically.';
         if (PRACTICE) {
             const practice = $('practice-headset').contentWindow.__practice;
-            document.querySelectorAll('[data-trouble]').forEach(b => { b.disabled = !practice; });
+            document.querySelectorAll('[data-trouble], [data-speed]').forEach(b => { b.disabled = !practice; });
         }
 
         document.querySelectorAll('[data-g]').forEach(b => b.classList.toggle('on', String(guide.form[b.dataset.g]) === b.dataset.v));
@@ -2231,7 +2281,7 @@
             if (el.textContent !== shown) { el.textContent = shown; el.title = shown; }
         };
         stepVal(2, () => `${s.participantId}, ${HAND_LABEL[s.dominantHand] || '–'}`);
-        stepVal(3, () => `${s.plan.runs.length} ${s.plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_TRIALS[s.plan.mode] * s.plan.runs.length} trials`);
+        stepVal(3, () => `${s.plan.runs.length} ${s.plan.runs.length === 1 ? 'block' : 'blocks'}, ${planTrials({ mode: s.plan.mode, customTrials: s.totalTrials }) * s.plan.runs.length} trials`);
         stepVal(5, () => `Reach ${fmt(c.reach.distance, 2)} m, height ${fmt(c.height.height, 2)} m`);
         const nextCalib = c ? ['reach', 'height', 'lap'].find(k => !c[k].done || (k === 'reach' && reachStale(s))) : 'reach';
         const reachWord = s && s.reachHand ? s.reachHand.toLowerCase() : 'one';
@@ -2267,7 +2317,7 @@
             tick3(!!(s && s.experimenter), 'Experimenter set'),
             tick3(!!(s && s.participantId), 'Participant ID set'),
             tick3(st.done[2], 'Setup received by headset'),
-            tick3(st.done[3], 'Run plan received by headset'),
+            tick3(st.done[3], 'Block plan received by headset'),
             ...(guide.resume ? [tick3(false, 'The headset page reloaded. Choose Continue or New session.')] : []),
             tick3(!!(s && s.recentred), 'Recentred'),
             tick3(!!(c && c.reach.done && !reachStale(s)), 'Reach calibrated'),
@@ -2290,7 +2340,7 @@
         const reqOk = required.every(r => r[0] === 'ok');
         const advOk = advisory.every(r => r[0] === 'ok');
         $('g-start').disabled = !reqOk || guide.busy || !inSetup;
-        $('g-start').textContent = `Start run ${(s && s.run) || 1}${reqOk && !advOk ? ' anyway' : ''}`;
+        $('g-start').textContent = `Start block ${(s && s.run) || 1}${reqOk && !advOk ? ' anyway' : ''}`;
         $('g-start').classList.toggle('amber', reqOk && !advOk);
 
         if (s && s.phase !== 'setup') {
@@ -2402,14 +2452,32 @@
     }
 
     const MODE_TRIALS = { standard: 352, short: 110, fmode: 44, block: 110 };
+    const planTrials = (p) => p.mode === 'custom' ? p.customTrials : MODE_TRIALS[p.mode];
+    const perBlock = (p) => p.mode === 'custom' ? `${p.customTrials} trials per block (custom)` : MODE_PER_RUN[p.mode];
+    const lengthLabel = (mode, total) => mode === 'custom' ? `${total} (custom)` : MODE_LABEL[mode];
+
+    function customCheck(raw) {
+        const text = String(raw).trim();
+        if (!text) return { ok: false, text: 'Enter a multiple of 11, from 11 to 1,100.' };
+        const n = Number(text);
+        if (!Number.isInteger(n) || n < 11 || n > 1100) return { ok: false, text: 'Enter a whole number from 11 to 1,100.' };
+        if (n % 11) {
+            const low = Math.floor(n / 11) * 11, high = Math.ceil(n / 11) * 11;
+            return { ok: false, text: `${n} can’t be split evenly across 11 targets. The nearest options are ${Math.max(11, low)} and ${high}.` };
+        }
+        const each = n / 11;
+        const sets = n < 22 ? ' Over-time charts need at least 22 trials, so they will stay empty.' : each % 2 ? ' Over-time charts use groups of 22 trials, so the last 11 trials of each block are left out of them.' : '';
+        return { ok: true, n, text: `${n} trials: ${each} ${each === 1 ? 'reach' : 'reaches'} per target.${sets}` };
+    }
     const SEC_PER_TRIAL = 2.6;
 
     function prefillPlan(s) {
         if (guide.planDirty || !s) return;
         guide.plan = {
             mode: s.mode,
+            customTrials: s.mode === 'custom' ? s.totalTrials : undefined,
             home: s.homeMode || 'one-box',
-            charts: s.plan && s.plan.charts ? s.plan.charts.slice() : [],
+            charts: s.plan && s.plan.charts ? s.plan.charts.slice() : ['quality'],
             runs: s.plan ? s.plan.runs.map(r => Object.assign({}, r)) : [{ condition: s.condition === 2 ? 2 : 1, off: false, recal: false }]
         };
     }
@@ -2419,8 +2487,8 @@
         const next = between && i === firstOpen;
         const count = guide.plan.runs.length;
         return `<div class="run-card ${run.condition === 2 ? 'boost' : ''} ${locked ? 'done' : ''} ${next ? 'next' : ''}" ${locked ? '' : 'draggable="true"'} data-card="${i}">
-            <div class="run-top"><span class="run-name">Run ${i + 1}</span>${!locked && count > 1 ? `<button tabindex="-1" class="run-x" data-plan-remove="${i}" aria-label="Remove run ${i + 1}">✕</button>` : ''}</div>
-            <div class="run-n">${MODE_TRIALS[guide.plan.mode]}<span>trials</span></div>
+            <div class="run-top"><span class="run-name">Block ${i + 1}</span>${!locked && count > 1 ? `<button tabindex="-1" class="run-x" data-plan-remove="${i}" aria-label="Remove block ${i + 1}">✕</button>` : ''}</div>
+            <div class="run-n">${planTrials(guide.plan)}<span>trials</span></div>
             <div class="opts">
                 <button tabindex="-1" data-plan-reward="${i}" data-v="1" class="${run.condition === 1 ? 'on' : ''}" ${locked ? 'disabled' : ''}>No boost</button>
                 <button tabindex="-1" data-plan-reward="${i}" data-v="2" class="${run.condition === 2 ? 'on' : ''}" ${locked ? 'disabled' : ''}>Boost</button>
@@ -2433,7 +2501,7 @@
         const locked = i < firstOpen - 1;
         return `<div class="run-link ${run.off ? 'off' : ''}">
             <button tabindex="-1" data-plan-link="${i}" ${locked ? 'disabled' : ''}>${run.off ? 'Headset off' : 'Headset on'}</button>
-            <label class="${run.recal ? 'on' : ''}"><input type="checkbox" data-plan-recal="${i}" ${run.recal ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Recalibrate after this run</span></label>
+            <label class="${run.recal ? 'on' : ''}"><input type="checkbox" data-plan-recal="${i}" ${run.recal ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Recalibrate after this block</span></label>
         </div>`;
     }
 
@@ -2446,17 +2514,17 @@
         builder.hidden = !(between || (inSetup && open === 3));
         $('run-report').hidden = !between;
         $('plan-send-row').hidden = between;
-        const trials = MODE_TRIALS[plan.mode] * plan.runs.length;
+        const trials = planTrials(plan) * plan.runs.length;
         const sent = st.done[3];
         setChecks('g3-checks', [
-            [sent ? 'ok' : 'info', `${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${MODE_PER_RUN[plan.mode]}`],
+            [sent ? 'ok' : 'info', `${plan.runs.length} ${plan.runs.length === 1 ? 'block' : 'blocks'}, ${perBlock(plan)}`],
             [sent ? 'ok' : 'info', plan.runs.map(r => COND_LABEL[r.condition]).join(', ')],
             [sent ? 'ok' : 'info', `Home: ${HOME_LABEL[plan.home]}`]
         ]);
         $('g-plan-send').disabled = !st.live || guide.busy || !inSetup;
         $('g-plan-send').classList.toggle('g-primary', !sent);
         const firstOpen = between ? s.run : 0;
-        const key = JSON.stringify([plan, firstOpen, between]);
+        const key = JSON.stringify([plan, firstOpen, between, guide.customOpen]);
         if (key === guide.planKey) return;
         guide.planKey = key;
         const parts = [];
@@ -2464,18 +2532,29 @@
             parts.push(planCard(r, i, firstOpen, between));
             if (i < plan.runs.length - 1) parts.push(planLink(r, i, firstOpen));
         });
-        parts.push(`<button tabindex="-1" class="run-add" id="plan-add">+ Add run</button>`);
+        parts.push(`<button tabindex="-1" class="run-add" id="plan-add">+ Add block</button>`);
         const settings = between ? '' : `<div class="plan-settings">
-            <div><div class="label">Length of each run</div><div class="opts">${Object.keys(MODE_LABEL).map(m => `<button tabindex="-1" data-plan-mode="${m}" class="${m === plan.mode ? 'on' : ''}">${MODE_LABEL[m]}</button>`).join('')}</div></div>
+            <div><div class="label">Length of each block</div><div class="opts">${Object.keys(MODE_LABEL).map(m => `<button tabindex="-1" data-plan-mode="${m}" class="${m === plan.mode ? 'on' : ''}">${MODE_LABEL[m]}</button>`).join('')}</div>${customPart(plan)}</div>
             <div><div class="label">Home position</div><div class="opts">${Object.keys(HOME_LABEL).map(h => `<button tabindex="-1" data-plan-home="${h}" class="${h === plan.home ? 'on' : ''}">${HOME_LABEL[h]}</button>`).join('')}</div></div>
         </div>`;
         const charts = between || typeof ResultsCharts === 'undefined' ? '' : `<div class="plan-charts"><h3 class="plan-title">Results at end of session</h3><div class="plan-charts-grid">${ResultsCharts.IDS.map(id => `<label class="chart-tick"><input type="checkbox" data-plan-chart="${id}" ${plan.charts.includes(id) ? 'checked' : ''}><span>${ResultsCharts.titleOf(id)}</span></label>`).join('')}</div></div>`;
         box.innerHTML = `${settings}
-            <h3 class="plan-title">${between ? 'Plan' : 'Runs'}</h3>
-            <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'run' : 'runs'}, ${trials.toLocaleString('en-GB')} trials <span>Approximately ${Math.round(trials * SEC_PER_TRIAL / 60)} min, excluding breaks</span></div>
+            <h3 class="plan-title">${between ? 'Plan' : 'Blocks'}</h3>
+            <div class="plan-totals">${plan.runs.length} ${plan.runs.length === 1 ? 'block' : 'blocks'}, ${trials.toLocaleString('en-GB')} trials <span>Approximately ${Math.round(trials * SEC_PER_TRIAL / 60)} min, excluding breaks</span></div>
             <div id="plan-strip">${parts.join('')}</div>
-            <p class="plan-hint">${between ? 'You can edit the current break and upcoming runs, but not completed runs.' : 'Drag run cards to reorder them. Select the link between runs to change whether the headset stays on.'}</p>
+            <p class="plan-hint">${between ? 'You can edit the current break and upcoming blocks, but not completed blocks.' : 'Drag block cards to reorder them. Select the link between blocks to change whether the headset stays on.'}</p>
             ${charts}`;
+    }
+
+    function customPart(plan) {
+        const custom = plan.mode === 'custom';
+        const draft = guide.customDraft !== undefined ? guide.customDraft : custom ? String(plan.customTrials) : '';
+        const check = customCheck(draft);
+        const open = guide.customOpen ? `<div class="plan-custom-row"><input id="plan-custom-n" type="number" min="11" max="1100" step="11" inputmode="numeric" autocomplete="off" value="${draft}"><button tabindex="-1" id="plan-custom-set" ${check.ok ? '' : 'disabled'}>Set</button><button tabindex="-1" id="plan-custom-cancel">Cancel</button></div><p class="plan-custom-msg ${check.ok || !draft ? '' : 'bad'}" id="plan-custom-msg">${check.text}</p>` : '';
+        return `<div class="plan-custom">
+            <div class="plan-custom-top"><button tabindex="-1" class="plan-custom-btn ${custom ? 'on' : ''}" id="plan-custom">${custom ? `Custom: ${plan.customTrials} trials` : 'Custom trial count'}</button><p class="plan-custom-note">Use a preset unless this session needs a different length.</p></div>
+            ${open}
+        </div>`;
     }
 
     function headsetReloaded(previous) {
@@ -2497,7 +2576,7 @@
         BACKUP_FILES.forEach(f => { backup[f] = []; });
         backup.headers = {};
         backup.run = notStarted ? previous.run : previous.run + 1;
-        guide.resume = { nextRun: backup.run, kept: backup.archive.length, plan: previous.plan, dominantHand: previous.dominantHand, reachHand: previous.reachHand, experimenter: previous.experimenter, participantId: previous.participantId, mode: previous.mode, homeMode: previous.homeMode };
+        guide.resume = { nextRun: backup.run, kept: backup.archive.length, plan: previous.plan, dominantHand: previous.dominantHand, reachHand: previous.reachHand, experimenter: previous.experimenter, participantId: previous.participantId, mode: previous.mode, totalTrials: previous.totalTrials, homeMode: previous.homeMode };
     }
 
     function renderResume(st) {
@@ -2505,9 +2584,9 @@
         $('g-resume').hidden = !r;
         if (!r) return;
         const next = r.plan.runs[r.nextRun - 1];
-        $('g-resume-text').textContent = `The headset page reloaded. This laptop still has data from ${r.kept} ${r.kept === 1 ? 'run' : 'runs'}.${next ? '' : ' No more runs are planned.'}`;
+        $('g-resume-text').textContent = `The headset page reloaded. This laptop still has data from ${r.kept} ${r.kept === 1 ? 'block' : 'blocks'}.${next ? '' : ' No more blocks are planned.'}`;
         $('g-resume-go').hidden = !next;
-        $('g-resume-go').textContent = `Continue with run ${r.nextRun}`;
+        $('g-resume-go').textContent = `Continue with block ${r.nextRun}`;
         $('g-resume-go').disabled = !st.live || guide.busy;
     }
 
@@ -2517,7 +2596,7 @@
         if (!next) return;
         guide.busy = true;
         $('g-resume-msg').textContent = 'Sending…';
-        const steps = [['setDominant', r.dominantHand], ...(r.reachHand ? [['setReachHand', r.reachHand]] : []), ['setExperimenter', r.experimenter], ['setParticipant', r.participantId], ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
+        const steps = [['setDominant', r.dominantHand], ...(r.reachHand ? [['setReachHand', r.reachHand]] : []), ['setExperimenter', r.experimenter], ['setParticipant', r.participantId], r.mode === 'custom' ? ['setCustomTrials', r.totalTrials] : ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
         for (const [name, value] of steps) {
             const result = await sendCmd(name, value);
             if (!result.ok) {
@@ -2553,7 +2632,7 @@
             const row = document.createElement('div');
             row.className = 'g-banner';
             const line = document.createElement('div');
-            line.textContent = `Unsaved session: ${r.participantId || 'no participant ID'}, ${r.runs} ${r.runs === 1 ? 'run' : 'runs'} stored on this laptop`;
+            line.textContent = `Unsaved session: ${r.participantId || 'no participant ID'}, ${r.runs} ${r.runs === 1 ? 'block' : 'blocks'} stored on this laptop`;
             const actions = document.createElement('div');
             actions.className = 'g-actions';
             const save = document.createElement('button');
@@ -2589,7 +2668,7 @@
         }
         const files = [];
         runs.forEach(r => {
-            const add = (name, text) => { if (text) files.push({ path: `run${r.run}/${r.prefix}${name}-${ts}.csv`, parts: [text] }); };
+            const add = (name, text) => { if (text) files.push({ path: `block${r.run}/${r.prefix}${name}-${ts}.csv`, parts: [text] }); };
             add('vr-session-data', r.trials);
             add('kinematics-LEFT', r.kinL);
             add('kinematics-RIGHT', r.kinR);
@@ -2712,7 +2791,7 @@
 
     function queueNote(stamp, type, text) {
         guide.noteQueue.push(Object.assign({}, stamp, { type, text }));
-        if (type === 'note') guide.lastNote = `Last note: run ${stamp.run}, trial ${stamp.trial}, ${new Date(stamp.dateTime).toLocaleTimeString()}${stamp.estimated ? ' (time estimated)' : ''}`;
+        if (type === 'note') guide.lastNote = `Last note: block ${stamp.run}, trial ${stamp.trial}, ${new Date(stamp.dateTime).toLocaleTimeString()}${stamp.estimated ? ' (time estimated)' : ''}`;
         pumpNotes();
     }
 
@@ -2834,23 +2913,33 @@
         };
     }
 
-    function reportBlock(s, run, trials) {
+    function blockReport(s, run, summary) {
         const q = quality.runs[run];
         const earlier = backup.archive.find(r => r.run === run);
         const pauses = earlier ? earlier.pauses || 0 : s.pauses;
-        const recentres = earlier ? earlier.recentres || 0 : s.recentreCount;
-        const { ms, skips, rows, lines } = qualityLines(run, trials, earlier ? earlier.info : s.info);
-        const noteMarks = (s.noteMarks || []).filter(n => n.run === run && n.type === 'note');
-        const notes = noteMarks.map(n => n.time);
+        const recentreCount = earlier ? earlier.recentres || 0 : s.recentreCount;
+        const notes = (s.noteMarks || []).filter(n => n.run === run && n.type === 'note').map(n => ({ time: n.time, trial: n.trial, text: n.text == null ? '' : String(n.text), estimated: !!n.estimated }));
+        const facts = [['Duration', mmss(summary.ms)], ['Trials', String(summary.rows)], ['Skips', String(summary.skips)], ['Pauses', String(pauses || 0)], ['Recentres', String(recentreCount || 0)], ['Notes', String(notes.length)]];
+        return { facts, notes, recentres: (q && q.recentres) || [], recentreCount: recentreCount || 0 };
+    }
+
+    function reportBlock(s, run, trials) {
+        const earlier = backup.archive.find(r => r.run === run);
+        const summary = qualityLines(run, trials, earlier ? earlier.info : s.info);
+        const { ms, lines } = summary;
+        const rep = blockReport(s, run, summary);
         const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-        const noteList = noteMarks.map(n => `<div class="rep-note"><span>${mmss(n.time)}${n.estimated ? ' est.' : ''}</span><span>Trial ${n.trial}</span><span>${esc(n.text)}</span></div>`).join('');
-        const markRow = (label, times, cls, name, count) => `<div class="rep-line"><span>${label}</span><div class="rep-marks">${ms > 0 ? times.map(t => `<div class="rep-mark ${cls}" style="left:${Math.min(100, 100 * t / ms)}%" title="${name} at ${mmss(t)}"></div>`).join('') : ''}</div><span>${count}</span></div>`;
-        const facts = [['Duration', mmss(ms)], ['Trials', String(rows)], ['Skips', String(skips)], ['Pauses', String(pauses)], ['Recentres', String(recentres)], ['Notes', String(notes.length)]];
+        const at = (t) => ms > 0 ? Math.min(100, Math.max(0, 100 * t / ms)) : 0;
+        const levels = ResultsCharts.noteLevels(rep.notes.map(n => n.time), ms);
+        const when = (n) => `${mmss(n.time)}${n.estimated ? ' est.' : ''}`;
+        const pins = rep.notes.map((n, i) => `<span class="rep-pin" style="left:${at(n.time)}%;bottom:${0.45 + levels[i] * 1.5}rem;--stem:${0.45 + levels[i] * 1.5}rem" title="Note ${i + 1} at ${when(n)}, trial ${n.trial}: ${esc(n.text)}">${i + 1}</span>`).join('');
+        const recentreMarks = ms > 0 ? rep.recentres.map(t => `<div class="rep-mark recentre" style="left:${at(t)}%" title="Recentre at ${mmss(t)}"></div>`).join('') : '';
+        const noteList = rep.notes.map((n, i) => `<div class="rep-note"><span class="rep-num">${i + 1}</span><span>${when(n)}</span><span>Trial ${n.trial}</span><span>${esc(n.text)}</span></div>`).join('');
         return `<div class="rep-run" data-report-run="${run}">
             <h3>${runLabel(run, earlier ? earlier.info : s.info)}</h3>
-            <div class="rep-facts">${facts.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('')}</div>
-            ${markRow('Notes', notes, 'note', 'Note', notes.length)}
-            ${markRow('Recentres', (q && q.recentres) || [], 'recentre', 'Recentre', recentres)}
+            <div class="rep-facts">${rep.facts.map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('')}</div>
+            <div class="rep-line"><span>Notes</span><div class="rep-marks ${rep.notes.length ? 'pins' : ''}">${ms > 0 ? pins : ''}</div><span>${rep.notes.length}</span></div>
+            <div class="rep-line"><span>Recentres</span><div class="rep-marks">${recentreMarks}</div><span>${rep.recentreCount}</span></div>
             ${lines.map(l => reportStrip(l.label, l.kinds, l.tips, l.summary)).join('')}
             <div class="rep-line"><span></span><div class="rep-axis"><span>0:00</span><span>${mmss(ms)}</span></div><span></span></div>
             ${noteList ? `<div class="rep-notes"><div class="label">Notes</div>${noteList}</div>` : ''}
@@ -2870,9 +2959,9 @@
         const planned = guide.plan.runs[run - 1];
         const final = (/^Condition,(\d)/m.exec(info || '') || [])[1] || (planned && planned.condition);
         const changes = [...(info || '').matchAll(/(\d+)\|(\d+)\|Condition\|(\d)\|(\d)/g)];
-        if (!changes.length) return `Run ${run}: ${COND_LABEL[final] || '–'}`;
-        if (changes.length > 1) return `Run ${run}: condition changed ${changes.length} times; ended on ${COND_LABEL[final]}`;
-        return `Run ${run}: ${COND_LABEL[changes[0][3]]} through trial ${changes[0][2]}, then ${COND_LABEL[changes[0][4]]}`;
+        if (!changes.length) return `Block ${run}: ${COND_LABEL[final] || '–'}`;
+        if (changes.length > 1) return `Block ${run}: condition changed ${changes.length} times; ended on ${COND_LABEL[final]}`;
+        return `Block ${run}: ${COND_LABEL[changes[0][3]]} through trial ${changes[0][2]}, then ${COND_LABEL[changes[0][4]]}`;
     }
 
     function resultsData(s) {
@@ -2885,6 +2974,7 @@
                 parsed = ResultsCharts.parseRun({ run, label: runLabel(run, info), kinL: r.kinL, kinR: r.kinR, trials: r.trials, quality: qualityLines(run, r.trials, info) });
                 guide.results.parsed.set(key, parsed);
             }
+            parsed.report = blockReport(s, run, parsed.quality);
             return parsed;
         });
         return {
@@ -2912,7 +3002,7 @@
         if (res.shapeBuilt) return;
         res.shapeBuilt = true;
         const groups = ResultsCharts.SHAPE_OPTIONS.map(g => `<div class="ws-group"><h3>${g.title}</h3>${g.options.map(o => `<div class="ws-option"><button tabindex="-1" data-shape="${g.key}" data-v="${o.value}">${o.value} cm${o.value === ResultsCharts.SHAPE_DEFAULT[g.key] ? '*' : ''}</button><span>+ ${o.pro}</span><span class="ws-con">− ${o.con}</span></div>`).join('')}</div>`).join('');
-        $('ws-settings-body').innerHTML = `<p class="ws-note">These settings affect how the workspace is displayed and measured. Use identical settings when comparing runs.</p><p class="ws-note">Gap filling includes spaces between recorded hand paths up to the selected width. Smoothing reduces irregularities along the boundary. An asterisk (*) marks the default setting.</p><div class="ws-groups">${groups}</div><div class="g-actions"><button tabindex="-1" id="ws-defaults">Back to defaults</button></div>`;
+        $('ws-settings-body').innerHTML = `<p class="ws-note">These settings affect how the workspace is displayed and measured. Use identical settings when comparing blocks.</p><p class="ws-note">Gap filling includes spaces between recorded hand paths up to the selected width. Smoothing reduces irregularities along the boundary. An asterisk (*) marks the default setting.</p><div class="ws-groups">${groups}</div><div class="g-actions"><button tabindex="-1" id="ws-defaults">Back to defaults</button></div>`;
     }
 
     function renderResults(st) {
@@ -2950,7 +3040,7 @@
         const save = $('res-save');
         save.disabled = !selected.length || res.saving;
         save.textContent = selected.length ? `Save figures (${selected.length})` : 'Save figures';
-        const key = JSON.stringify([selected, res.shape, backupRows(), Math.round($('results').clientWidth)]);
+        const key = JSON.stringify([selected, res.shape, backupRows(), (s.noteMarks || []).length, s.recentreCount, Math.round($('results').clientWidth)]);
         if (key === res.drawnKey) return;
         res.drawnKey = key;
         drawResults(selected);
@@ -3066,7 +3156,7 @@
                 try {
                     const views = data.runs.map(r => ResultsCharts.view3D(r, res.shape)).filter(v => v.solid);
                     const shots = await res.ws.view.snapshot(views, ResultsCharts.limits3D(data, res.shape), 2400, 1500);
-                    shots.forEach((bytes, i) => files.push({ path: `${prefix}workspace-3d-run${data.runs[i].run}-${ts}.png`, parts: [bytes] }));
+                    shots.forEach((bytes, i) => files.push({ path: `${prefix}workspace-3d-block${data.runs[i].run}-${ts}.png`, parts: [bytes] }));
                 } catch (e) {
                     note = ' The 3D figure could not be saved.';
                 }
@@ -3167,13 +3257,13 @@
         const redone = s.recalibrated || [];
         const pending = pendingRecal(s);
         const recalDone = !pending;
-        $('g7-b-title').textContent = `Run ${s.run} of ${s.plannedRuns} complete`;
-        $('g7-b-next').textContent = next ? `Next run: ${s.run + 1}, ${COND_LABEL[next.condition]}, ${MODE_LABEL[s.mode]} trials` : 'There are no more runs in the plan.';
+        $('g7-b-title').textContent = `Block ${s.run} of ${s.plannedRuns} complete`;
+        $('g7-b-next').textContent = next ? `Next block: ${s.run + 1}, ${COND_LABEL[next.condition]}, ${lengthLabel(s.mode, s.totalTrials)} trials` : 'There are no more blocks in the plan.';
         $('g7-b-break').hidden = !off;
         $('g7-b-timer').textContent = mmss(s.betweenMs + now - guide.stateAt);
         $('g7-b-off').hidden = !off;
         setChecks('g7-b-copy', [
-            copied ? ['ok', 'All data received for the completed run'] : ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows)`],
+            copied ? ['ok', 'All data received for the completed block'] : ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows)`],
             ...(backup.storeFailed ? [['warn', 'Browser storage failed. The laptop copy is held in memory only.']] : []),
             ...(off && PRACTICE ? [['info', 'This is a practice session, so no headset copy is saved.']] : off ? [tick3(!s.saving && s.headsetCopyRun === s.run, s.saving || s.headsetCopyRun !== s.run ? 'Headset saving…' : 'Headset copy saved', true)] : [])
         ]);
@@ -3188,7 +3278,7 @@
         document.querySelectorAll('[data-bcalib], #g7-b-skip, #g7-b-finish').forEach(b => { b.disabled = !st.live || guide.busy; });
         $('g7-b-add').disabled = guide.busy;
         const start = $('g7-b-start');
-        start.textContent = next ? `Start run ${s.run + 1}` : 'Start next run';
+        start.textContent = next ? `Start block ${s.run + 1}` : 'Start next block';
         start.classList.toggle('g-primary', off || recentred);
         start.disabled = !st.live || guide.busy || s.closing || !next || !recalDone || (off && !(guide.removedTick && s.inVR && recentred));
     }
@@ -3197,7 +3287,7 @@
         const plan = guide.plan;
         guide.busy = true;
         setMsg(3, 'Sending…', 'busy');
-        for (const [name, value] of [['setMode', plan.mode], ['setHomeMode', plan.home], ['setCondition', plan.runs[0].condition], ['setPlan', planPayload()]]) {
+        for (const [name, value] of [plan.mode === 'custom' ? ['setCustomTrials', plan.customTrials] : ['setMode', plan.mode], ['setHomeMode', plan.home], ['setCondition', plan.runs[0].condition], ['setPlan', planPayload()]]) {
             const r = await sendCmd(name, value);
             if (!r.ok) {
                 guide.busy = false;
@@ -3281,7 +3371,7 @@
         }
         if (started.ok) started = await sendCmd('nextRun');
         guide.busy = false;
-        setMsg(7, started.ok ? `Run ${s.run + 1} started` : failureText(started), started.ok ? 'ok' : 'bad');
+        setMsg(7, started.ok ? `Block ${s.run + 1} started` : failureText(started), started.ok ? 'ok' : 'bad');
         renderGuide();
     }
 
@@ -3299,7 +3389,7 @@
         guide.plan.runs = runs;
         runStore.forgotten.delete(backup.storeId);
         resetStored();
-        await runGuideCmd(8, 'reopenSession', undefined, 'Run added');
+        await runGuideCmd(8, 'reopenSession', undefined, 'Block added');
     }
 
     function calibrateCmd(step, k) {
@@ -3313,12 +3403,42 @@
             const b = e.target.closest('button');
             if (!b) return;
             const d = b.dataset;
-            if (d.planMode) editPlan(p => { p.mode = d.planMode; });
+            if (d.planMode) {
+                guide.customOpen = false;
+                guide.customDraft = undefined;
+                editPlan(p => { p.mode = d.planMode; });
+            } else if (b.id === 'plan-custom') {
+                guide.customOpen = !guide.customOpen;
+                guide.customDraft = undefined;
+                renderGuide();
+                if (guide.customOpen && $('plan-custom-n')) $('plan-custom-n').focus();
+            } else if (b.id === 'plan-custom-cancel') {
+                guide.customOpen = false;
+                guide.customDraft = undefined;
+                renderGuide();
+            } else if (b.id === 'plan-custom-set') {
+                const check = customCheck($('plan-custom-n').value);
+                if (!check.ok) return;
+                guide.customOpen = false;
+                guide.customDraft = undefined;
+                editPlan(p => { p.mode = 'custom'; p.customTrials = check.n; });
+            }
             else if (d.planHome) editPlan(p => { p.home = d.planHome; });
             else if (d.planReward !== undefined) editPlan(p => { p.runs[+d.planReward].condition = +d.v; });
             else if (d.planLink !== undefined) editPlan(p => { const r = p.runs[+d.planLink]; r.off = !r.off; });
             else if (d.planRemove !== undefined) editPlan(p => removeRun(p, +d.planRemove));
             else if (b.id === 'plan-add') editPlan(p => { p.runs.push(newRun()); });
+        });
+        box.addEventListener('input', (e) => {
+            if (e.target.id !== 'plan-custom-n') return;
+            guide.customDraft = e.target.value;
+            const check = customCheck(e.target.value);
+            $('plan-custom-msg').textContent = check.text;
+            $('plan-custom-msg').classList.toggle('bad', !check.ok && !!e.target.value);
+            $('plan-custom-set').disabled = !check.ok;
+        });
+        box.addEventListener('keydown', (e) => {
+            if (e.target.id === 'plan-custom-n' && e.key === 'Enter' && !$('plan-custom-set').disabled) $('plan-custom-set').click();
         });
         box.addEventListener('change', (e) => {
             const d = e.target.dataset;
@@ -3447,10 +3567,10 @@
         $('g-save-headset').addEventListener('click', () => runGuideCmd(7, 'saveOnHeadset', undefined, PRACTICE ? 'This is a practice session, so no headset copy is saved.' : 'Headset save started.'));
         $('g-end').addEventListener('click', () => { $('g-end-confirm').hidden = false; });
         $('g-end-no').addEventListener('click', () => { $('g-end-confirm').hidden = true; });
-        $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(7, 'endEarly', undefined, 'Run ended'); });
+        $('g-end-yes').addEventListener('click', () => { $('g-end-confirm').hidden = true; runGuideCmd(7, 'endEarly', undefined, 'Block ended'); });
         $('g-unlock').addEventListener('click', () => { $('g-unlock-confirm').hidden = false; });
         $('g-unlock-no').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; });
-        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Setup unlocked. It will lock again when the run resumes.'); });
+        $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Setup unlocked. It will lock again when the block resumes.'); });
         document.querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
             const condition = b.dataset.u === 'setCondition';
             runGuideCmd(7, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, condition ? 'Condition changed' : 'Dominant hand changed');
@@ -3473,6 +3593,11 @@
         });
         $('g-practice').addEventListener('click', () => window.open(location.pathname + '?practice=1', '_blank'));
         $('practice-leave').addEventListener('click', () => { location.href = location.pathname; });
+        document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
+            const clock = $('practice-headset').contentWindow.__practiceClock;
+            if (!clock || !clock.setSpeed(+b.dataset.speed)) return;
+            document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
+        }));
         document.querySelectorAll('[data-trouble]').forEach(b => b.addEventListener('click', () => {
             const practice = $('practice-headset').contentWindow.__practice;
             if (!practice) return;
@@ -3483,6 +3608,7 @@
             else if (kind === 'stops') practice.participant.frozen = on;
             else window.__practiceLink.setDown(on);
         }));
+        document.querySelectorAll('[data-test-downloads]').forEach(b => b.addEventListener('click', () => { testDownloads(); renderGuide(); }));
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
     }

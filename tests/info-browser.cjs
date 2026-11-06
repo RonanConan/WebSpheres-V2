@@ -2,8 +2,8 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('INFO BROWSER');
 
 const TOP = {
-  trial: 'Trials completed in the current run, out of the planned total.',
-  score: 'Points earned in the current run.',
+  trial: 'Trials completed in the current block, out of the planned total.',
+  score: 'Points earned in the current block.',
   cond: 'No boost: Both hands have a 30% critical-hit chance.\nBoost: The non-dominant hand has a 55% chance; the dominant hand has a 5% chance.',
   dom: 'The dominant hand has a lower critical-hit chance during Boost.',
   fire: 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.'
@@ -89,7 +89,7 @@ const LABELS = {
   await status('error', 'Connection error. Retrying automatically. If the problem continues, check your internet connection and reload this page.');
 
   await E(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
-  await peer({ type: 'state', version: '2.6.0', phase: 'running', participantId: 'P1', experimenter: 'Jo', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+  await peer({ type: 'state', version: '2.7.0', phase: 'running', participantId: 'P1', experimenter: 'Jo', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: true, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await tick(50);
   await status('connected', 'Live data arriving.');
   ok(await E(() => document.getElementById('conn-dot').offsetParent === null), 'no dot when connected');
@@ -122,7 +122,7 @@ const LABELS = {
   await tick(260);
   h = await health();
   ok(h.text === 'Disconnected: No live data are arriving. The headset continues recording.' && h.cls === 'bad', `Down (${h.text})`);
-  await peer({ type: 'state', version: '2.6.0', phase: 'setup', participantId: '', experimenter: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false, calib: null, recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+  await peer({ type: 'state', version: '2.7.0', phase: 'setup', participantId: '', experimenter: '', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false, calib: null, recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
   await E(() => window.__obs.receiver.setStatus('reconnecting', ''));
   await tick(260);
   h = await health();

@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };
@@ -49,7 +49,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await p.click('#g-confirm'); await tick();
   await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT' }); await frame(); await tick();
   ok((await checks('g2-checks')).join('|') === 'ok:Experimenter: Jo|ok:Participant ID: P9|ok:Dominant hand: Right', 'after sending: values ticked');
-  ok(await openStep() === 3, 'sending moves on to Run plan');
+  ok(await openStep() === 3, 'sending moves on to Block plan');
   ok((await text('g2-val')) === 'P9, Right', 'collapsed Participant shows ID and hand');
 
   console.log('RUN PLAN');
@@ -61,12 +61,12 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await st({ plan: PLAN, plannedRuns: 2 }); await frame(); await tick();
   ok((await checks('g3-checks')).every(r => r.startsWith('ok:')), 'plan facts ticked once sent');
   ok(await openStep() === 4, 'sending moves on to Position');
-  ok((await text('g3-val')) === '2 runs, 88 trials', 'collapsed Run plan shows runs and trials');
+  ok((await text('g3-val')) === '2 blocks, 88 trials', 'collapsed Block plan shows runs and trials');
 
   console.log('VIEW BUTTONS');
   const viewsOff = () => E(() => [...document.querySelectorAll('[data-view]')].every(b => b.disabled));
   await p.click('[data-open="3"]'); await tick();
-  ok(await viewsOff() && await E(() => !document.getElementById('recentre').disabled), 'run plan covers the 3D view: view buttons off, Recentre still on');
+  ok(await viewsOff() && await E(() => !document.getElementById('recentre').disabled), 'block plan covers the 3D view: view buttons off, Recentre still on');
   await p.click('[data-open="4"]'); await tick();
   ok(await E(() => [...document.querySelectorAll('[data-view]')].every(b => !b.disabled)), '3D view showing: view buttons on');
   await p.click('[data-open="3"]'); await tick();
@@ -75,7 +75,8 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok(await E(() => { const s = document.getElementById('stage'); s.scrollLeft = 200; return s.scrollLeft === 0; }), '3D area cannot scroll sideways');
   ok(await E(() => document.getElementById('left-slot').scrollTop === 0), 'guide fits: finished steps stay in view');
   await p.click('[data-open="3"]'); await tick();
-  ok(await E(() => { const send = document.getElementById('g-plan-send'), body = document.getElementById('plan-body'); return document.getElementById('plan-builder').contains(send) && send.getBoundingClientRect().top >= body.getBoundingClientRect().bottom - 1; }), 'Send to headset sits under the plan, in the same panel');
+  ok(await E(() => { const builder = document.getElementById('plan-builder'); builder.scrollTop = builder.scrollHeight; const send = document.getElementById('g-plan-send'), body = document.getElementById('plan-body'); return document.getElementById('plan-builder').contains(send) && send.getBoundingClientRect().top >= body.getBoundingClientRect().bottom - 1; }), 'Send to headset sits under the plan, in the same panel');
+  ok(await E(() => { const builder = document.getElementById('plan-builder'); builder.scrollTop = 0; const send = document.getElementById('g-plan-send').getBoundingClientRect(), box = builder.getBoundingClientRect(); return send.bottom <= box.bottom + 1 && send.top >= box.top; }), 'Send to headset stays in view while the plan scrolls');
   await p.setViewportSize({ width: 1440, height: 500 }); await tick();
   ok(await E(() => { const r = document.getElementById('g-plan-send').getBoundingClientRect(), s = document.getElementById('stage').getBoundingClientRect(); return r.top >= s.top && r.bottom <= s.bottom; }), 'short window: Send stays visible');
   await p.setViewportSize({ width: 1440, height: 900 }); await tick();
@@ -99,7 +100,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok((await cyan()).join() === 'lap', 'height done: Calibrate home cyan');
   await p.click('[data-open="4"]'); await tick();
   ok(await E(() => !document.getElementById('g-recentre').classList.contains('g-primary')), 'already recentred: Recentre in the guide neutral');
-  ok((await text('g3-val')) === '2 runs, 88 trials', 'values stay on collapsed steps');
+  ok((await text('g3-val')) === '2 blocks, 88 trials', 'values stay on collapsed steps');
   await st({ calib: CALIB(true, true, true) }); await frame(); await tick();
 
   console.log('CHECK');
@@ -159,7 +160,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await st({ phase: 'running', setupLocked: true }); await frame(); await tick();
   ok(await E(() => { const a = document.getElementById('g-alert'); return getComputedStyle(a).display !== 'none' && a.offsetHeight > 0 && getComputedStyle(a).backgroundColor === 'rgb(11, 14, 20)'; }), 'running: alert slot kept, solid background');
   const order = await E(() => ['g-pause', 'g-note-spoke', 'g-save-headset', 'g-end'].map(i => document.getElementById(i).getBoundingClientRect().top));
-  ok(order[0] < order[1] && order[1] < order[2] && order[2] < order[3], 'order: Pause, notes, rare controls, End run');
+  ok(order[0] < order[1] && order[1] < order[2] && order[2] < order[3], 'order: Pause, notes, rare controls, End block');
   for (const [w, h] of [[2560, 1440], [1920, 1080], [1707, 960], [1536, 864], [1440, 900]]) {
     await p.setViewportSize({ width: w, height: h });
     await st({ participantId: 'P012345', plannedRuns: 2, trialCount: 118, totalTrials: 352 }); await frame({ score: 137 }); await tick();
@@ -181,14 +182,14 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok(await E(() => !document.getElementById('g7-b-start').disabled), 'Start still enabled');
   await st({ betweenRecentres: 1 }); await frame(); await tick();
   ok((await cyan()).join() === 'g7-b-start', 'recentred: Start cyan');
-  ok(await E(() => document.getElementById('g-pause').offsetParent === null && document.getElementById('g-end').offsetParent === null && document.getElementById('g-note-spoke').offsetParent !== null && document.getElementById('plan-send-row').offsetParent === null), 'between runs: run controls and Send gone, notes stay');
+  ok(await E(() => document.getElementById('g-pause').offsetParent === null && document.getElementById('g-end').offsetParent === null && document.getElementById('g-note-spoke').offsetParent !== null && document.getElementById('plan-send-row').offsetParent === null), 'between blocks: run controls and Send gone, notes stay');
 
-  ok(await viewsOff(), 'between runs: view buttons off');
+  ok(await viewsOff(), 'between blocks: view buttons off');
 
   console.log('RUN REPORT NOTES');
   await st({ noteMarks: [{ run: 1, time: 109000, trial: 18, type: 'note', text: 'Spoke <b>to</b> "P9"', estimated: false }, { run: 1, time: 120000, trial: 20, type: 'alert', text: 'Tracking left: 80%', estimated: false }, { run: 1, time: 130000, trial: 22, type: 'note', text: 'Sneezed', estimated: true }, { run: 2, time: 5000, trial: 1, type: 'note', text: 'Other run', estimated: false }] }); await frame(); await tick();
   const rows = await E(() => [...document.querySelectorAll('[data-report-run="1"] .rep-note')].map(r => [...r.children].map(c => c.textContent).join('|')));
-  ok(rows.join(' / ') === '1:49|Trial 18|Spoke <b>to</b> "P9" / 2:10 est.|Trial 22|Sneezed', 'notes listed with time and trial, alerts and other runs left out (' + rows.join(' / ') + ')');
+  ok(rows.join(' / ') === '1|1:49|Trial 18|Spoke <b>to</b> "P9" / 2|2:10 est.|Trial 22|Sneezed', 'notes listed with time and trial, alerts and other runs left out (' + rows.join(' / ') + ')');
   ok(await E(() => document.querySelector('[data-report-run="1"] .rep-note b') === null), 'note text shown as typed, never as page code');
 
   console.log('RESULTS');

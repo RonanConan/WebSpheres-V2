@@ -14,7 +14,7 @@ const { ok, done } = counter('SESSION BROWSER');
   console.log('SETUP PHASE');
   let s = await state();
   ok(s && s.dominantHand === 'RIGHT', 'dominant hand starts on Right');
-  ok(s && s.version === '2.6.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
+  ok(s && s.version === '2.7.0' && s.phase === 'setup' && s.setupLocked === false && s.mode === 'standard' && s.totalTrials === 352 && s.endReason === '', 'state sent on connect: version, phase setup, standard 352, unlocked');
   ok(s.calib && !s.calib.reach.done && !s.calib.height.done && !s.calib.lap.done && s.backup && s.backup.trials === 0, 'state carries calibration and backup counts');
   let r = await cmd('setParticipant', 'P01');
   ok(r.result.ok && r.next && r.next.type === 'state' && r.next.participantId === 'P01', 'setParticipant → cmdResult ok, then a fresh state with the ID');
@@ -105,7 +105,7 @@ const { ok, done } = counter('SESSION BROWSER');
   await cmd('cue', null);
   await cmd('setReachHand', 'LEFT');
   console.log('SETUP PHASE (continued)');
-  for (const [n, re] of [['pause', /during a run/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /only unlock or relock/], ['skip', /No trial/]]) {
+  for (const [n, re] of [['pause', /during a block/], ['resume', /Not paused/], ['endEarly', /No session/], ['unlockSetup', /only unlock or relock/], ['skip', /No trial/]]) {
     r = await cmd(n);
     ok(!r.result.ok && re.test(r.result.reason), `${n} refused in setup ("${r.result.reason}")`);
   }
@@ -216,7 +216,7 @@ const { ok, done } = counter('SESSION BROWSER');
   await key('KeyC');
   ok(await E(() => window.__sc.currentCondition === 2), 'locked keys work again after unlock');
   r = await cmd('setMode', 'fmode');
-  ok(!r.result.ok && r.result.reason === 'Set the run length before starting the session.', 'mode change refused even while unlocked');
+  ok(!r.result.ok && r.result.reason === 'Set the block length before starting the session.', 'mode change refused even while unlocked');
   await E(() => window.__sm.setMode('fmode'));
   await until(() => window.__sm.currentState === 'invisible' || window.__sm.currentState === 'visible' || window.__sm.currentState === 'waiting-to-appear');
   await cmd('pause');
