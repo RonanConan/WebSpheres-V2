@@ -1,11 +1,11 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.3.0';
-    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group'];
-    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group'];
+    const VERSION = '1.4.0';
+    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand'];
+    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
     const FILE_KIND = /^(.*?)(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-(\d{4}-\d{2}-\d{2}T[\d-]+)\.csv$/;
-    const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group']);
+    const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group', 'DominantHand']);
     const RESUME_LIMIT_MS = 24 * 60 * 60 * 1000;
     const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
         let c = n;
@@ -49,7 +49,7 @@ const WebSpheresAnalysis = (() => {
         return entries;
     }
 
-    async function entryText(file, entry) {
+    async function entryBytes(file, entry) {
         const head = new DataView(await file.slice(entry.offset, entry.offset + 30).arrayBuffer());
         if (head.getUint32(0, true) !== 0x04034b50) throw new Error('bad zip entry');
         const start = entry.offset + 30 + head.getUint16(26, true) + head.getUint16(28, true);
@@ -58,7 +58,11 @@ const WebSpheresAnalysis = (() => {
         const stream = entry.method === 8 ? raw.stream().pipeThrough(new DecompressionStream('deflate-raw')) : raw.stream();
         const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
         if (crc32(bytes) !== entry.crc) throw new Error('checksum mismatch');
-        return new TextDecoder().decode(bytes);
+        return bytes;
+    }
+
+    async function entryText(file, entry) {
+        return new TextDecoder().decode(await entryBytes(file, entry));
     }
 
     function parseCsv(text) {
@@ -132,7 +136,7 @@ const WebSpheresAnalysis = (() => {
         });
         for (const { folder, group, duplicate } of Array.from(folders).flatMap(([name, items]) => splitFolder(name, items))) {
             const trialEntry = group['vr-session-data'], infoEntry = group['session-info'];
-            const block = { folder, problem: '', hasLeft: !!group['kinematics-LEFT'], hasRight: !!group['kinematics-RIGHT'] };
+            const block = { folder, problem: '', hasLeft: !!group['kinematics-LEFT'], hasRight: !!group['kinematics-RIGHT'], entries: { trial: trialEntry, left: group['kinematics-LEFT'], right: group['kinematics-RIGHT'] } };
             if (duplicate) block.problem = 'This folder in the ZIP file contains more than one file of the same type and cannot be processed reliably.';
             else if (!trialEntry) block.problem = 'This block has no trial file.';
             else if (!infoEntry) block.problem = 'This block has no session-info file, so its participant, condition and block order cannot be determined.';
@@ -217,7 +221,7 @@ const WebSpheresAnalysis = (() => {
                 if (!block.table.length) { result.setAside.push({ name: label, reason: 'This block has no trials.' }); return; }
                 candidates.push({
                     zip, zipIndex, label, folder: block.folder, header: block.header, table: block.table, info: block.info,
-                    practice: block.practice, hasLeft: block.hasLeft, hasRight: block.hasRight,
+                    practice: block.practice, hasLeft: block.hasLeft, hasRight: block.hasRight, entries: block.entries,
                     id: block.info.ParticipantID === undefined ? '' : block.info.ParticipantID,
                     start: block.info.SessionStartISO || '',
                     number: blockNumber(block.info, block.folder),
@@ -324,11 +328,15 @@ const WebSpheresAnalysis = (() => {
         if (info.EndReason && info.EndReason !== 'finished') result.notes.push(`${where}: this block ended early after ${info.TotalTrials ? `${block.table.length} of ${info.TotalTrials} trials` : trialCount(block.table.length)}. All recorded trials were included.`);
         if (block.index.ParticipantID >= 0 && block.table.some(row => row[block.index.ParticipantID] !== block.id)) result.warnings.push(`${where}: some trial records have a different participant ID from their block.`);
         if (!block.id) result.warnings.push(`${where}: this block has no participant ID.`);
-        if (!block.hasLeft || !block.hasRight) result.notes.push(`${where}: the kinematics files are incomplete, but they are not required for handDB.`);
+        if (!block.hasLeft || !block.hasRight) result.notes.push(`${where}: the kinematics files are incomplete. This block is in handDB, but it will be left out of the kinematics master.`);
         String(info.SetupChanges || '').split(';').filter(Boolean).forEach(change => {
             const parts = change.split('|');
             if (CHANGE_FIELDS.has(parts[2])) result.warnings.push(`${where}: ${parts[2]} changed from ${parts[3]} to ${parts[4]} after trial ${parts[1]}. ${parts[2] === 'Group' ? 'All trials are labelled with the group of the folder they are in.' : 'All trials are labelled with the final value.'}`);
         });
+    }
+
+    function dominantHand(info) {
+        return String(info.DominantHand || '').trim().toUpperCase();
     }
 
     function buildRows(block, item, id, sessionNumber, result, where, group) {
@@ -349,7 +357,7 @@ const WebSpheresAnalysis = (() => {
                 Hand: hand === 'NA' || hand === '' ? null : hand,
                 Points: integer(row[at.Points]), HitType: hitType,
                 DecisionTime: integer(row[at.DecisionTime]), MovementTime: integer(row[at.TotalMovementTime]),
-                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group
+                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group, DominantHand: dominantHand(block.info)
             });
         });
         if (unreadable) result.warnings.push(`${where}: ${unreadable === 1 ? '1 value could not be read as a whole number and is' : `${unreadable} values could not be read as whole numbers and are`} recorded as NA.`);
@@ -365,6 +373,22 @@ const WebSpheresAnalysis = (() => {
         });
         groups.forEach(ids => {
             if (ids.size > 1) result.warnings.push(`These participant IDs are similar but will be treated as different participants: ${Array.from(ids).sort(compareText).join(', ')}.`);
+        });
+    }
+
+    function recordedHands(blocks) {
+        const hands = new Map();
+        blocks.forEach(block => {
+            if (!hands.has(block.ID)) hands.set(block.ID, new Set());
+            if (block.DominantHand) hands.get(block.ID).add(block.DominantHand);
+        });
+        return hands;
+    }
+
+    function checkDominantHands(result) {
+        recordedHands(result.blocks).forEach((hands, id) => {
+            if (hands.size > 1) result.warnings.push(`Participant ${id || '(no ID)'} is recorded with more than one dominant hand: ${Array.from(hands).sort(compareText).join(' and ')}. Their handedness will be treated as not known.`);
+            if (!hands.size) result.warnings.push(`Participant ${id || '(no ID)'} has no recorded dominant hand.`);
         });
     }
 
@@ -405,11 +429,13 @@ const WebSpheresAnalysis = (() => {
                     PlannedTrials: toInteger(block.info.TotalTrials === undefined ? '' : block.info.TotalTrials), CompletedTrials: toInteger(block.info.TrialsCompleted === undefined ? '' : block.info.TrialsCompleted),
                     RowsInHandDB: block.table.length, EndReason: block.info.EndReason || '', Plan: block.info.Plan || '', AppVersion: block.info.AppVersion || '',
                     Practice: block.practice ? 'yes' : 'no', KinematicsFiles: block.hasLeft && block.hasRight ? 'both' : block.hasLeft ? 'left only' : block.hasRight ? 'right only' : 'none',
-                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; '), Group: groupLabel
+                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; '), Group: groupLabel, DominantHand: dominantHand(block.info),
+                    source: { file: block.zip.file, entries: block.entries }
                 });
             });
         });
         checkSimilarIds(result.sessions, result);
+        checkDominantHands(result);
         return result;
     }
 
@@ -423,7 +449,80 @@ const WebSpheresAnalysis = (() => {
         return [columns.map(csvValue).join(',')].concat(rows.map(row => columns.map(name => csvValue(row[name])).join(','))).join('\n') + '\n';
     }
 
-    function reportText(exportsRead, result, createdIso) {
+    function kinematicsPlan(result) {
+        const dominant = {};
+        recordedHands(result.blocks).forEach((hands, id) => { dominant[id] = hands.size === 1 ? Array.from(hands)[0] : ''; });
+        const blocks = result.blocks.map(block => {
+            const absent = [['kinematics-LEFT', block.source.entries.left], ['kinematics-RIGHT', block.source.entries.right]].filter(([, entry]) => !entry).map(([name]) => name);
+            return { blockId: `${block.ID}/s${block.Session}/${block.Block}`, blockName: block.Block, participantId: block.ID, session: `s${block.Session}`, source: block.source, missing: absent.join(';') };
+        });
+        return { blocks, dominant };
+    }
+
+    async function kinematicsFiles(item) {
+        const { source, ...rest } = item;
+        if (item.missing) return rest;
+        try {
+            const blob = async (entry) => new Blob([await entryBytes(source.file, entry)], { type: 'text/csv' });
+            return { ...rest, behaviour: await blob(source.entries.trial), left: await blob(source.entries.left), right: await blob(source.entries.right) };
+        } catch (e) {
+            return { ...rest, missing: 'The trial or kinematics files could not be read from the ZIP file.' };
+        }
+    }
+
+    function readTable(text) {
+        const table = parseCsv(text || '');
+        const header = table[0] || [];
+        return table.slice(1).map(row => Object.fromEntries(header.map((name, i) => [name, row[i]])));
+    }
+
+    function readKinematics(run, group, plan) {
+        const file = (name) => (run.files.find(item => item.name === name) || { text: '' }).text;
+        const summary = JSON.parse(file('batch_summary.json').replace(/\bNaN\b/g, 'null'));
+        const unknown = group === 'controls' ? Object.keys(plan.dominant).filter(id => !plan.dominant[id]).sort(compareText) : [];
+        return {
+            files: run.files, checksums: run.checksums, versions: run.versions, summary,
+            master: file('kinematics_all_valid_reaches_master.csv'),
+            masterRows: summary.analysis_master_rows,
+            errors: readTable(file('processing_errors.csv')),
+            incomplete: readTable(file('incomplete_file_triplets.csv')),
+            reasons: readTable(file('qc_reason_counts.csv')).filter(item => item.qc_reason !== 'valid'),
+            unknownHands: unknown
+        };
+    }
+
+    function kinematicsProblems(kinematics) {
+        return [
+            ...kinematics.errors.map(item => `${item.block_id}: this block could not be processed, so it is not in the kinematics master. ${item.error_type}: ${item.error}`),
+            ...kinematics.incomplete.map(item => `${item.block_id}: this block is not in the kinematics master. Missing: ${item.missing_files}`),
+            ...kinematics.unknownHands.map(id => `Participant ${id || '(no ID)'}: handedness is not known, so the dominant and non-dominant hand columns are blank.`)
+        ];
+    }
+
+    function compareKinematics(oldText, newText) {
+        const oldTable = parseCsv(oldText), newTable = parseCsv(newText);
+        if ((oldTable[0] || []).join() !== (newTable[0] || []).join()) return { comparable: false, examples: [] };
+        const header = newTable[0] || [];
+        const blockAt = header.indexOf('block_id'), trialAt = header.indexOf('trial');
+        const keyOf = (row) => `${row[blockAt]}|${row[trialAt]}`;
+        const fresh = new Map(newTable.slice(1).map(row => [keyOf(row), row]));
+        const oldKeys = new Set(), examples = [];
+        let changed = 0, missing = 0;
+        oldTable.slice(1).forEach(old => {
+            const key = keyOf(old), row = fresh.get(key), where = `${old[blockAt]}, trial ${old[trialAt]}`;
+            oldKeys.add(key);
+            if (!row) {
+                missing++;
+                if (examples.length < 5) examples.push(`${where} is no longer present.`);
+            } else if (row.join() !== old.join()) {
+                changed++;
+                if (examples.length < 5) examples.push(`${where}: ${header.filter((_, i) => row[i] !== old[i]).join(', ')} changed.`);
+            }
+        });
+        return { comparable: true, oldRows: oldTable.length - 1, added: newTable.slice(1).filter(row => !oldKeys.has(keyOf(row))).length, changed, missing, examples };
+    }
+
+    function reportText(exportsRead, result, createdIso, kinematics) {
         const list = (items) => items.length ? items.map(item => `- ${item}`) : ['- None'];
         return [
             'WebSpheres handDB report',
@@ -447,25 +546,43 @@ const WebSpheresAnalysis = (() => {
             '',
             'Files or blocks not used:', ...list(result.setAside.map(item => `${item.name}: ${item.reason}`)),
             '',
-            'ZIP files read (SHA-256):', ...list(exportsRead.map(zip => `${zip.name}: ${zip.sha256 || 'not available'}`))
+            'ZIP files read (SHA-256):', ...list(exportsRead.map(zip => `${zip.name}: ${zip.sha256 || 'not available'}`)),
+            ...(kinematics ? [
+                '',
+                'Kinematics',
+                `Pipeline version: ${kinematics.summary.pipeline_version}`,
+                `Resampling and filter: ${kinematics.summary.configuration.resample_hz} Hz, ${kinematics.summary.configuration.filter_cutoff_hz} Hz low-pass`,
+                `Blocks processed: ${kinematics.summary.processed_blocks}`,
+                `Trials: ${kinematics.summary.trials_total}`,
+                `Trials that passed the quality checks: ${kinematics.summary.trials_valid_core}`,
+                `Rows in the kinematics master: ${kinematics.masterRows}`,
+                '',
+                'Kinematics problems:', ...list(kinematicsProblems(kinematics)),
+                '',
+                'Software:', ...list(Object.entries(kinematics.versions).map(([name, version]) => `${name} ${version}`)),
+                '',
+                'Python scripts (SHA-256):', ...list(Object.entries(kinematics.checksums).map(([name, sum]) => `${name}: ${sum}`))
+            ] : [])
         ].join('\n') + '\n';
     }
 
     function fileNames(group, practice) {
         const prefix = practice ? 'PRACTICE_' : '';
-        return { master: `${prefix}handDB_${group}.csv`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt` };
+        return { master: `${prefix}handDB_${group}.csv`, kinematics: `${prefix}kinematicsDB_${group}.csv`, details: `${prefix}kinematics_details`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt` };
     }
 
     async function addChecksums(exportsRead) {
         for (const zip of exportsRead) zip.sha256 = await sha256(zip.file);
     }
 
-    function outputFiles(exportsRead, result, createdIso, group, practice) {
+    function outputFiles(exportsRead, result, createdIso, group, practice, kinematics) {
         const names = fileNames(group, practice);
         return [
             { path: names.master, parts: [toCsv(COLUMNS, result.rows)] },
+            ...(kinematics ? [{ path: names.kinematics, parts: [kinematics.master] }] : []),
             { path: names.blocks, parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
-            { path: names.report, parts: [reportText(exportsRead, result, createdIso)] }
+            { path: names.report, parts: [reportText(exportsRead, result, createdIso, kinematics)] },
+            ...(kinematics ? kinematics.files.filter(item => item.name !== 'kinematics_all_valid_reaches_master.csv').map(item => ({ folder: names.details, path: item.name, parts: [item.text] })) : [])
         ];
     }
 
@@ -537,7 +654,7 @@ const WebSpheresAnalysis = (() => {
         return { comparable: true, oldRows: table.length - 1, added: addedRows.length, changed, missing, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size, examples };
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster };
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, kinematicsFiles, readKinematics, kinematicsProblems, compareKinematics };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;
