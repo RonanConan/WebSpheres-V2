@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.7.0';
+const VERSION = '2.8.0';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -308,8 +308,8 @@ async function laptopSuite(b) {
   await R(() => document.getElementById('g-resume-go').click());
   await sleep(200);
   const sent = await rcmds();
-  ok(sent.map(m => m.name).join() === 'setDominant,setExperimenter,setParticipant,setMode,setHomeMode,setCondition,setPlan,resumeAt', 'Continue restores setup, then resumes');
-  ok(sent[0].value === 'RIGHT' && sent[1].value === 'Jo' && sent[2].value === 'P1' && sent[5].value === 2 && sent[6].value.runs.length === 3 && sent[7].value === 2, 'with the right values');
+  ok(sent.map(m => m.name).join() === 'setDominant,setExperimenter,setGroup,setParticipant,setMode,setHomeMode,setCondition,setPlan,resumeAt', 'Continue restores setup, then resumes');
+  ok(sent[0].value === 'RIGHT' && sent[1].value === 'Jo' && sent[2].value === 'Control' && sent[3].value === 'P1' && sent[6].value === 2 && sent[7].value.runs.length === 3 && sent[8].value === 2, 'with the right values');
   ok(await R(() => document.getElementById('g-resume').hidden), 'choice cleared');
   const BACK = Object.assign({}, STATE, { sessionId: 'B', phase: 'setup', run: 2, condition: 2, filePrefix: 'P1_block2_', trialCount: 0, sessionMs: 0, info: 'Key,Value\nBlock,2\n', recentred: false, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' } });
   await rem(BACK);

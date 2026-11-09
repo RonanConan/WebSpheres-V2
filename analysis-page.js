@@ -113,6 +113,7 @@
         fillList('changes', 'changes-list', changes);
         renderLayout(result);
         fillList('stops', 'stops-list', result.stops);
+        fillList('group-mismatch', 'group-mismatch-list', result.groupMismatches);
         fillList('warnings', 'warnings-list', result.warnings);
         fillList('notes', 'notes-list', result.notes);
         fillList('set-aside', 'set-aside-list', result.setAside.map(item => `${item.name}: ${item.reason}`));
@@ -169,6 +170,7 @@
             state.result = null;
             state.comparison = null;
             $('g5-warned').hidden = true;
+            $('g5-group').hidden = true;
             $('g5-changes').hidden = true;
             setMsg('g5-msg', '');
             renderResults();
@@ -335,6 +337,7 @@
             state.comparison = old === null ? null : A.compareMaster(old, result.rows);
             setMsg('g4-msg', `${plural(state.zipCount, 'zip file')} read.`);
             $('g5-warned').hidden = !result.warnings.length;
+            $('g5-group').hidden = !result.groupMismatches.length;
             $('g5-changes').hidden = !comparisonNeedsConfirm();
             if (result.stops.length) setMsg('g5-msg', 'Fix the problem shown on the right, then go back to step 4 and read the sessions again.', 'bad');
             else if (!result.rows.length) setMsg('g5-msg', 'No usable trials were found. See the list on the right.', 'bad');

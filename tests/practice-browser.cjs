@@ -51,7 +51,7 @@ async function openPractice(b, viewport) {
     const { p: host, ctx: hctx } = await openHost(b);
     const info = await host.evaluate(() => { window.__dm.participantId = 'P1'; return { info: window.__dm.buildSessionInfo(), file: window.__dm.filePrefix(), session: window.__dm.sessionPrefix(), practice: !!window.__practice, scripts: [...document.scripts].some(s => s.src.includes('practice')) }; });
     ok(!info.scripts && !info.practice, 'headset page without ?practice: no practice code');
-    ok(!info.info.includes('Practice') && info.info.trimEnd().split('\n').at(-1).startsWith('XRMode,'), 'real session info has no Practice row and still ends with XRMode');
+    ok(!info.info.includes('Practice') && info.info.trimEnd().split('\n').at(-1) === 'Group,Control', 'real session info has no Practice row and ends with Group');
     ok(info.file === 'P1_' && info.session === 'P1_', 'real file names unmarked');
     await hctx.close();
 

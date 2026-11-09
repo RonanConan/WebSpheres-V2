@@ -313,6 +313,7 @@ AFRAME.registerComponent('sphere-manager', {
             Setup: this.setupLocked ? 'locked' : 'unlocked',
             ParticipantID: dataManager.participantId,
             Experimenter: dataManager.experimenter,
+            Group: dataManager.group,
             DominantHand: scoreManager.dominantHand,
             Condition: scoreManager.currentCondition,
             ReachingArm: this.reachHand(),
@@ -360,7 +361,7 @@ AFRAME.registerComponent('sphere-manager', {
         const dataManager = document.querySelector('#data-manager').components['data-manager'];
         const scoreManager = document.querySelector('#score-display').components['score-manager'];
         const phase = this.phase;
-        const setupCommands = ['setParticipant', 'setExperimenter', 'setHomeMode', 'setDominant', 'setReachHand', 'setCondition', 'toggleCondition', 'setMode', 'setCustomTrials', 'calibrate'];
+        const setupCommands = ['setParticipant', 'setExperimenter', 'setGroup', 'setHomeMode', 'setDominant', 'setReachHand', 'setCondition', 'toggleCondition', 'setMode', 'setCustomTrials', 'calibrate'];
         if (setupCommands.includes(name)) {
             const open = this.setupOpen();
             if (!open.ok) return open;
@@ -375,6 +376,10 @@ AFRAME.registerComponent('sphere-manager', {
                 if (typeof value !== 'string' || !value.trim() || value.length > 64) return { ok: false, reason: 'Experimenter name must contain 1\u201364 characters.' };
                 if (/[,"\r\n]/.test(value)) return { ok: false, reason: 'The experimenter\u2019s name cannot contain commas or quotation marks because they would affect the CSV format.' };
                 dataManager.experimenter = value.trim();
+                return { ok: true };
+            case 'setGroup':
+                if (value !== 'Patient' && value !== 'Control') return { ok: false, reason: 'Group must be Patient or Control.' };
+                dataManager.group = value;
                 return { ok: true };
             case 'setHomeMode':
                 if (value !== 'one-box' && value !== 'per-hand') return { ok: false, reason: 'Home position must be either one box or one box per hand.' };

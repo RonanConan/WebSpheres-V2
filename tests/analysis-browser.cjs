@@ -14,7 +14,7 @@ async function sessionZip(id, blocks, options) {
     let csv = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Block\n';
     for (let t = 1; t <= b.n; t++) csv += `${t},${t * 1000},${((t - 1) % 11) + 1},LEFT,5,normal,400,800,0,${id},${n}\n`;
     files.push({ path: `block${n}/${prefix}block${n}_vr-session-data-${STAMP}.csv`, parts: [csv] });
-    files.push({ path: `block${n}/${prefix}block${n}_session-info-${STAMP}.csv`, parts: [`Key,Value\nParticipantID,${id}\nSessionStartISO,2026-11-${o.day || 10}T10:${10 + n}:00.000Z\nEndReason,finished\nCondition,${b.boost ? 2 : 1}\nMode,standard\nTotalTrials,${b.n}\nTrialsCompleted,${b.n}\nBlock,${n}\nPlan,${plan}\n${o.practice ? 'Practice,1\n' : ''}`] });
+    files.push({ path: `block${n}/${prefix}block${n}_session-info-${STAMP}.csv`, parts: [`Key,Value\nParticipantID,${id}\nSessionStartISO,2026-11-${o.day || 10}T10:${10 + n}:00.000Z\nEndReason,finished\nCondition,${b.boost ? 2 : 1}\nMode,standard\nTotalTrials,${b.n}\nTrialsCompleted,${b.n}\nBlock,${n}\nPlan,${plan}\nGroup,${o.group === undefined ? 'Patient' : o.group}\n${o.practice ? 'Practice,1\n' : ''}`] });
   });
   const blob = await Z.make(files);
   return Buffer.from(await blob.arrayBuffer()).toString('base64');
@@ -217,6 +217,26 @@ const PICKER = () => {
   await p.check('#g5-changes input');
   ok(await enabled(5), 'confirming allows continuing');
   await putText(['NEW', 'patients'], 'handDB_patients.csv', current);
+
+  console.log('RECORDED GROUP');
+  await restart();
+  await put(['NEW', 'patients', 'zips'], 'wrong.zip', await sessionZip('150', [{ n: 11 }], { group: 'Control', day: 15 }));
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#group-mismatch-list')).includes('wrong.zip was recorded as Control, but it is in the patients folder.'), 'a session recorded under the other group is named');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'it cannot continue without confirming');
+  await p.check('#g5-group input');
+  ok(await enabled(5), 'confirming the group was set wrongly allows continuing');
+  await remove(['NEW', 'patients', 'zips'], 'wrong.zip');
+  await put(['NEW', 'patients', 'zips'], 'old.zip', await sessionZip('151', [{ n: 11 }], { day: 16, group: '' }));
+  await restart();
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#warnings-list')).includes('do not record a group') && (await text('#warnings-list')).includes('old.zip'), 'a zip with no recorded group is warned about');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'the warning must be acknowledged');
+  await remove(['NEW', 'patients', 'zips'], 'old.zip');
 
   console.log('STOPS');
   await restart();

@@ -5,7 +5,7 @@ const WebSpheresAnalysis = (() => {
     const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
     const FILE_KIND = /(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-\d{4}-\d{2}-\d{2}T[\d-]+\.csv$/;
-    const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID']);
+    const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group']);
 
     async function zipEntries(file) {
         const tailSize = Math.min(file.size, 65557);
@@ -316,11 +316,23 @@ const WebSpheresAnalysis = (() => {
         });
     }
 
+    function checkRecordedGroups(blocks, folder, label, result) {
+        const mismatched = new Map(), unrecorded = new Set();
+        blocks.forEach(block => {
+            const recorded = block.info.Group;
+            if (!recorded) unrecorded.add(block.zip.name);
+            else if (recorded !== label) mismatched.set(block.zip.name, recorded);
+        });
+        mismatched.forEach((recorded, name) => result.groupMismatches.push(`${name} was recorded as ${recorded}, but it is in the ${folder} folder.`));
+        if (unrecorded.size) result.warnings.push(`These zips do not record a group, so they could not be checked against the ${folder} folder: ${Array.from(unrecorded).join(', ')}.`);
+    }
+
     function build(exportsRead, options) {
         const includePractice = !!(options && options.includePractice);
         const groupLabel = (options && GROUPS[options.group]) || '';
-        const result = { rows: [], blocks: [], sessions: [], stops: [], warnings: [], notes: [], setAside: [], practiceLeftOut: 0 };
+        const result = { rows: [], blocks: [], sessions: [], stops: [], warnings: [], notes: [], setAside: [], practiceLeftOut: 0, groupMismatches: [] };
         const merged = mergeCopies(collectBlocks(exportsRead, result, includePractice), result);
+        if (groupLabel) checkRecordedGroups(merged, options.group, groupLabel, result);
         const firstStart = (group) => group.map(b => b.start).sort(compareText)[0] || '';
         const grouped = groupSessions(merged, exportsRead.length).sort((a, b) => compareText(a[0].id, b[0].id) || compareText(firstStart(a), firstStart(b)));
         const numberFor = new Map();
@@ -374,6 +386,8 @@ const WebSpheresAnalysis = (() => {
             `Practice blocks left out: ${result.practiceLeftOut}`,
             '',
             'Must be fixed:', ...list(result.stops),
+            '',
+            'Recorded group differs from the folder (confirmed by the person saving):', ...list(result.groupMismatches),
             '',
             'Warnings:', ...list(result.warnings),
             '',

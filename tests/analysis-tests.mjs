@@ -42,7 +42,7 @@ async function zipOf(name, blocks, extra) {
         files.push({ path: `${dir}/${prefix}kinematics-LEFT-${STAMP}.csv`, parts: [KIN] });
         files.push({ path: `${dir}/${prefix}kinematics-RIGHT-${STAMP}.csv`, parts: [KIN] });
         files.push({ path: `${dir}/${prefix}session-info-${STAMP}.csv`, parts: [info(Object.assign({
-            ParticipantID: id, AppVersion: '2.7.0', SessionStartISO: b.start, SessionEndISO: b.start, EndReason: b.end || 'finished',
+            ParticipantID: id, AppVersion: '2.8.0', SessionStartISO: b.start, SessionEndISO: b.start, EndReason: b.end || 'finished',
             Condition: b.condition, Mode: b.mode || 'standard', TotalTrials: b.total || b.n, TrialsCompleted: b.n, Block: b.number,
             PlannedBlocks: b.plan.length, Plan: planText(b.plan), SetupChanges: b.changes || ''
         }, b.practice ? { Practice: 1 } : {}))] });
@@ -232,6 +232,24 @@ console.log('MASTER COMPARISON');
     const c = await zipOf('c.zip', planBlocks('703', ['N'], 3, '12'));
     ok(A.crossGroupStops('patients', [a], 'controls', [b]).length === 1, 'the same session in both groups is stopped');
     ok(A.crossGroupStops('patients', [a], 'controls', [c]).length === 0, 'the same ID with a different session is allowed in both groups');
+}
+
+console.log('RECORDED GROUP');
+{
+    const withGroup = async (name, id, group, day) => {
+        const blob = await Z.make([
+            { path: `block1/${id}_vr-session-data-${STAMP}.csv`, parts: [trials(id, 1, 3)] },
+            { path: `block1/${id}_session-info-${STAMP}.csv`, parts: [info(Object.assign({ ParticipantID: id, SessionStartISO: `2026-11-${day}T10:00:00.000Z`, Condition: 1, TrialsCompleted: 3, Block: 1 }, group ? { Group: group } : {}))] }
+        ]);
+        return A.readExport(new File([await blob.arrayBuffer()], name));
+    };
+    const right = A.build([await withGroup('a.zip', '801', 'Patient', '10')], { group: 'patients' });
+    ok(!right.groupMismatches.length && !right.warnings.length, 'a session in its recorded group passes');
+    const wrong = A.build([await withGroup('b.zip', '802', 'Control', '10')], { group: 'patients' });
+    ok(wrong.groupMismatches.length === 1 && wrong.groupMismatches[0] === 'b.zip was recorded as Control, but it is in the patients folder.', 'a session in the other group is named');
+    ok(A.reportText([], wrong, 'x').includes('b.zip was recorded as Control'), 'a confirmed mismatch stays in the report');
+    const none = A.build([await withGroup('c.zip', '803', '', '10')], { group: 'controls' });
+    ok(!none.groupMismatches.length && none.warnings.some(w => w.includes('do not record a group')), 'a zip with no group gets a warning');
 }
 
 console.log('BROWSER CHECK');

@@ -85,7 +85,8 @@
         #comparison { margin-top: 0.2rem; }
         #comparison.bad { color: var(--warn); font-weight: 600; }
         #stops { margin-top: 1.2rem; padding: 0.8rem 1rem; border: 1px solid var(--err); border-radius: var(--r-control); }
-        #stops h2 { color: var(--err); }
+        #stops h2, #group-mismatch h2 { color: var(--err); }
+        #group-mismatch { margin-top: 1.2rem; padding: 0.8rem 1rem; border: 1px solid var(--err); border-radius: var(--r-control); }
         .participant { margin-top: 1.6rem; }
         .session { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 0.8rem; align-items: start; padding: 0.55rem 0; }
         .session + .session { border-top: 1px solid var(--line); }
@@ -164,6 +165,7 @@
                         <p class="say">Compare the sessions on the right with what was run.</p>
                         <label class="g-tick"><input type="checkbox"><span>The participants, sessions and blocks shown match what was run.</span></label>
                         <label class="g-tick" id="g5-warned" hidden><input type="checkbox"><span>I read every warning on the right.</span></label>
+                        <label class="g-tick" id="g5-group" hidden><input type="checkbox"><span>I checked these sessions. They belong in this group, and the group was set wrongly when they were run.</span></label>
                         <label class="g-tick" id="g5-changes" hidden><input type="checkbox"><span>I understand that rows already in the master will change.</span></label>
                         <p class="g-msg bad" id="g5-msg" role="status"></p>
                         <div class="g-actions"><button class="g-primary" data-next="5">Next</button></div>
@@ -207,6 +209,11 @@
                 <section id="stops" hidden>
                     <h2>This must be fixed before the master can be saved</h2>
                     <ul id="stops-list"></ul>
+                </section>
+                <section id="group-mismatch" hidden>
+                    <h2>These sessions were recorded under the other group</h2>
+                    <ul id="group-mismatch-list"></ul>
+                    <p class="g-note">Move each zip to the correct group's zips folder, then go back to step 4 and read the sessions again. Only tick the box in step 5 if the group was set wrongly when the session was run.</p>
                 </section>
                 <section id="changes" class="list-section" hidden>
                     <h2>Rows already in the master that would change</h2>

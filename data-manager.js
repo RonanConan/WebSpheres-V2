@@ -14,6 +14,7 @@ AFRAME.registerComponent('data-manager', {
         this.recentreCount = 0;
         this.participantId = '';
         this.experimenter = '';
+        this.group = 'Control';
         this.sessionEndTime = 0;
         this.lastExportTimestamp = '';
         this.xrModes = [];
@@ -217,6 +218,7 @@ AFRAME.registerComponent('data-manager', {
             ['BreakBefore', this.breakBefore],
             ['RecalibratedBefore', this.recalibratedBefore.join(';')],
             ['XRMode', this.xrModes.join(';')],
+            ['Group', this.group],
             ...(this.practice ? [['Practice', 1]] : [])
         ];
         return 'Key,Value\n' + rows.map(([k, v]) => `${k},${v}\n`).join('');
