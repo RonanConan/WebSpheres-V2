@@ -1,7 +1,8 @@
 const WebSpheresAnalysis = (() => {
     const VERSION = '1.0.0';
-    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode'];
-    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies'];
+    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group'];
+    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group'];
+    const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
     const FILE_KIND = /(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-\d{4}-\d{2}-\d{2}T[\d-]+\.csv$/;
     const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID']);
@@ -78,12 +79,12 @@ const WebSpheresAnalysis = (() => {
         return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    async function readExport(file) {
+    async function readExport(file, options) {
         const out = { name: file.name, size: file.size, sha256: '', blocks: [], problem: '' };
         let entries;
         try {
             entries = await zipEntries(file);
-            out.sha256 = await sha256(file);
+            if (!options || options.hash !== false) out.sha256 = await sha256(file);
         } catch (e) {
             out.problem = 'This file could not be read as a zip.';
             return out;
@@ -168,7 +169,11 @@ const WebSpheresAnalysis = (() => {
             zip.blocks.forEach(block => {
                 const label = block.folder ? `${zip.name}, ${block.folder}` : zip.name;
                 if (block.problem) { result.setAside.push({ name: label, reason: block.problem }); return; }
-                if (block.practice && !includePractice) { result.practiceLeftOut++; return; }
+                if (block.practice && !includePractice) {
+                    result.practiceLeftOut++;
+                    if (!result.setAside.some(item => item.name === zip.name)) result.setAside.push({ name: zip.name, reason: 'This is a practice session, so it was left out.' });
+                    return;
+                }
                 const missing = REQUIRED.filter(name => !block.header.includes(name));
                 if (missing.length) { result.setAside.push({ name: label, reason: `The trial file is missing these columns: ${missing.join(', ')}.` }); return; }
                 const broken = block.table.filter(row => row.length !== block.header.length).length;
@@ -274,7 +279,7 @@ const WebSpheresAnalysis = (() => {
         });
     }
 
-    function buildRows(block, item, id, sessionNumber, result, where) {
+    function buildRows(block, item, id, sessionNumber, result, where, group) {
         const condition = item.type === 'boost' ? 'BT' : item.type === 'baseline' ? 'NM' : 'unknown';
         const at = block.index;
         let unreadable = 0;
@@ -292,7 +297,7 @@ const WebSpheresAnalysis = (() => {
                 Hand: hand === 'NA' || hand === '' ? null : hand,
                 Points: integer(row[at.Points]), HitType: hitType,
                 DecisionTime: integer(row[at.DecisionTime]), MovementTime: integer(row[at.TotalMovementTime]),
-                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || ''
+                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group
             });
         });
         if (unreadable) result.warnings.push(`${where}: ${unreadable} values could not be read as whole numbers and are recorded as NA.`);
@@ -313,6 +318,7 @@ const WebSpheresAnalysis = (() => {
 
     function build(exportsRead, options) {
         const includePractice = !!(options && options.includePractice);
+        const groupLabel = (options && GROUPS[options.group]) || '';
         const result = { rows: [], blocks: [], sessions: [], stops: [], warnings: [], notes: [], setAside: [], practiceLeftOut: 0 };
         const merged = mergeCopies(collectBlocks(exportsRead, result, includePractice), result);
         const firstStart = (group) => group.map(b => b.start).sort(compareText)[0] || '';
@@ -328,14 +334,14 @@ const WebSpheresAnalysis = (() => {
                 const block = item.block;
                 const where = `Participant ${id || '(no ID)'}, session ${sessionNumber}, ${item.name}`;
                 checkBlock(block, where, result);
-                const condition = buildRows(block, item, id, sessionNumber, result, where);
+                const condition = buildRows(block, item, id, sessionNumber, result, where, groupLabel);
                 result.blocks.push({
                     ID: id, Session: sessionNumber, Block: item.name, BlockOrder: item.number, BlockType: item.type, BlockNum: item.typeNumber,
                     Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', BlockStart: block.info.SessionStartISO || '', BlockEnd: block.info.SessionEndISO || '',
                     PlannedTrials: toInteger(block.info.TotalTrials === undefined ? '' : block.info.TotalTrials), CompletedTrials: toInteger(block.info.TrialsCompleted === undefined ? '' : block.info.TrialsCompleted),
                     RowsInHandDB: block.table.length, EndReason: block.info.EndReason || '', Plan: block.info.Plan || '', AppVersion: block.info.AppVersion || '',
                     Practice: block.practice ? 'yes' : 'no', KinematicsFiles: block.hasLeft && block.hasRight ? 'both' : block.hasLeft ? 'left only' : block.hasRight ? 'right only' : 'none',
-                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; ')
+                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; '), Group: groupLabel
                 });
             });
         });
@@ -359,6 +365,7 @@ const WebSpheresAnalysis = (() => {
             'WebSpheres handDB report',
             `Created: ${createdIso}`,
             `Program version: ${VERSION}`,
+            `Group: ${result.rows[0] ? result.rows[0].Group : ''}`,
             '',
             `Participants: ${new Set(result.sessions.map(s => s.id)).size}`,
             `Sessions: ${result.sessions.length}`,
@@ -378,15 +385,76 @@ const WebSpheresAnalysis = (() => {
         ].join('\n') + '\n';
     }
 
-    function outputFiles(exportsRead, result, createdIso) {
+    function fileNames(group) {
+        return { master: `handDB_${group}.csv`, blocks: `blocks_${group}.csv`, report: `report_${group}.txt` };
+    }
+
+    function outputFiles(exportsRead, result, createdIso, group) {
+        const names = fileNames(group);
         return [
-            { path: 'handDB.csv', parts: [toCsv(COLUMNS, result.rows)] },
-            { path: 'blocks.csv', parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
-            { path: 'report.txt', parts: [reportText(exportsRead, result, createdIso)] }
+            { path: names.master, parts: [toCsv(COLUMNS, result.rows)] },
+            { path: names.blocks, parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
+            { path: names.report, parts: [reportText(exportsRead, result, createdIso)] }
         ];
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, parseCsv, readExport, build, toCsv, reportText, outputFiles };
+    function checkStudyFolder(folder) {
+        const name = folder.name;
+        const lower = name.toLowerCase();
+        if (lower in GROUPS) return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder that contains it.` };
+        if (lower === 'zips' || lower === 'history') return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder two levels above it.` };
+        const present = Object.keys(GROUPS).filter(group => folder.dirs.includes(group));
+        const complete = present.filter(group => folder.groups[group].includes('zips'));
+        if (complete.length === Object.keys(GROUPS).length) return { status: 'ok', message: `${name} is an experiment folder. It has patients and controls folders.` };
+        if (present.length) return { status: 'setup', message: `${name} is missing some of the folders it needs. Select Set up this folder to add them.` };
+        const other = folder.dirs.concat(folder.files).filter(item => !item.startsWith('.') && !/^(readme|license)/i.test(item));
+        if (!other.length) return { status: 'setup', message: `${name} is empty. Select Set up this folder to create the patients and controls folders.` };
+        return { status: 'wrong', message: `${name} is not an experiment folder because it has no patients or controls folder. Select the experiment folder. For a new experiment, make a new empty folder first.` };
+    }
+
+    function crossGroupStops(groupName, exportsRead, otherName, otherExports) {
+        const keyOf = (block) => `${block.info.ParticipantID}|${block.info.SessionStartISO}`;
+        const usable = (zip) => zip.blocks.filter(block => !block.problem && block.info.SessionStartISO);
+        const other = new Map();
+        otherExports.forEach(zip => usable(zip).forEach(block => other.set(keyOf(block), zip.name)));
+        const stops = new Set();
+        exportsRead.forEach(zip => usable(zip).forEach(block => {
+            if (other.has(keyOf(block))) stops.add(`${zip.name} in ${groupName} and ${other.get(keyOf(block))} in ${otherName} hold the same session. Remove it from the wrong folder and try again.`);
+        }));
+        return Array.from(stops);
+    }
+
+    function compareMaster(oldText, rows) {
+        const table = parseCsv(oldText);
+        if ((table[0] || []).join() !== COLUMNS.join()) return { comparable: false, examples: [] };
+        const text = (value) => (value === null || value === undefined ? 'NA' : String(value));
+        const keyOf = (id, session, order, trial) => [id, session, order, trial].join('|');
+        const fresh = new Map(rows.map(row => [keyOf(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)), row]));
+        const at = (name) => COLUMNS.indexOf(name);
+        const oldKeys = new Set(), oldIds = new Set(), examples = [];
+        let changed = 0, missing = 0;
+        table.slice(1).forEach(old => {
+            const id = old[at('ID')], where = `Participant ${id}, session ${old[at('Session')]}, block ${old[at('BlockOrder')]}, trial ${old[at('Trial')]}`;
+            const key = keyOf(id, old[at('Session')], old[at('BlockOrder')], old[at('Trial')]);
+            oldKeys.add(key);
+            oldIds.add(id);
+            const row = fresh.get(key);
+            if (!row) {
+                missing++;
+                if (examples.length < 5) examples.push(`${where} is no longer present.`);
+                return;
+            }
+            const differs = COLUMNS.filter(name => text(row[name]) !== old[at(name)]);
+            if (differs.length) {
+                changed++;
+                if (examples.length < 5) examples.push(`${where}: ${differs.map(name => `${name} was ${old[at(name)]}, now ${text(row[name])}`).join('; ')}.`);
+            }
+        });
+        const addedRows = rows.filter(row => !oldKeys.has(keyOf(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial))));
+        return { comparable: true, oldRows: table.length - 1, added: addedRows.length, changed, missing, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size, examples };
+    }
+
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;

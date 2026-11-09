@@ -131,7 +131,7 @@ console.log('TRIAL VALUES');
     ok(rows[2].Hand === 'LEFT' && rows[2].HitType === 'critical', 'hand and hit type are tidied as in pt_pipeline.R');
     ok(rows[0].MovementTime === 801 && rows[0].DecisionTime === 401, 'MovementTime is the game TotalMovementTime');
     const csv = A.toCsv(A.COLUMNS, rows).split('\n');
-    ok(csv[0] === '"ID","Session","Block","BlockType","BlockNum","Trial","Target","Hand","Points","HitType","DecisionTime","MovementTime","BlockOrder","Phase","Condition","Mode"', 'handDB columns are in the agreed order');
+    ok(csv[0] === '"ID","Session","Block","BlockType","BlockNum","Trial","Target","Hand","Points","HitType","DecisionTime","MovementTime","BlockOrder","Phase","Condition","Mode","Group"', 'handDB columns are in the agreed order');
     ok(csv[1].startsWith('"301",1,"baseline-1","baseline",1,1,1,"RIGHT",5,"normal",401,801,1,"no-boost","NM","standard"'), 'a CSV row is written as expected');
     ok(csv[2].includes(',NA,0,"skip",'), 'a missing hand is written as NA without quotes');
 }
@@ -187,12 +187,61 @@ console.log('PLANS AND NOTES');
 console.log('OUTPUT FILES');
 {
     const zip = await zipOf('a.zip', planBlocks('601', ['N', 'B'], 11, '10'));
-    const r = A.build([zip]);
-    const files = A.outputFiles([zip], r, '2026-11-10T12:00:00.000Z');
-    ok(same(files.map(f => f.path), ['handDB.csv', 'blocks.csv', 'report.txt']), 'output has handDB, the block summary and a report');
+    const r = A.build([zip], { group: 'patients' });
+    ok(r.rows.every(x => x.Group === 'Patient') && r.blocks[0].Group === 'Patient', 'the group is recorded on every row');
+    const files = A.outputFiles([zip], r, '2026-11-10T12:00:00.000Z', 'patients');
+    ok(same(files.map(f => f.path), ['handDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the block summary and a report');
     ok(files[1].parts[0].split('\n').length === 4 && files[1].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
     const report = files[2].parts[0];
     ok(report.includes('Trials: 22') && /a\.zip: [0-9a-f]{64}/.test(report), 'the report has totals and a checksum for each zip');
+}
+
+console.log('STUDY FOLDER');
+{
+    const check = (name, dirs, files, groups) => A.checkStudyFolder({ name, dirs, files, groups: groups || {} });
+    const full = { patients: ['zips', 'history'], controls: ['zips'] };
+    ok(check('EXP027', ['patients', 'controls', '.git'], [], full).status === 'ok', 'a complete experiment folder is accepted');
+    const inside = check('patients', ['zips'], []);
+    ok(inside.status === 'wrong' && inside.message.includes('experiment folder that contains it'), 'selecting patients says to go up a level');
+    ok(check('zips', [], ['a.zip']).message.includes('two levels above'), 'selecting zips says to go up two levels');
+    ok(check('EXP027', ['.git'], ['README.md', '.gitignore']).status === 'setup', 'a new repository can be set up');
+    ok(check('EXP027', ['patients'], [], { patients: ['zips'] }).status === 'setup', 'missing folders can be added');
+    const wrong = check('exp026', ['Data', '.git'], ['script.R']);
+    ok(wrong.status === 'wrong' && wrong.message.includes('not an experiment folder'), 'an unrelated folder is refused and cannot be set up');
+}
+
+console.log('MASTER COMPARISON');
+{
+    const zip = await zipOf('a.zip', planBlocks('701', ['N', 'B'], 11, '10'));
+    const first = A.build([zip], { group: 'patients' });
+    const oldText = A.toCsv(A.COLUMNS, first.rows);
+    const same_ = A.compareMaster(oldText, first.rows);
+    ok(same_.comparable && same_.added === 0 && same_.changed === 0 && same_.missing === 0, 'a rebuild with nothing new changes nothing');
+    const more = A.build([zip, await zipOf('b.zip', planBlocks('702', ['N'], 11, '11'))], { group: 'patients' });
+    const grown = A.compareMaster(oldText, more.rows);
+    ok(grown.added === 11 && grown.addedParticipants === 1 && grown.changed === 0 && grown.missing === 0, 'a new participant only adds rows');
+    const edited = oldText.replace('"001"', '"001"').split('\n');
+    edited[1] = edited[1].replace(',5,"normal",', ',8,"normal",');
+    const changed = A.compareMaster(edited.join('\n'), first.rows);
+    ok(changed.changed === 1 && changed.examples[0].includes('Points was 8, now 5'), 'a changed row is found and described');
+    const fewer = A.build([await zipOf('c.zip', planBlocks('701', ['N'], 11, '10'))], { group: 'patients' });
+    ok(A.compareMaster(oldText, fewer.rows).missing === 11, 'rows that disappear are counted');
+    ok(A.compareMaster('"Other"\n"x"\n', first.rows).comparable === false, 'a master with other columns is reported as not comparable');
+    const a = await zipOf('a.zip', planBlocks('703', ['N'], 3, '10'));
+    const b = await zipOf('b.zip', planBlocks('703', ['N'], 3, '10'));
+    const c = await zipOf('c.zip', planBlocks('703', ['N'], 3, '12'));
+    ok(A.crossGroupStops('patients', [a], 'controls', [b]).length === 1, 'the same session in both groups is stopped');
+    ok(A.crossGroupStops('patients', [a], 'controls', [c]).length === 0, 'the same ID with a different session is allowed in both groups');
+}
+
+console.log('BROWSER CHECK');
+{
+    const B = require(path.join(root, 'browser-check.js'));
+    const brands = (...names) => names.map(brand => ({ brand, version: '1' }));
+    ok(B.supported(brands('Not?A_Brand', 'Chromium', 'Google Chrome')), 'Chrome is supported');
+    ok(B.supported(brands('Not:A-Brand', 'Chromium', 'Microsoft Edge')), 'Edge is supported');
+    ok(!B.supported(brands('Not A;Brand', 'Chromium', 'Brave')) && !B.supported(brands('Chromium', 'Opera')), 'other Chromium browsers are not');
+    ok(!B.supported([]), 'a browser with no brand information is not');
 }
 
 console.log(`\nANALYSIS: ${pass} passed, ${fail} failed`);

@@ -1,127 +1,289 @@
-const fs = require('fs'), os = require('os'), path = require('path');
+const fs = require('fs'), path = require('path');
 const { ROOT, serve, launch, counter } = require('./harness.cjs');
-const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('ANALYSIS BROWSER');
 const Z = new Function(fs.readFileSync(path.join(ROOT, 'zip-writer.js'), 'utf8') + ';return WebSpheresZip;')();
 const STAMP = '2026-11-10T10-00-00';
 
-async function sessionZip(name, id, blocks, practice) {
+async function sessionZip(id, blocks, options) {
+  const o = options || {};
   const files = [];
-  const prefix = (practice ? 'PRACTICE_' : '') + id + '_';
+  const prefix = (o.practice ? 'PRACTICE_' : '') + id + '_';
   const plan = blocks.map((b, i) => `${i + 1}:${b.boost ? 'boost' : 'no-boost'}:headset-on`).join('|');
   blocks.forEach((b, i) => {
     const n = i + 1;
     let csv = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID,Block\n';
-    for (let t = 1; t <= b.n; t++) csv += `${t},${t * 1000},${((t - 1) % 11) + 1},${(b.flip && t === 1) ? 'RIGHT' : 'LEFT'},5,normal,400,800,0,${id},${n}\n`;
+    for (let t = 1; t <= b.n; t++) csv += `${t},${t * 1000},${((t - 1) % 11) + 1},LEFT,5,normal,400,800,0,${id},${n}\n`;
     files.push({ path: `block${n}/${prefix}block${n}_vr-session-data-${STAMP}.csv`, parts: [csv] });
-    files.push({ path: `block${n}/${prefix}block${n}_kinematics-LEFT-${STAMP}.csv`, parts: ['Timestamp\n1\n'] });
-    files.push({ path: `block${n}/${prefix}block${n}_kinematics-RIGHT-${STAMP}.csv`, parts: ['Timestamp\n1\n'] });
-    files.push({ path: `block${n}/${prefix}block${n}_session-info-${STAMP}.csv`, parts: [`Key,Value\nParticipantID,${id}\nSessionStartISO,2026-11-10T10:${10 + n}:00.000Z\nEndReason,${b.end || 'finished'}\nCondition,${b.boost ? 2 : 1}\nMode,standard\nTotalTrials,${b.total || b.n}\nTrialsCompleted,${b.n}\nBlock,${n}\nPlan,${plan}\n${practice ? 'Practice,1\n' : ''}`] });
+    files.push({ path: `block${n}/${prefix}block${n}_session-info-${STAMP}.csv`, parts: [`Key,Value\nParticipantID,${id}\nSessionStartISO,2026-11-${o.day || 10}T10:${10 + n}:00.000Z\nEndReason,finished\nCondition,${b.boost ? 2 : 1}\nMode,standard\nTotalTrials,${b.n}\nTrialsCompleted,${b.n}\nBlock,${n}\nPlan,${plan}\n${o.practice ? 'Practice,1\n' : ''}`] });
   });
   const blob = await Z.make(files);
-  return { name, mimeType: 'application/zip', buffer: Buffer.from(await blob.arrayBuffer()) };
+  return Buffer.from(await blob.arrayBuffer()).toString('base64');
 }
 
+const PICKER = () => {
+  window.__pickPath = ['EXP027'];
+  window.showDirectoryPicker = async () => {
+    let dir = await navigator.storage.getDirectory();
+    for (const part of window.__pickPath) dir = await dir.getDirectoryHandle(part, { create: true });
+    return dir;
+  };
+  window.__dir = async (parts) => {
+    let dir = await navigator.storage.getDirectory();
+    for (const part of parts) dir = await dir.getDirectoryHandle(part, { create: true });
+    return dir;
+  };
+};
+
 (async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'analysis-'));
   const b = await launch();
-  const ctx = await b.newContext({ viewport: { width: 1707, height: 960 }, acceptDownloads: true });
+  const ctx = await b.newContext({ viewport: { width: 1707, height: 960 } });
   const p = await ctx.newPage();
-  const errs = [], external = [];
+  const errs = [];
   p.on('pageerror', e => errs.push(e.message));
-  p.on('request', r => { if (!r.url().startsWith('https://test.local/') && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) external.push(r.url()); });
+  await p.addInitScript(PICKER);
   await serve(p);
   await p.goto('https://test.local/analysis.html');
+
+  const put = (parts, name, b64) => p.evaluate(async ([parts, name, b64]) => {
+    const dir = await window.__dir(parts);
+    const w = await (await dir.getFileHandle(name, { create: true })).createWritable();
+    await w.write(Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+    await w.close();
+  }, [parts, name, b64]);
+  const putText = (parts, name, text) => put(parts, name, Buffer.from(text).toString('base64'));
+  const remove = (parts, name) => p.evaluate(async ([parts, name]) => (await window.__dir(parts)).removeEntry(name), [parts, name]);
+  const read = (parts, name) => p.evaluate(async ([parts, name]) => (await (await (await window.__dir(parts)).getFileHandle(name)).getFile()).text(), [parts, name]);
+  const list = (parts) => p.evaluate(async (parts) => { const out = []; for await (const [n] of (await window.__dir(parts)).entries()) out.push(n); return out.sort(); }, parts);
+  const pick = (parts) => p.evaluate((x) => { window.__pickPath = x; }, parts);
   const text = (sel) => p.locator(sel).innerText();
-  const shown = (sel) => p.locator(sel).isVisible();
-  const upload = async (files) => p.setInputFiles('#pick-files', files);
-  const totals = (t) => p.waitForFunction((x) => document.getElementById('totals').textContent === x, t);
+  const enabled = (n) => p.locator(`[data-next="${n}"]`).isEnabled();
+  const openStep = () => p.evaluate(() => +document.querySelector('.step.open').dataset.step);
+  const tick = (n, i) => p.locator(`.step[data-step="${n}"] .g-tick input`).nth(i).check();
+  const untick = (n, i) => p.locator(`.step[data-step="${n}"] .g-tick input`).nth(i).uncheck();
+  const next = async (n) => { await p.click(`[data-next="${n}"]`); await p.waitForFunction((x) => !document.querySelector(`[data-next="${x}"]`).disabled || document.querySelector('.step.open').dataset.step !== String(x), n); };
+  const waitStep = (n) => p.waitForFunction((x) => document.querySelector('.step.open').dataset.step === String(x), n);
+  const waitMsg = (id, part) => p.waitForFunction(([i, t]) => document.getElementById(i).textContent.includes(t), [id, part]);
+  const selectFolder = async () => p.click('#g2-choose');
+
+  async function goToStep4(group) {
+    await tick(1, 0); await tick(1, 1); await next(1); await waitStep(2);
+    await selectFolder();
+    await waitMsg('g2-msg', 'is an experiment folder');
+    await next(2); await waitStep(3);
+    await p.click(`[data-group="${group}"]`);
+    await next(3); await waitStep(4);
+    await p.waitForFunction(() => document.getElementById('g4-msg').textContent !== '');
+  }
+  async function readSessions() {
+    await tick(4, 0); await tick(4, 1);
+    await p.click('[data-next="4"]');
+    await waitStep(5);
+  }
+  async function restart() {
+    await p.reload();
+    await p.waitForSelector('.step.open');
+    await pick(['NEW']);
+  }
 
   console.log('PRIVACY');
-  ok((await text('.lead')).includes('stay on this computer'), 'page says files stay on this computer');
-  const blocked = await p.evaluate(() => fetch('https://test.local/analysis.html').then(() => false, () => true));
-  ok(blocked, 'the page is blocked from making network requests');
-  const beacon = await p.evaluate(() => new Promise(resolve => { document.addEventListener('securitypolicyviolation', e => resolve(e.effectiveDirective), { once: true }); navigator.sendBeacon('https://example.com/', 'x'); setTimeout(() => resolve(''), 1000); }));
-  ok(beacon === 'connect-src', 'a beacon is blocked too');
+  ok((await text('.lead')).includes('blocked from sending data'), 'page says data cannot be sent anywhere');
+  ok(await p.evaluate(() => fetch('https://test.local/analysis.html').then(() => false, () => true)), 'the page is blocked from network requests');
+  ok(!(await p.locator('#browser-stop').isVisible()), 'no browser warning in a supported browser');
 
-  console.log('EMPTY');
-  ok(!(await shown('#results')), 'results are hidden before files are added');
-  await upload([{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('x') }]);
-  await p.waitForFunction(() => document.getElementById('status').textContent.includes('No zip files'));
-  ok(true, 'choosing no zips explains what to do');
+  console.log('STEP 1: CHECKLIST');
+  ok(!(await enabled(1)), 'Next is disabled with nothing ticked');
+  ok(await p.locator('.step[data-step="2"] .step-head').isDisabled(), 'later steps cannot be opened');
+  await tick(1, 0);
+  ok(!(await enabled(1)), 'Next is disabled with one of two ticked');
+  await tick(1, 1);
+  ok(await enabled(1), 'Next is enabled when every box is ticked');
+  await next(1); await waitStep(2);
+  ok((await openStep()) === 2, 'step 2 opens');
 
-  console.log('TWO BLOCKS OF 352');
-  const twoBlocks = await sessionZip('101_2026-11-10.zip', '101', [{ n: 352 }, { n: 352, boost: true }]);
-  await upload([twoBlocks]);
-  await totals('1 participant, 1 session, 2 blocks, 704 trials');
-  ok(true, 'totals are correct');
+  console.log('STEP 2: FOLDER CHECKS');
+  ok(!(await enabled(2)), 'Next is disabled before a folder is selected');
+  await pick(['EXP027', 'patients']);
+  await selectFolder();
+  await waitMsg('g2-msg', 'You selected the patients folder');
+  ok(!(await enabled(2)), 'selecting a subfolder is refused');
+  await putText(['exp026'], 'script.R', 'x');
+  await pick(['exp026']);
+  await selectFolder();
+  await waitMsg('g2-msg', 'not an experiment folder');
+  ok(!(await p.locator('#g2-setup').isVisible()) && !(await enabled(2)), 'an unrelated folder is refused with no set-up offered');
+  await pick(['NEW']);
+  await selectFolder();
+  await waitMsg('g2-msg', 'NEW is empty');
+  ok(await p.locator('#g2-setup').isVisible(), 'an empty folder offers set-up');
+  await p.click('#g2-setup');
+  await waitMsg('g2-msg', 'is an experiment folder');
+  ok((await list(['NEW'])).join() === 'controls,patients' && (await list(['NEW', 'patients'])).join() === 'history,zips', 'set-up creates the folders');
+  ok(await enabled(2), 'Next is enabled for a correct folder');
+  await next(2); await waitStep(3);
+
+  console.log('STEPS 3 TO 7');
+  ok(!(await enabled(3)), 'a group must be chosen');
+  await p.click('[data-group="patients"]');
+  await next(3); await waitStep(4);
+  await waitMsg('g4-msg', 'No zip files');
+  ok((await text('#g4-path')) === 'NEW/patients/zips', 'the exact folder is shown');
+  await tick(4, 0); await tick(4, 1);
+  ok(!(await enabled(4)), 'an empty zips folder cannot continue');
+  const two = await sessionZip('101', [{ n: 352 }, { n: 352, boost: true }]);
+  await put(['NEW', 'patients', 'zips'], '101.zip', two);
+  await p.click('#g4-recheck');
+  await waitMsg('g4-msg', '1 zip file is');
+  ok(await enabled(4), 'finding a zip allows continuing');
+  await untick(4, 1);
+  ok(!(await enabled(4)), 'unticking disables continuing');
+  await tick(4, 1);
+  await p.click('[data-next="4"]');
+  await waitStep(5);
+  ok((await text('#totals')) === 'Patients: 1 participant, 1 session, 2 blocks, 704 trials', 'totals are shown');
+  ok((await text('#comparison')) === 'This will be the first master for this group.', 'the first master is explained');
   ok((await p.locator('.tile').count()) === 2, 'one tile per block');
-  ok((await p.locator('.tile.boost').count()) === 1, 'the boost block is marked');
-  const tiles = await p.locator('.tile').allInnerTexts();
-  ok(tiles[0].includes('baseline-1') && tiles[0].includes('352 trials') && tiles[0].includes('Pre-boost') && tiles[0].includes('Mode: standard'), 'the first tile shows label, trials, phase and mode');
-  ok(tiles[1].includes('boost-1') && tiles[1].includes('Boost'), 'the second tile shows the boost block');
-  ok((await text('.session-name')) === 'Session 1', 'the session is labelled');
-  const [download] = await Promise.all([p.waitForEvent('download'), p.click('#download')]);
-  ok(/^handDB-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/.test(download.suggestedFilename()), 'the output zip name is timestamped');
-  const files = await openDownload(download, dir);
-  ok(files.map(f => f.path).join() === 'handDB.csv,blocks.csv,report.txt', 'the zip has the three output files');
-  ok(files[0].text.trim().split('\n').length === 705, 'handDB has a header and 704 rows');
-  ok(files[0].text.startsWith('"ID","Session","Block"'), 'handDB starts with the agreed columns');
-  await p.waitForFunction(() => document.getElementById('download-note').textContent.startsWith('Download started'));
-  ok(true, 'the page says the download started');
+  ok(!(await enabled(5)), 'sessions must be confirmed');
+  await tick(5, 0);
+  await next(5); await waitStep(6);
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'Saved handDB_patients.csv with 704 trials');
+  const master = await read(['NEW', 'patients'], 'handDB_patients.csv');
+  ok(master.trim().split('\n').length === 705, 'the master has a header and 704 rows');
+  ok(master.split('\n')[1].endsWith('"Patient"'), 'rows carry the group');
+  ok((await list(['NEW', 'patients'])).join() === 'blocks_patients.csv,handDB_patients.csv,history,report_patients.txt,zips', 'the master, summary and report are saved');
+  ok((await list(['NEW', 'patients', 'history'])).length === 0, 'nothing goes to history on the first save');
+  ok(await enabled(6), 'Next is enabled after saving');
+  await next(6); await waitStep(7);
+  ok(!(await enabled(7)), 'Finish is disabled until the GitHub checklist is ticked');
+  await tick(7, 0); await tick(7, 1);
+  ok(!(await enabled(7)), 'Finish needs all three boxes');
+  await tick(7, 2);
+  await p.click('[data-next="7"]');
+  await waitMsg('g7-msg', 'All steps are complete for Patients');
+  ok(await p.locator('#g7-restart').isVisible(), 'another analysis can be started');
 
-  console.log('EDGE STATES');
-  await p.click('#start-again');
-  ok(!(await shown('#results')) && !(await shown('#start-again')), 'Start again clears the page');
-  await upload([await sessionZip('p.zip', '7', [{ n: 11 }], true)]);
-  await totals('0 participants, 0 sessions, 0 blocks, 0 trials');
-  ok(await p.locator('#download').isDisabled(), 'nothing to save when only practice data is present');
-  ok((await text('#practice-text')).includes('1 practice block left out'), 'left-out practice blocks are counted');
-  await p.check('#include-practice');
-  await totals('1 participant, 1 session, 1 block, 11 trials');
-  ok((await text('.session-name')) === 'Session 1 (practice)', 'practice data can be included and is labelled');
-  await p.click('#start-again');
-  await upload([await sessionZip('short.zip', '8', [{ n: 39, total: 352, end: 'ended-early' }])]);
-  await totals('1 participant, 1 session, 1 block, 39 trials');
-  ok((await p.locator('.tile.partial').count()) === 1 && (await text('.tile-count')) === '39 of 352 trials', 'a short block is flagged on its tile');
-  ok((await text('#notes-list')).includes('ended early'), 'a short block is explained');
-  await p.click('#start-again');
-  await upload([await sessionZip('one.zip', '9', [{ n: 3 }]), await sessionZip('two.zip', '9', [{ n: 3, flip: true }])]);
-  await p.waitForFunction(() => !document.getElementById('stops').hidden);
-  ok(await p.locator('#download').isDisabled(), 'copies that disagree stop the download');
-  ok((await text('#stops-list')).includes('trials differ'), 'the conflict is explained');
-  ok(errs.length === 0, 'no page errors: ' + errs.join('; '));
-  ok(external.length === 0, 'no outside requests: ' + external.join('; '));
+  console.log('UNTICKING GOES BACK');
+  await p.click('[data-open="1"]');
+  await untick(1, 0);
+  ok((await openStep()) === 1 && (await p.locator('.step[data-step="2"] .step-head').isDisabled()), 'unticking an earlier step locks everything after it');
+
+  console.log('ADDING TO THE MASTER');
+  await restart();
+  ok((await text('#g2-again')) !== undefined, 'page reloads');
+  await pick(['NEW']);
+  await goToStep4('patients');
+  await put(['NEW', 'patients', 'zips'], '102.zip', await sessionZip('102', [{ n: 11 }], { day: 12 }));
+  await p.click('#g4-recheck');
+  await waitMsg('g4-msg', '2 zip files are');
+  await readSessions();
+  ok((await text('#comparison')) === '1 new participant, 11 new trials, 0 existing rows changed.', 'a new participant is reported as an addition');
+  await tick(5, 0);
+  await next(5); await waitStep(6);
+  const zipBefore = await read(['NEW', 'patients', 'zips'], '101.zip');
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'Saved handDB_patients.csv with 715 trials');
+  const hist = await list(['NEW', 'patients', 'history']);
+  ok(hist.length === 3 && hist.some(n => /^handDB_patients-\d{4}.*\.csv$/.test(n)), 'earlier files are copied to history');
+  const kept = hist.find(n => n.startsWith('handDB_patients'));
+  ok((await read(['NEW', 'patients', 'history'], kept)) === master, 'the history copy is the previous master');
+  ok((await read(['NEW', 'patients', 'zips'], '101.zip')) === zipBefore, 'the zips are untouched');
+
+  console.log('NOTHING NEW');
+  await restart();
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#comparison')).endsWith('0 new trials, 0 existing rows changed.'), 'a rebuild with nothing new says so');
+  await tick(5, 0);
+  await next(5); await waitStep(6);
+  ok((await text('#g6-say')) === 'The master is already up to date.' && !(await p.locator('#g6-save').isVisible()) && await enabled(6), 'nothing needs saving');
+
+  console.log('CHANGED ROWS NEED CONFIRMING');
+  await restart();
+  const current = await read(['NEW', 'patients'], 'handDB_patients.csv');
+  const lines = current.split('\n');
+  lines[1] = lines[1].replace('"LEFT",5,', '"LEFT",9,');
+  await putText(['NEW', 'patients'], 'handDB_patients.csv', lines.join('\n'));
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#comparison')).includes('1 existing row changed'), 'a changed row is reported');
+  ok((await text('#changes-list')).includes('Points was 9, now 5'), 'the change is described');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'the change must be confirmed');
+  await p.check('#g5-changes input');
+  ok(await enabled(5), 'confirming allows continuing');
+  await putText(['NEW', 'patients'], 'handDB_patients.csv', current);
+
+  console.log('STOPS');
+  await restart();
+  await put(['NEW', 'controls', 'zips'], 'copy.zip', two);
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#stops-list')).includes('hold the same session'), 'the same session in both groups is reported');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'it cannot continue');
+  await remove(['NEW', 'controls', 'zips'], 'copy.zip');
+  await put(['NEW', 'patients', 'zips'], 'practice.zip', await sessionZip('900', [{ n: 11 }], { practice: true, day: 13 }));
+  await restart();
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#set-aside-list')).includes('practice.zip: This is a practice session'), 'a practice zip is named and left out');
+  await remove(['NEW', 'patients', 'zips'], 'practice.zip');
+
+  console.log('REMEMBERED FOLDER');
+  await restart();
+  await tick(1, 0); await tick(1, 1); await next(1); await waitStep(2);
+  await p.waitForFunction(() => !document.getElementById('g2-again').hidden);
+  ok((await text('#g2-again')) === 'Use NEW again', 'the folder is remembered');
+  await p.click('#g2-again');
+  await waitMsg('g2-msg', 'is an experiment folder');
+  ok(await enabled(2), 'the remembered folder can be used');
 
   console.log('LAPTOP SCREENS');
-  const six = await sessionZip('six.zip', '10', [{ n: 110 }, { n: 110 }, { n: 110, boost: true }, { n: 110, boost: true }, { n: 110 }, { n: 110 }]);
+  await put(['NEW', 'patients', 'zips'], 'six.zip', await sessionZip('103', [{ n: 110 }, { n: 110 }, { n: 110, boost: true }, { n: 110, boost: true }, { n: 110 }, { n: 110 }], { day: 14 }));
   for (const [width, height] of [[2560, 1440], [1920, 1080], [1707, 960], [1440, 900]]) {
     await p.setViewportSize({ width, height });
     for (const textSize of [1, 1.4]) {
       await p.evaluate((t) => localStorage.setItem('webspheres-observer-settings', JSON.stringify({ textSize: t })), textSize);
-      await p.reload();
-      await upload([six]);
-      await totals('1 participant, 1 session, 6 blocks, 660 trials');
+      await restart();
+      await goToStep4('patients');
+      await readSessions();
       const fit = await p.evaluate(() => ({
         fits: document.documentElement.scrollWidth <= innerWidth,
         size: parseFloat(getComputedStyle(document.documentElement).fontSize),
-        rows: new Set([...document.querySelectorAll('.tile')].map(t => Math.round(t.getBoundingClientRect().top))).size
+        guide: document.getElementById('guide').scrollWidth <= document.getElementById('guide').clientWidth,
+        view: document.getElementById('view').scrollWidth <= document.getElementById('view').clientWidth,
+        rows: new Set([...document.querySelectorAll('.participant:last-of-type .tile')].map(t => Math.round(t.getBoundingClientRect().top))).size
       }));
-      ok(fit.fits && Math.abs(fit.size - 18 * textSize) < 0.01, `${width}x${height} at text size ${textSize}: fits and follows the Observer setting`);
-      if (textSize === 1) ok(fit.rows === 1, `${width}x${height}: six blocks sit on one row`);
+      ok(fit.fits && fit.guide && fit.view && Math.abs(fit.size - 18 * textSize) < 0.01, `${width}x${height} at text size ${textSize}: fits and follows the Observer setting`);
+      if (textSize === 1 && width >= 1707) ok(fit.rows === 1, `${width}x${height}: six blocks sit on one row`);
     }
   }
-  ok(errs.length === 0, 'no page errors at any screen size: ' + errs.join('; '));
+  ok(errs.length === 0, 'no page errors: ' + errs.join('; '));
 
-  console.log('OBSERVER LINK');
+  console.log('BROWSER NOTICE');
+  const other = await b.newContext({ viewport: { width: 1707, height: 960 } });
+  const firefox = () => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined });
+  const q = await other.newPage();
+  await q.addInitScript(firefox);
+  await serve(q);
+  await q.goto('https://test.local/analysis.html');
+  ok(await q.locator('#browser-stop').isVisible() && !(await q.locator('#steps').isVisible()), 'the Analysis page stops in other browsers');
+  await q.goto('https://test.local/observer.html');
+  await q.waitForFunction(() => window.__peers && window.__obs);
+  ok(await q.locator('#g1-browser').isVisible(), 'the Observer warns in other browsers');
+  ok(await q.locator('#g-practice').isVisible(), 'the Observer still works after warning');
+
+  console.log('OBSERVER');
   const o = await ctx.newPage();
   await o.addInitScript(() => { window.open = (...a) => { window.__opened = a; return null; }; });
   await serve(o);
   await o.goto('https://test.local/observer.html');
   await o.waitForFunction(() => window.__peers && window.__obs);
+  ok(!(await o.locator('#g1-browser').isVisible()), 'no warning in a supported browser');
   await o.click('#btn-analysis');
   const opened = await o.evaluate(() => window.__opened);
   ok(opened && opened[0] === 'analysis.html' && opened[1] === '_blank', 'the Analysis button opens the page in a new tab');
+  ok(!fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').includes('browser-check'), 'the headset page has no browser check');
 
   await b.close();
   done();

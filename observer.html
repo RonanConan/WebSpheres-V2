@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>if (/[?&]practice\b/.test(location.search) && window.parent === window) document.write('<script src="practice-link.js"><\/script>');</script>
     <script src="zip-writer.js"></script>
+    <script src="browser-check.js"></script>
     <script src="workspace-shape.js"></script>
     <script src="results-charts.js"></script>
     <script src="workspace-view.js"></script>
@@ -373,6 +374,7 @@
             <section class="step" data-step="1">
                 <button tabindex="-1" class="step-head" data-open="1"><span class="step-mark">1</span><span>Connect</span></button>
                 <div class="step-body">
+                    <p class="g-msg bad" id="g1-browser" hidden>The Observer is only supported in Chrome or Edge. Open this page in one of those browsers.</p>
                     <ul class="checks" id="g1-checks"></ul>
                     <p class="g-note" id="g1-note"></p>
                     <div class="g-actions" id="g1-practice"><button tabindex="-1" id="g-practice">Practise without a headset</button></div>
@@ -3613,6 +3615,7 @@
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
         $('btn-analysis').addEventListener('click', () => window.open('analysis.html', '_blank', 'noopener'));
+        $('g1-browser').hidden = WebSpheresBrowser.supported();
     }
 
     window.__obs = {
