@@ -110,20 +110,20 @@ console.log('SESSIONS');
     const blocks = planBlocks('203', ['N', 'B'], 11, '10');
     const r = A.build([await zipOf('break.zip', blocks.slice(0, 1)), await zipOf('final.zip', blocks)]);
     ok(r.sessions.length === 1 && r.rows.length === 22, 'a cumulative zip counts each block once and joins one session');
-    ok(r.notes.some(n => n.includes('most complete copy')), 'the duplicate is reported');
+    ok(r.notes.some(n => n.includes('most trials')), 'the duplicate is reported');
     const short = Object.assign({}, blocks[0], { n: 5 });
     const shortFirst = A.build([await zipOf('part.zip', [short]), await zipOf('final.zip', blocks)]);
     ok(shortFirst.rows.length === 22 && shortFirst.blocks[0].SourceZip === 'final.zip', 'the most complete copy wins');
     const changed = Object.assign({}, blocks[0], { edit: (row, i) => { if (i === 3) row[3] = 'LEFT'; if (i === 3) row[4] = 9; } });
     const clash = A.build([await zipOf('x.zip', [changed]), await zipOf('final.zip', blocks)]);
-    ok(clash.stops.length === 1 && clash.stops[0].includes('trials differ'), 'copies that disagree stop the output');
+    ok(clash.stops.length === 1 && clash.stops[0].includes('different trial data'), 'copies that disagree stop the output');
 }
 {
     const a = await zipOf('a.zip', planBlocks('12', ['N'], 11, '10'));
     const b = await zipOf('b.zip', planBlocks('012', ['N'], 11, '11'));
     const r = A.build([a, b]);
     ok(same(r.sessions.map(s => s.id), ['012', '12']), 'IDs stay exactly as typed and are not merged');
-    ok(r.warnings.some(w => w.includes('look alike')), 'similar IDs are warned about');
+    ok(r.warnings.some(w => w.includes('are similar')), 'similar IDs are warned about');
 }
 
 console.log('TRIAL VALUES');
@@ -152,7 +152,7 @@ console.log('TRIAL VALUES');
     ok(r.rows.length === 0 && r.setAside[0].reason.includes('HitType'), 'a block missing required columns is set aside and named');
     const bad = 'Trial,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime\n1,4,LEFT,3,normal,1\n';
     const b = A.build([await zipOf('a.zip', [Object.assign(planBlocks('304', ['N'], 1, '10')[0], { csv: bad })])]);
-    ok(b.rows.length === 0 && b.setAside[0].reason.includes('wrong number of columns'), 'a damaged trial file is set aside');
+    ok(b.rows.length === 0 && b.setAside[0].reason.includes('unexpected number of columns'), 'a damaged trial file is set aside');
 }
 {
     const old = HEADER.replace('Block', 'Run');
@@ -170,7 +170,7 @@ console.log('PLANS AND NOTES');
     ok(partial.rows.length === 39 && partial.notes.some(n => n.includes('ended early')), 'a block ended early is kept and noted');
     const wrong = Object.assign(planBlocks('403', ['N'], 3, '10')[0], { condition: 2 });
     const mis = A.build([await zipOf('a.zip', [wrong])]);
-    ok(mis.rows[0].BlockType === 'boost' && mis.warnings.some(w => w.includes('the plan listed')), 'what actually ran is used when it differs from the plan');
+    ok(mis.rows[0].BlockType === 'boost' && mis.warnings.some(w => w.includes('plan specified')), 'what actually ran is used when it differs from the plan');
     const during = A.build([await zipOf('a.zip', planBlocks('404', ['N'], 3, '10', { changes: '123|2|Condition|1|2' }))]);
     ok(during.warnings.some(w => w.includes('Condition changed')), 'a condition change during a block is warned about');
 }
@@ -210,12 +210,12 @@ console.log('STUDY FOLDER');
     const full = { patients: ['zips', 'history'], controls: ['zips'] };
     ok(check('EXP027', ['patients', 'controls', '.git'], [], full).status === 'ok', 'a complete experiment folder is accepted');
     const inside = check('patients', ['zips'], []);
-    ok(inside.status === 'wrong' && inside.message.includes('experiment folder that contains it'), 'selecting patients says to go up a level');
+    ok(inside.status === 'wrong' && inside.message.includes('experiment folder containing it'), 'selecting patients says to go up a level');
     ok(check('zips', [], ['a.zip']).message.includes('two levels above'), 'selecting zips says to go up two levels');
     ok(check('EXP027', ['.git'], ['README.md', '.gitignore']).status === 'setup', 'a new repository can be set up');
     ok(check('EXP027', ['patients'], [], { patients: ['zips'] }).status === 'setup', 'missing folders can be added');
     const wrong = check('exp026', ['Data', '.git'], ['script.R']);
-    ok(wrong.status === 'wrong' && wrong.message.includes('not an experiment folder'), 'an unrelated folder is refused and cannot be set up');
+    ok(wrong.status === 'wrong' && wrong.message.includes('neither a patients nor'), 'an unrelated folder is refused and cannot be set up');
     ok(check('constructor', [], []).status === 'setup', 'a folder named after a built-in property is not mistaken for a group');
     const cased = check('EXP027', ['Patients', 'controls'], [], { controls: ['zips'] });
     ok(cased.status === 'wrong' && cased.message.includes('Rename the Patients folder to patients'), 'a capitalised group folder gets a specific fix');
@@ -234,7 +234,7 @@ console.log('MASTER COMPARISON');
     const edited = oldText.replace('"001"', '"001"').split('\n');
     edited[1] = edited[1].replace(',5,"normal",', ',8,"normal",');
     const changed = A.compareMaster(edited.join('\n'), first.rows);
-    ok(changed.changed === 1 && changed.examples[0].includes('Points was 8, now 5'), 'a changed row is found and described');
+    ok(changed.changed === 1 && changed.examples[0].includes('Points changed from 8 to 5'), 'a changed row is found and described');
     const fewer = A.build([await zipOf('c.zip', planBlocks('701', ['N'], 11, '10'))], { group: 'patients' });
     ok(A.compareMaster(oldText, fewer.rows).missing === 11, 'rows that disappear are counted');
     ok(A.compareMaster('"Other"\n"x"\n', first.rows).comparable === false, 'a master with other columns is reported as not comparable');
@@ -267,7 +267,7 @@ console.log('REPACKED AND MAC ZIPS');
     ok(back.rows.length === 10 && back.blocks.length === 2, 'backslash paths are read');
     const twin = await raw('twin.zip', [...filesFor(twoBlocks[0], ''), ...filesFor(twoBlocks[0], '')]);
     const twinResult = A.build([twin]);
-    ok(!twinResult.rows.length && twinResult.setAside[0].reason.includes('more than one file of the same kind'), 'the same file twice in one folder is refused, not overwritten');
+    ok(!twinResult.rows.length && twinResult.setAside[0].reason.includes('more than one file of the same type'), 'the same file twice in one folder is refused, not overwritten');
     const mac = await raw('mac.zip', [...twoBlocks.flatMap(b => filesFor(b, `101 session/block${b.number}/`)), { path: `__MACOSX/101 session/block1/._901_block1_vr-session-data-${STAMP}.csv`, parts: ['junk'] }, { path: '101 session/.DS_Store', parts: ['junk'] }, { path: `101 session/block1/._901_block1_session-info-${STAMP}.csv`, parts: ['junk'] }]);
     const macResult = A.build([mac]);
     ok(macResult.rows.length === 10 && !macResult.setAside.length && !macResult.warnings.length, 'Finder extras in a Mac-made zip are ignored');
@@ -280,7 +280,7 @@ console.log('REPACKED AND MAC ZIPS');
     const nextWeek = planBlocks('902', ['N', 'B'], 3, '17').slice(1);
     ok(A.build([await zipOf('w1.zip', firstWeek), await zipOf('w2.zip', nextWeek)]).sessions.length === 2, 'zips a week apart are not joined as a resume');
     const noCondition = A.build([await zipOf('c.zip', planBlocks('903', ['B'], 3, '10', { condition: 7 }))]);
-    ok(noCondition.rows[0].BlockType === 'boost' && noCondition.warnings.some(w => w.includes('labelled boost from the plan')), 'a label taken from the plan is warned about');
+    ok(noCondition.rows[0].BlockType === 'boost' && noCondition.warnings.some(w => w.includes('Its label, boost, comes from the plan')), 'a label taken from the plan is warned about');
 }
 
 console.log('RECORDED GROUP');
@@ -298,7 +298,18 @@ console.log('RECORDED GROUP');
     ok(wrong.groupMismatches.length === 1 && wrong.groupMismatches[0] === 'b.zip was recorded as Control, but it is in the patients folder.', 'a session in the other group is named');
     ok(A.reportText([], wrong, 'x').includes('b.zip was recorded as Control'), 'a confirmed mismatch stays in the report');
     const none = A.build([await withGroup('c.zip', '803', '', '10')], { group: 'controls' });
-    ok(!none.groupMismatches.length && none.warnings.some(w => w.includes('do not record a group')), 'a zip with no group gets a warning');
+    ok(!none.groupMismatches.length && none.warnings.some(w => w.includes('do not specify a group')), 'a zip with no group gets a warning');
+}
+
+console.log('SINGULAR COUNTS');
+{
+    const shortRow = HEADER + '1,1000,4,LEFT\n2,2000,4,LEFT,5,normal,400,800,0,911,1\n';
+    const one = A.build([await zipOf('a.zip', [Object.assign(planBlocks('911', ['N'], 2, '10')[0], { csv: shortRow })])]);
+    ok(one.setAside[0].reason === '1 row in the trial file has an unexpected number of columns.', 'one damaged row reads correctly');
+    const value = A.build([await zipOf('b.zip', planBlocks('912', ['N'], 2, '10', { edit: (row, i) => { if (i === 1) row[4] = 'x'; } }))]);
+    ok(value.warnings.some(w => w.includes('1 value could not be read as a whole number and is recorded as NA.')), 'one unreadable value reads correctly');
+    const mismatch = A.build([await zipOf('c.zip', [Object.assign(planBlocks('913', ['N'], 1, '10')[0], { csv: trials('913', 1, 2) })])]);
+    ok(mismatch.warnings.some(w => w.includes('reports 1 trial, but the trial file contains 2.')), 'one reported trial reads correctly');
 }
 
 console.log('BROWSER CHECK');

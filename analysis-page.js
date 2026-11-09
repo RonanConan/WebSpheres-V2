@@ -109,8 +109,8 @@
         $('comparison').classList.toggle('bad', comparisonNeedsConfirm());
         if (!c) $('comparison').textContent = 'This will be the first master for this group.';
         else if (!c.comparable) $('comparison').textContent = 'The current master has different columns, so it could not be compared with these sessions.';
-        else $('comparison').textContent = `${plural(c.addedParticipants, 'new participant')}, ${plural(c.added, 'new trial')}, ${plural(c.changed + c.missing, 'existing row')} changed.`;
-        const changes = c && c.comparable && c.changed + c.missing ? c.examples.concat(c.changed + c.missing > c.examples.length ? [`There are ${(c.changed + c.missing - c.examples.length).toLocaleString('en-GB')} more.`] : []) : [];
+        else $('comparison').textContent = `${plural(c.addedParticipants, 'new participant')}, ${plural(c.added, 'new trial')}, and ${plural(c.changed + c.missing, 'existing row')} changed.`;
+        const changes = c && c.comparable && c.changed + c.missing ? c.examples.concat(c.changed + c.missing > c.examples.length ? [c.changed + c.missing - c.examples.length === 1 ? 'There is 1 more.' : `There are ${(c.changed + c.missing - c.examples.length).toLocaleString('en-GB')} more.`] : []) : [];
         fillList('changes', 'changes-list', changes);
         renderLayout(result);
         fillList('stops', 'stops-list', result.stops);
@@ -141,7 +141,7 @@
         });
         stepEl(2).querySelector('.step-val').textContent = state.reached > 2 && state.root ? state.root.name : '';
         stepEl(3).querySelector('.step-val').textContent = state.reached > 3 && state.group ? groupTitle() : '';
-        stepEl(4).querySelector('.step-val').textContent = state.reached > 4 ? plural(state.zipCount, 'zip') : '';
+        stepEl(4).querySelector('.step-val').textContent = state.reached > 4 ? plural(state.zipCount, 'ZIP file') : '';
         $('g2-again').hidden = !state.remembered || !!state.root;
         $('g2-again').textContent = state.remembered ? `Use ${state.remembered.name} again` : '';
         $('g2-choose').disabled = $('g2-setup').disabled = $('g2-again').disabled = $('g4-recheck').disabled = state.busy;
@@ -241,7 +241,7 @@
         } catch (e) {
             state.root = null;
             state.folderOk = false;
-            setMsg('g2-msg', 'That folder could not be read. Select it again and allow access when your browser asks. On a Mac, also check that Chrome is allowed to use this folder under System Settings, Privacy & Security, Files and Folders.', 'bad');
+            setMsg('g2-msg', 'The folder could not be read. Select it again and grant access when prompted. On a Mac, check your browser\'s permissions under System Settings → Privacy & Security → Files and Folders.', 'bad');
         }
         render();
     }
@@ -251,7 +251,7 @@
         try {
             handle = await window.showDirectoryPicker({ id: 'webspheres-study', mode: 'readwrite' });
         } catch (e) {
-            if (e.name === 'AbortError') setMsg('g2-msg', 'No folder was selected. If you did select one, select it again and allow access when your browser asks.', 'busy');
+            if (e.name === 'AbortError') setMsg('g2-msg', 'No folder was selected. If you already chose one, try again and grant access when prompted.', 'busy');
             else setMsg('g2-msg', 'That folder cannot be used. Select the experiment folder inside your GitHub folder.', 'bad');
             return;
         }
@@ -262,7 +262,7 @@
         const handle = state.remembered;
         try {
             if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-                setMsg('g2-msg', 'Permission was not given. Select the folder again and allow access when your browser asks.', 'bad');
+                setMsg('g2-msg', 'Access was not granted. Select the folder again and allow access when prompted.', 'bad');
                 return;
             }
         } catch (e) {
@@ -311,8 +311,8 @@
         if (!state.root || !state.group) return;
         try {
             state.zipCount = (await zipFiles(state.group)).length;
-            if (state.zipCount) setMsg('g4-msg', `${plural(state.zipCount, 'zip file')} ${state.zipCount === 1 ? 'is' : 'are'} in this folder.`);
-            else setMsg('g4-msg', 'No zip files are in this folder yet. Copy them in, then select Check the folder again.', 'bad');
+            if (state.zipCount) setMsg('g4-msg', `There ${state.zipCount === 1 ? 'is' : 'are'} ${plural(state.zipCount, 'ZIP file')} in this folder.`);
+            else setMsg('g4-msg', 'No ZIP files found. Copy the session ZIP files into this folder, then select Check the folder again.', 'bad');
         } catch (e) {
             state.zipCount = 0;
             setMsg('g4-msg', 'The folder could not be read. Go back to step 2 and select it again.', 'bad');
@@ -335,7 +335,7 @@
         try {
             await countZips();
             if (!state.zipCount) return false;
-            setMsg('g4-msg', `Reading ${plural(state.zipCount, 'zip file')}.`, 'busy');
+            setMsg('g4-msg', `Reading ${plural(state.zipCount, 'ZIP file')}…`, 'busy');
             const files = await zipFiles(state.group);
             const other = state.group === 'patients' ? 'controls' : 'patients';
             state.exports = [];
@@ -345,19 +345,19 @@
             const result = A.build(state.exports, { includePractice, group: state.group });
             result.stops.push(...A.crossGroupStops(state.group, state.exports, other, otherExports));
             const stray = await strayItems(state.group);
-            if (stray.length) result.warnings.push(`These items in the ${state.group} zips folder were not read because they are not zip files: ${stray.join(', ')}. Sessions saved as loose files or inside subfolders are not included. Copy the original zip into this folder instead.`);
+            if (stray.length) result.warnings.push(`The following items in the ${state.group} zips folder were skipped because they are not ZIP files: ${stray.join(', ')}. Loose files and files inside subfolders are not included. If any of these are sessions, copy the original ZIP files into this folder.`);
             const notDownloaded = await iCloudPlaceholders(state.group);
-            if (notDownloaded.length) result.stops.push(`These files are stored in iCloud and are not on this computer yet: ${notDownloaded.join(', ')}. Open the folder in Finder, download them, then read the sessions again.`);
+            if (notDownloaded.length) result.stops.push(`The following files are stored in iCloud but have not been downloaded to this computer: ${notDownloaded.join(', ')}. Download them in Finder, then read the sessions again.`);
             state.result = result;
             const groupDir = await state.root.getDirectoryHandle(state.group);
             const old = await readText(groupDir, outputNames().master);
             state.masterText = old;
             state.comparison = old === null ? null : A.compareMaster(old, result.rows);
-            setMsg('g4-msg', `${plural(state.zipCount, 'zip file')} read.`);
+            setMsg('g4-msg', `${plural(state.zipCount, 'ZIP file')} read.`);
             $('g5-warned').hidden = !result.warnings.length;
             $('g5-group').hidden = !result.groupMismatches.length;
             $('g5-changes').hidden = !comparisonNeedsConfirm();
-            if (result.stops.length) setMsg('g5-msg', 'Fix the problem shown on the right, then go back to step 4 and read the sessions again.', 'bad');
+            if (result.stops.length) setMsg('g5-msg', 'Resolve the problem on the right, then return to step 4 and read the sessions again.', 'bad');
             else if (!result.rows.length) setMsg('g5-msg', 'No usable trials were found. See the list on the right.', 'bad');
             else setMsg('g5-msg', '');
             renderResults();
@@ -387,7 +387,7 @@
 
     async function save() {
         state.busy = true;
-        setMsg('g6-msg', 'Saving.', 'busy');
+        setMsg('g6-msg', 'Saving…', 'busy');
         render();
         const replaced = [];
         let groupDir, history;
@@ -415,8 +415,8 @@
         } catch (e) {
             const restored = await restoreFiles(groupDir, history, replaced);
             setMsg('g6-msg', restored
-                ? 'The master could not be saved, so the earlier files were put back. The zips were not changed. Check that your browser has permission to edit the folder, then try again.'
-                : 'The master could not be saved and some earlier files could not be put back. Copies are in the history folder. The zips were not changed.', 'bad');
+                ? 'The master could not be saved, and any changes were undone. The ZIP files were not changed. Check your browser\'s permission to edit the folder, then try again.'
+                : 'Saving failed, and some previous files could not be restored. Backup copies are in the history folder. The ZIP files were not changed.', 'bad');
         } finally {
             state.busy = false;
             render();

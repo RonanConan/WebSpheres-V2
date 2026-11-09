@@ -68,7 +68,7 @@ const PICKER = () => {
   async function goToStep4(group) {
     await tick(1, 0); await tick(1, 1); await next(1); await waitStep(2);
     await selectFolder();
-    await waitMsg('g2-msg', 'is an experiment folder');
+    await waitMsg('g2-msg', 'contains the patients and controls folders');
     await next(2); await waitStep(3);
     await p.click(`[data-group="${group}"]`);
     await next(3); await waitStep(4);
@@ -86,7 +86,7 @@ const PICKER = () => {
   }
 
   console.log('PRIVACY');
-  ok((await text('.lead')).includes('blocked from sending data'), 'page says data cannot be sent anywhere');
+  ok((await text('.lead')).includes('does not upload your data'), 'page says data cannot be sent anywhere');
   ok(await p.evaluate(() => fetch('https://test.local/analysis.html').then(() => false, () => true)), 'the page is blocked from network requests');
   ok(!(await p.locator('#browser-stop').isVisible()), 'no browser warning in a supported browser');
 
@@ -114,14 +114,14 @@ const PICKER = () => {
   await putText(['exp026'], 'script.R', 'x');
   await pick(['exp026']);
   await selectFolder();
-  await waitMsg('g2-msg', 'not an experiment folder');
+  await waitMsg('g2-msg', 'has neither a patients nor');
   ok(!(await p.locator('#g2-setup').isVisible()) && !(await enabled(2)), 'an unrelated folder is refused with no set-up offered');
   await pick(['NEW']);
   await selectFolder();
   await waitMsg('g2-msg', 'NEW is empty');
   ok(await p.locator('#g2-setup').isVisible(), 'an empty folder offers set-up');
   await p.click('#g2-setup');
-  await waitMsg('g2-msg', 'is an experiment folder');
+  await waitMsg('g2-msg', 'contains the patients and controls folders');
   ok((await list(['NEW'])).join() === 'controls,patients' && (await list(['NEW', 'patients'])).join() === 'history,zips', 'set-up creates the folders');
   ok(await enabled(2), 'Next is enabled for a correct folder');
   await next(2); await waitStep(3);
@@ -130,14 +130,14 @@ const PICKER = () => {
   ok(!(await enabled(3)), 'a group must be chosen');
   await p.click('[data-group="patients"]');
   await next(3); await waitStep(4);
-  await waitMsg('g4-msg', 'No zip files');
+  await waitMsg('g4-msg', 'No ZIP files');
   ok((await text('#g4-path')) === 'NEW/patients/zips', 'the exact folder is shown');
   await tick(4, 0); await tick(4, 1);
   ok(!(await enabled(4)), 'an empty zips folder cannot continue');
   const two = await sessionZip('101', [{ n: 352 }, { n: 352, boost: true }]);
   await put(['NEW', 'patients', 'zips'], '101.zip', two);
   await p.click('#g4-recheck');
-  await waitMsg('g4-msg', '1 zip file is');
+  await waitMsg('g4-msg', 'There is 1 ZIP file');
   ok(await enabled(4), 'finding a zip allows continuing');
   await untick(4, 1);
   ok(!(await enabled(4)), 'unticking disables continuing');
@@ -184,9 +184,9 @@ const PICKER = () => {
   await goToStep4('patients');
   await put(['NEW', 'patients', 'zips'], '102.zip', await sessionZip('102', [{ n: 11 }], { day: 12 }));
   await p.click('#g4-recheck');
-  await waitMsg('g4-msg', '2 zip files are');
+  await waitMsg('g4-msg', 'There are 2 ZIP files');
   await readSessions();
-  ok((await text('#comparison')) === '1 new participant, 11 new trials, 0 existing rows changed.', 'a new participant is reported as an addition');
+  ok((await text('#comparison')) === '1 new participant, 11 new trials, and 0 existing rows changed.', 'a new participant is reported as an addition');
   await tick(5, 0);
   await next(5); await waitStep(6);
   const zipBefore = await read(['NEW', 'patients', 'zips'], '101.zip');
@@ -203,7 +203,7 @@ const PICKER = () => {
   await goToStep4('patients');
   await put(['NEW', 'patients', 'zips'], '104.zip', await sessionZip('104', [{ n: 11 }], { day: 20 }));
   await p.click('#g4-recheck');
-  await waitMsg('g4-msg', '3 zip files are');
+  await waitMsg('g4-msg', 'There are 3 ZIP files');
   await readSessions();
   await tick(5, 0);
   await next(5); await waitStep(6);
@@ -218,7 +218,7 @@ const PICKER = () => {
     };
   });
   await p.click('#g6-save');
-  await waitMsg('g6-msg', 'the earlier files were put back');
+  await waitMsg('g6-msg', 'any changes were undone');
   ok((await read(['NEW', 'patients'], 'handDB_patients.csv')) === beforeFail, 'a failed save puts the earlier master back');
   ok((await list(['NEW', 'patients', 'history'])).join() === historyBefore.join(), 'a failed save leaves no extra history copies');
   await p.click('#g6-save');
@@ -228,7 +228,7 @@ const PICKER = () => {
   await goToStep4('patients');
   await put(['NEW', 'patients', 'zips'], '105.zip', await sessionZip('105', [{ n: 11 }], { day: 21 }));
   await p.click('#g4-recheck');
-  await waitMsg('g4-msg', '4 zip files are');
+  await waitMsg('g4-msg', 'There are 4 ZIP files');
   await readSessions();
   await tick(5, 0);
   await next(5); await waitStep(6);
@@ -258,7 +258,7 @@ const PICKER = () => {
   await putText(['NEW', 'patients', 'zips'], '.DS_Store', 'x');
   await putText(['NEW', 'patients', 'zips'], '._101.zip', 'x');
   await goToStep4('patients');
-  ok((await text('#g4-msg')).startsWith('3 zip files'), 'hidden Mac files are not counted as zips');
+  ok((await text('#g4-msg')).startsWith('There are 3 ZIP files'), 'hidden Mac files are not counted as zips');
   await readSessions();
   ok(!(await p.locator('#warnings').isVisible()) && !(await p.locator('#set-aside').isVisible()), 'hidden Mac files cause no warnings');
   await remove(['NEW', 'patients', 'zips'], '.DS_Store');
@@ -276,7 +276,7 @@ const PICKER = () => {
   await restart();
   await goToStep4('patients');
   await readSessions();
-  ok((await text('#comparison')).endsWith('0 new trials, 0 existing rows changed.'), 'a rebuild with nothing new says so');
+  ok((await text('#comparison')).endsWith('0 new trials, and 0 existing rows changed.'), 'a rebuild with nothing new says so');
   await tick(5, 0);
   await next(5); await waitStep(6);
   ok((await text('#g6-say')) === 'The master is already up to date.' && !(await p.locator('#g6-save').isVisible()) && await enabled(6), 'nothing needs saving');
@@ -290,7 +290,7 @@ const PICKER = () => {
   await goToStep4('patients');
   await readSessions();
   ok((await text('#comparison')).includes('1 existing row changed'), 'a changed row is reported');
-  ok((await text('#changes-list')).includes('Points was 9, now 5'), 'the change is described');
+  ok((await text('#changes-list')).includes('Points changed from 9 to 5'), 'the change is described');
   await tick(5, 0);
   ok(!(await enabled(5)), 'the change must be confirmed');
   await p.check('#g5-changes input');
@@ -312,7 +312,7 @@ const PICKER = () => {
   await restart();
   await goToStep4('patients');
   await readSessions();
-  ok((await text('#warnings-list')).includes('do not record a group') && (await text('#warnings-list')).includes('old.zip'), 'a zip with no recorded group is warned about');
+  ok((await text('#warnings-list')).includes('do not specify a group') && (await text('#warnings-list')).includes('old.zip'), 'a zip with no recorded group is warned about');
   await tick(5, 0);
   ok(!(await enabled(5)), 'the warning must be acknowledged');
   await remove(['NEW', 'patients', 'zips'], 'old.zip');
@@ -322,7 +322,7 @@ const PICKER = () => {
   await put(['NEW', 'controls', 'zips'], 'copy.zip', two);
   await goToStep4('patients');
   await readSessions();
-  ok((await text('#stops-list')).includes('hold the same session'), 'the same session in both groups is reported');
+  ok((await text('#stops-list')).includes('contain the same session'), 'the same session in both groups is reported');
   await tick(5, 0);
   ok(!(await enabled(5)), 'it cannot continue');
   await remove(['NEW', 'controls', 'zips'], 'copy.zip');
@@ -359,7 +359,7 @@ const PICKER = () => {
   await p.waitForFunction(() => !document.getElementById('g2-again').hidden);
   ok((await text('#g2-again')) === 'Use NEW again', 'the folder is remembered');
   await p.click('#g2-again');
-  await waitMsg('g2-msg', 'is an experiment folder');
+  await waitMsg('g2-msg', 'contains the patients and controls folders');
   ok(await enabled(2), 'the remembered folder can be used');
 
   console.log('LAPTOP SCREENS');

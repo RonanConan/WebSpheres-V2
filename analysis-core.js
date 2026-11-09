@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.2.0';
+    const VERSION = '1.3.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
@@ -116,7 +116,7 @@ const WebSpheresAnalysis = (() => {
         try {
             entries = await zipEntries(file);
         } catch (e) {
-            out.problem = 'This file could not be read as a zip.';
+            out.problem = 'This file could not be read as a ZIP file.';
             return out;
         }
         const folders = new Map();
@@ -133,9 +133,9 @@ const WebSpheresAnalysis = (() => {
         for (const { folder, group, duplicate } of Array.from(folders).flatMap(([name, items]) => splitFolder(name, items))) {
             const trialEntry = group['vr-session-data'], infoEntry = group['session-info'];
             const block = { folder, problem: '', hasLeft: !!group['kinematics-LEFT'], hasRight: !!group['kinematics-RIGHT'] };
-            if (duplicate) block.problem = 'This folder holds more than one file of the same kind, so it cannot be read safely.';
+            if (duplicate) block.problem = 'This folder in the ZIP file contains more than one file of the same type and cannot be processed reliably.';
             else if (!trialEntry) block.problem = 'This block has no trial file.';
-            else if (!infoEntry) block.problem = 'This block has no session-info file, so its layout cannot be read.';
+            else if (!infoEntry) block.problem = 'This block has no session-info file, so its participant, condition and block order cannot be determined.';
             else {
                 try {
                     if (!infoOnly) {
@@ -146,7 +146,7 @@ const WebSpheresAnalysis = (() => {
                     block.info = parseInfo(await entryText(file, infoEntry));
                     block.practice = block.info.Practice === '1' || /^PRACTICE_/.test(trialEntry.path.split('/').pop());
                 } catch (e) {
-                    block.problem = 'The files in this block could not be read. The zip may be damaged.';
+                    block.problem = 'The files in this block could not be read. The ZIP file may be damaged.';
                 }
             }
             out.blocks.push(block);
@@ -154,6 +154,7 @@ const WebSpheresAnalysis = (() => {
         return out;
     }
 
+    const trialCount = (n) => `${n} ${n === 1 ? 'trial' : 'trials'}`;
     const compareText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
     function toInteger(value) {
@@ -200,7 +201,7 @@ const WebSpheresAnalysis = (() => {
         const candidates = [];
         exportsRead.forEach((zip, zipIndex) => {
             if (zip.problem) { result.setAside.push({ name: zip.name, reason: zip.problem }); return; }
-            if (!zip.blocks.length) { result.setAside.push({ name: zip.name, reason: 'This zip has no WebSpheres trial data.' }); return; }
+            if (!zip.blocks.length) { result.setAside.push({ name: zip.name, reason: 'This ZIP file contains no WebSpheres trial data.' }); return; }
             zip.blocks.forEach(block => {
                 const label = block.folder ? `${zip.name}, ${block.folder}` : zip.name;
                 if (block.problem) { result.setAside.push({ name: label, reason: block.problem }); return; }
@@ -212,7 +213,7 @@ const WebSpheresAnalysis = (() => {
                 const missing = REQUIRED.filter(name => !block.header.includes(name));
                 if (missing.length) { result.setAside.push({ name: label, reason: `The trial file is missing these columns: ${missing.join(', ')}.` }); return; }
                 const broken = block.table.filter(row => row.length !== block.header.length).length;
-                if (broken) { result.setAside.push({ name: label, reason: `${broken} rows in the trial file have the wrong number of columns.` }); return; }
+                if (broken) { result.setAside.push({ name: label, reason: `${broken} ${broken === 1 ? 'row' : 'rows'} in the trial file ${broken === 1 ? 'has' : 'have'} an unexpected number of columns.` }); return; }
                 if (!block.table.length) { result.setAside.push({ name: label, reason: 'This block has no trials.' }); return; }
                 candidates.push({
                     zip, zipIndex, label, folder: block.folder, header: block.header, table: block.table, info: block.info,
@@ -231,7 +232,7 @@ const WebSpheresAnalysis = (() => {
         const byKey = new Map();
         candidates.forEach(c => {
             const key = c.start ? `${c.practice}|${c.id}|${c.start}` : `${c.zipIndex}|${c.folder}`;
-            if (!c.start) result.warnings.push(`${c.label} has no start time, so copies of it in other zips cannot be recognised.`);
+            if (!c.start) result.warnings.push(`${c.label} has no start time, so matching copies in other ZIP files cannot be identified.`);
             if (!byKey.has(key)) byKey.set(key, []);
             byKey.get(key).push(c);
         });
@@ -241,11 +242,11 @@ const WebSpheresAnalysis = (() => {
             const best = ordered[0];
             ordered.slice(1).forEach(other => {
                 const same = other.table.every((row, i) => rowSignature(row, other.index) === rowSignature(best.table[i], best.index));
-                if (!same) result.stops.push(`${best.label} and ${other.label} are the same block but their trials differ. Remove the wrong zip and try again.`);
+                if (!same) result.stops.push(`${best.label} and ${other.label} contain different trial data for the same block. Remove the incorrect ZIP file, then try again.`);
             });
             best.zipIndexes = copies.map(c => c.zipIndex);
             best.otherCopies = ordered.slice(1).map(c => c.label);
-            if (best.otherCopies.length) result.notes.push(`${best.label} was also found in ${best.otherCopies.join(' and ')}. The most complete copy was used.`);
+            if (best.otherCopies.length) result.notes.push(`${best.label} was also found in ${best.otherCopies.join(' and ')}. The copy with the most trials was used.`);
             merged.push(best);
         });
         return merged;
@@ -286,15 +287,15 @@ const WebSpheresAnalysis = (() => {
         const items = blocks.map(block => {
             const observed = conditionType(block.info.Condition);
             const planned = plan.get(block.number);
-            if (observed && planned && observed !== planned) result.warnings.push(`${where}: block ${block.number} ran as ${observed}, but the plan listed it as ${planned}. It is labelled ${observed}.`);
+            if (observed && planned && observed !== planned) result.warnings.push(`${where}: block ${block.number} was run as ${observed}, although the plan specified ${planned}. The block is labelled ${observed}.`);
             if (!observed && !planned) result.warnings.push(`${where}: block ${block.number} has no readable condition.`);
-            if (!observed && planned) result.warnings.push(`${where}: block ${block.number} has no readable condition, so it is labelled ${planned} from the plan.`);
+            if (!observed && planned) result.warnings.push(`${where}: block ${block.number} has no readable condition. Its label, ${planned}, comes from the plan.`);
             return { number: block.number, start: block.start, type: observed || planned || 'unknown', block };
         });
         plan.forEach((type, number) => {
             if (!items.some(item => item.number === number)) {
                 items.push({ number, start: '', type, block: null });
-                result.warnings.push(`${where}: block ${number} is in the plan, but no data for it was found.`);
+                result.warnings.push(`${where}: block ${number} was planned, but no data were found for it.`);
             }
         });
         items.sort((a, b) => a.number - b.number || compareText(a.start, b.start));
@@ -319,14 +320,14 @@ const WebSpheresAnalysis = (() => {
     function checkBlock(block, where, result) {
         const info = block.info;
         const completed = toInteger(info.TrialsCompleted);
-        if (completed !== null && completed !== block.table.length) result.warnings.push(`${where}: session-info says ${completed} trials, but the trial file has ${block.table.length}.`);
-        if (info.EndReason && info.EndReason !== 'finished') result.notes.push(`${where}: this block ended early with ${block.table.length} of ${info.TotalTrials || 'its planned'} trials. All of them were kept.`);
-        if (block.index.ParticipantID >= 0 && block.table.some(row => row[block.index.ParticipantID] !== block.id)) result.warnings.push(`${where}: some trials carry a different participant ID from the block.`);
+        if (completed !== null && completed !== block.table.length) result.warnings.push(`${where}: the session-info file reports ${trialCount(completed)}, but the trial file contains ${block.table.length}.`);
+        if (info.EndReason && info.EndReason !== 'finished') result.notes.push(`${where}: this block ended early after ${info.TotalTrials ? `${block.table.length} of ${info.TotalTrials} trials` : trialCount(block.table.length)}. All recorded trials were included.`);
+        if (block.index.ParticipantID >= 0 && block.table.some(row => row[block.index.ParticipantID] !== block.id)) result.warnings.push(`${where}: some trial records have a different participant ID from their block.`);
         if (!block.id) result.warnings.push(`${where}: this block has no participant ID.`);
-        if (!block.hasLeft || !block.hasRight) result.notes.push(`${where}: kinematics files are incomplete. handDB does not need them.`);
+        if (!block.hasLeft || !block.hasRight) result.notes.push(`${where}: the kinematics files are incomplete, but they are not required for handDB.`);
         String(info.SetupChanges || '').split(';').filter(Boolean).forEach(change => {
             const parts = change.split('|');
-            if (CHANGE_FIELDS.has(parts[2])) result.warnings.push(`${where}: ${parts[2]} changed from ${parts[3]} to ${parts[4]} after trial ${parts[1]}. All trials carry the final label.`);
+            if (CHANGE_FIELDS.has(parts[2])) result.warnings.push(`${where}: ${parts[2]} changed from ${parts[3]} to ${parts[4]} after trial ${parts[1]}. ${parts[2] === 'Group' ? 'All trials are labelled with the group of the folder they are in.' : 'All trials are labelled with the final value.'}`);
         });
     }
 
@@ -351,7 +352,7 @@ const WebSpheresAnalysis = (() => {
                 BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group
             });
         });
-        if (unreadable) result.warnings.push(`${where}: ${unreadable} values could not be read as whole numbers and are recorded as NA.`);
+        if (unreadable) result.warnings.push(`${where}: ${unreadable === 1 ? '1 value could not be read as a whole number and is' : `${unreadable} values could not be read as whole numbers and are`} recorded as NA.`);
         return condition;
     }
 
@@ -363,7 +364,7 @@ const WebSpheresAnalysis = (() => {
             groups.get(key).add(s.id);
         });
         groups.forEach(ids => {
-            if (ids.size > 1) result.warnings.push(`These IDs look alike but are treated as different people: ${Array.from(ids).sort(compareText).join(', ')}.`);
+            if (ids.size > 1) result.warnings.push(`These participant IDs are similar but will be treated as different participants: ${Array.from(ids).sort(compareText).join(', ')}.`);
         });
     }
 
@@ -375,7 +376,7 @@ const WebSpheresAnalysis = (() => {
             else if (recorded !== label) mismatched.set(block.zip.name, recorded);
         });
         mismatched.forEach((recorded, name) => result.groupMismatches.push(`${name} was recorded as ${recorded}, but it is in the ${folder} folder.`));
-        if (unrecorded.size) result.warnings.push(`These zips do not record a group, so they could not be checked against the ${folder} folder: ${Array.from(unrecorded).join(', ')}.`);
+        if (unrecorded.size) result.warnings.push(`These ZIP files do not specify a group, so their group cannot be checked against the ${folder} folder: ${Array.from(unrecorded).join(', ')}.`);
     }
 
     function build(exportsRead, options) {
@@ -446,7 +447,7 @@ const WebSpheresAnalysis = (() => {
             '',
             'Files or blocks not used:', ...list(result.setAside.map(item => `${item.name}: ${item.reason}`)),
             '',
-            'Zips read (SHA-256):', ...list(exportsRead.map(zip => `${zip.name}: ${zip.sha256 || 'not available'}`))
+            'ZIP files read (SHA-256):', ...list(exportsRead.map(zip => `${zip.name}: ${zip.sha256 || 'not available'}`))
         ].join('\n') + '\n';
     }
 
@@ -471,17 +472,17 @@ const WebSpheresAnalysis = (() => {
     function checkStudyFolder(folder) {
         const name = folder.name;
         const lower = name.toLowerCase();
-        if (Object.hasOwn(GROUPS, lower)) return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder that contains it.` };
+        if (Object.hasOwn(GROUPS, lower)) return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder containing it.` };
         if (lower === 'zips' || lower === 'history') return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder two levels above it.` };
         const miscased = folder.dirs.find(dir => Object.hasOwn(GROUPS, dir.toLowerCase()) && !Object.hasOwn(GROUPS, dir));
         if (miscased) return { status: 'wrong', message: `Rename the ${miscased} folder to ${miscased.toLowerCase()}, all in lower case, then select ${name} again.` };
         const present = Object.keys(GROUPS).filter(group => folder.dirs.includes(group));
         const complete = present.filter(group => folder.groups[group].includes('zips'));
-        if (complete.length === Object.keys(GROUPS).length) return { status: 'ok', message: `${name} is an experiment folder. It has patients and controls folders.` };
-        if (present.length) return { status: 'setup', message: `${name} is missing some of the folders it needs. Select Set up this folder to add them.` };
+        if (complete.length === Object.keys(GROUPS).length) return { status: 'ok', message: `${name} contains the patients and controls folders.` };
+        if (present.length) return { status: 'setup', message: `${name} is missing required folders. Select Set up this folder to create them.` };
         const other = folder.dirs.concat(folder.files).filter(item => !item.startsWith('.') && !/^(readme|license)/i.test(item));
         if (!other.length) return { status: 'setup', message: `${name} is empty. Select Set up this folder to create the patients and controls folders.` };
-        return { status: 'wrong', message: `${name} is not an experiment folder because it has no patients or controls folder. Select the experiment folder. For a new experiment, make a new empty folder first.` };
+        return { status: 'wrong', message: `${name} has neither a patients nor a controls folder. Select the correct experiment folder, or create an empty folder for a new experiment.` };
     }
 
     function crossGroupStops(groupName, exportsRead, otherName, otherExports) {
@@ -491,7 +492,7 @@ const WebSpheresAnalysis = (() => {
         otherExports.forEach(zip => usable(zip).forEach(block => other.set(keyOf(block), zip.name)));
         const stops = new Set();
         exportsRead.forEach(zip => usable(zip).forEach(block => {
-            if (other.has(keyOf(block))) stops.add(`${zip.name} in ${groupName} and ${other.get(keyOf(block))} in ${otherName} hold the same session. Remove it from the wrong folder and try again.`);
+            if (other.has(keyOf(block))) stops.add(`${zip.name} in ${groupName} and ${other.get(keyOf(block))} in ${otherName} contain the same session. Remove the ZIP file from the incorrect folder, then try again.`);
         }));
         return Array.from(stops);
     }
@@ -529,7 +530,7 @@ const WebSpheresAnalysis = (() => {
             const differs = COLUMNS.filter(name => text(row[name]) !== old[at(name)]);
             if (differs.length) {
                 changed++;
-                if (examples.length < 5) examples.push(`${where}: ${differs.map(name => `${name} was ${old[at(name)]}, now ${text(row[name])}`).join('; ')}.`);
+                if (examples.length < 5) examples.push(`${where}: ${differs.map(name => `${name} changed from ${old[at(name)]} to ${text(row[name])}`).join('; ')}.`);
             }
         });
         const addedRows = keyedRows.filter(([key]) => !oldKeys.has(key)).map(([, row]) => row);

@@ -78,7 +78,7 @@
     <div id="app">
         <aside id="guide">
             <div class="g-head"><h2>Analysis guide</h2></div>
-            <p id="browser-stop" hidden>This page needs Chrome or Edge. Open it in one of those browsers on a laptop or desktop computer.</p>
+            <p id="browser-stop" hidden>Open this page in Chrome or Edge on a laptop or desktop computer.</p>
             <div id="steps">
                 <section class="step" data-step="1">
                     <button class="step-head" data-open="1"><span class="step-mark">1</span><span class="step-title">Get the latest copy</span><span class="step-val"></span></button>
@@ -93,7 +93,7 @@
                     <button class="step-head" data-open="2"><span class="step-mark">2</span><span class="step-title">Select the experiment folder</span><span class="step-val"></span></button>
                     <div class="step-body">
                         <p class="say">Select the folder for this experiment.</p>
-                        <p class="g-note">This is the folder GitHub Desktop keeps on this computer for the experiment. It contains the patients and controls folders. Your browser will ask for permission to view and edit it. Allow this so the page can save the master file.</p>
+                        <p class="g-note">This is the experiment folder GitHub Desktop keeps on this computer. Your browser will ask to view and edit it. Allow this so the master file can be saved.</p>
                         <div class="g-actions">
                             <button id="g2-again" class="wide" hidden></button>
                             <button id="g2-choose" class="wide">Select experiment folder</button>
@@ -114,10 +114,10 @@
                 <section class="step" data-step="4">
                     <button class="step-head" data-open="4"><span class="step-mark">4</span><span class="step-title">Add new sessions</span><span class="step-val"></span></button>
                     <div class="step-body">
-                        <p class="say">Copy each new session zip into this folder.</p>
+                        <p class="say">Copy each new session ZIP file into this folder.</p>
                         <p class="path" id="g4-path"></p>
-                        <p class="g-note">Copy each .zip file as it is. Do not unzip it first.</p>
-                        <label class="g-tick"><input type="checkbox"><span>I copied every new session zip into this folder.</span></label>
+                        <p class="g-note">Copy the original .zip files without extracting them.</p>
+                        <label class="g-tick"><input type="checkbox"><span>I copied all new session ZIP files into this folder.</span></label>
                         <label class="g-tick"><input type="checkbox"><span>I kept practice and test sessions out of this folder.</span></label>
                         <p class="g-msg" id="g4-msg" role="status"></p>
                         <div class="g-actions"><button id="g4-recheck">Check the folder again</button><button class="g-primary" data-next="4">Read the sessions</button></div>
@@ -126,11 +126,11 @@
                 <section class="step" data-step="5">
                     <button class="step-head" data-open="5"><span class="step-mark">5</span><span class="step-title">Check the sessions</span><span class="step-val"></span></button>
                     <div class="step-body">
-                        <p class="say">Compare the sessions on the right with what was run.</p>
+                        <p class="say">Check that the sessions on the right match the sessions that were run.</p>
                         <label class="g-tick"><input type="checkbox"><span>The participants, sessions and blocks shown match what was run.</span></label>
                         <label class="g-tick" id="g5-warned" hidden><input type="checkbox"><span>I read every warning on the right.</span></label>
-                        <label class="g-tick" id="g5-group" hidden><input type="checkbox"><span>I checked these sessions. They belong in this group, and the group was set wrongly when they were run.</span></label>
-                        <label class="g-tick" id="g5-changes" hidden><input type="checkbox"><span>I understand that rows already in the master will change.</span></label>
+                        <label class="g-tick" id="g5-group" hidden><input type="checkbox"><span>I confirmed that these sessions belong in this group, although they were recorded under the wrong group.</span></label>
+                        <label class="g-tick" id="g5-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the master.</span></label>
                         <p class="g-msg bad" id="g5-msg" role="status"></p>
                         <div class="g-actions"><button class="g-primary" data-next="5">Next</button></div>
                     </div>
@@ -140,7 +140,7 @@
                     <div class="step-body">
                         <p class="say" id="g6-say"></p>
                         <p class="path" id="g6-path"></p>
-                        <p class="g-note">Any earlier version is copied to the history folder first. The zips are not changed.</p>
+                        <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. The original ZIP files are not changed.</p>
                         <div class="g-actions"><button class="g-primary" id="g6-save"></button></div>
                         <p class="g-msg" id="g6-msg" role="status"></p>
                         <div class="g-actions"><button class="g-primary" data-next="6">Next</button></div>
@@ -162,9 +162,9 @@
         </aside>
         <main id="view">
             <h1>WebSpheres Analysis</h1>
-            <p class="lead">Your files stay on this computer. This page can only read and save files in the folder you select, and it is blocked from sending data anywhere.</p>
-            <p id="practice-banner" hidden>Practice data is included because this page was opened in practice mode. Do not use this master for analysis.</p>
-            <p id="empty-view">Follow the steps on the left. The sessions will appear here at step 5.</p>
+            <p class="lead">This page keeps your files on this computer. It can access only the folder you select and does not upload your data.</p>
+            <p id="practice-banner" hidden>Practice mode is on. Practice sessions are included and saved in separate PRACTICE_ files. Do not use them for analysis.</p>
+            <p id="empty-view">Follow the steps on the left. Your sessions will appear here in step 5.</p>
             <div id="results" hidden>
                 <section id="summary">
                     <p id="totals"></p>
@@ -177,10 +177,10 @@
                 <section id="group-mismatch" hidden>
                     <h2>These sessions were recorded under the other group</h2>
                     <ul id="group-mismatch-list"></ul>
-                    <p class="g-note">Move each zip to the correct group's zips folder, then go back to step 4 and read the sessions again. Only tick the box in step 5 if the group was set wrongly when the session was run.</p>
+                    <p class="g-note">Move each ZIP file to the correct group's zips folder, then return to step 4 and read the sessions again. Only tick the confirmation box in step 5 if the group was set incorrectly during the session.</p>
                 </section>
                 <section id="changes" class="list-section" hidden>
-                    <h2>Rows already in the master that would change</h2>
+                    <h2>Existing master rows that would change</h2>
                     <ul id="changes-list"></ul>
                 </section>
                 <div id="layout"></div>
