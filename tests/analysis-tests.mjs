@@ -242,6 +242,8 @@ console.log('BROWSER CHECK');
     ok(B.supported(brands('Not:A-Brand', 'Chromium', 'Microsoft Edge')), 'Edge is supported');
     ok(!B.supported(brands('Not A;Brand', 'Chromium', 'Brave')) && !B.supported(brands('Chromium', 'Opera')), 'other Chromium browsers are not');
     ok(!B.supported([]), 'a browser with no brand information is not');
+    ok(B.embedded('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.0 Chrome/152.0.7977.167 Safari/537.36 MSIX'), 'an app window that cannot edit folders is detected');
+    ok(!B.embedded('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'), 'normal Chrome is not treated as an app window');
 }
 
 console.log(`\nANALYSIS: ${pass} passed, ${fail} failed`);

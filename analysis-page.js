@@ -416,7 +416,7 @@
         render();
     }
 
-    if (!WebSpheresBrowser.supported() || typeof window.showDirectoryPicker !== 'function') {
+    if (!WebSpheresBrowser.supported() || WebSpheresBrowser.embedded() || typeof window.showDirectoryPicker !== 'function') {
         $('browser-stop').hidden = false;
         $('steps').hidden = true;
         $('empty-view').hidden = true;

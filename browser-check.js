@@ -6,7 +6,10 @@ const WebSpheresBrowser = (() => {
         if (names.some(name => ['Google Chrome', 'Microsoft Edge', 'HeadlessChrome'].includes(name))) return true;
         return names.length === 1 && names[0] === 'Chromium';
     }
-    return { supported };
+    function embedded(userAgent) {
+        return /\b(Electron|Claude)\//.test(userAgent === undefined ? navigator.userAgent : userAgent);
+    }
+    return { supported, embedded };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresBrowser;
