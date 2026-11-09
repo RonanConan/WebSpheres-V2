@@ -115,7 +115,7 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   await p.click('#g6-run');
   await msg('g6-msg', 'could not be calculated');
   ok((await p.locator('#g6-msg').innerText()).includes('kinematics_block_pipeline.py is not the approved version'), 'a script that differs from the approved version is refused and named');
-  ok(await p.locator('[data-next="6"]').isDisabled(), 'Next stays disabled after a failure');
+  ok(await p.locator('[data-next="6"]').isDisabled() && await p.locator('#g6-failed').isVisible(), 'Next stays disabled after a failure until saving the handDB master alone is accepted');
   await p.unroute('**/analysis-python/kinematics_block_pipeline.py');
 
   console.log('CONTROLS, REAL PYTHON');
@@ -206,20 +206,32 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   ok(patient('403').length === 11 && patient('403').every(r => r.less_affected_hand === 'LEFT' && r.more_affected_hand === 'RIGHT' && r.is_more_affected_reach === (r.hand === 'RIGHT' ? 'True' : 'False')), 'a patient whose less affected hand is the left hand is labelled from their session');
   ok(patient('404').length === 11 && patient('404').every(r => r.less_affected_hand === '' && r.more_affected_hand === '' && r.hand_role === 'unknown' && r.is_more_affected_reach === 'False'), 'no recorded less affected hand gives blank hand columns, not a guess');
   ok(new Set(patientRows.map(r => r.hand)).size === 2, 'the synthetic patients reach with both hands');
-  const plain = await p.evaluate(async (sessions) => {
-    const blob = (text) => new Blob([text], { type: 'text/csv' });
-    const blocks = sessions.map(s => ({ blockId: `${s.id}/s1/baseline-1`, blockName: 'baseline-1', participantId: s.id, session: 's1', behaviour: blob(s.behaviour), left: blob(s.left), right: blob(s.right) }));
+  const plain = await p.evaluate(async (ids) => {
+    const zips = await window.__dir(['KIN', 'patients', 'zips']);
+    const files = await Promise.all(ids.map(async id => (await zips.getFileHandle(`${id}.zip`)).getFile()));
+    const read = await Promise.all(files.map(file => WebSpheresAnalysis.readExport(file)));
+    const { blocks } = WebSpheresAnalysis.kinematicsPlan(WebSpheresAnalysis.build(read, { group: 'patients' }));
     return new Promise((resolve) => {
       const worker = new Worker('/analysis-kinematics-worker.js', { type: 'module' });
       worker.onmessage = ({ data }) => { if (data.type === 'done' || data.type === 'failed') { worker.terminate(); resolve(data); } };
       worker.postMessage({ group: 'unlabelled', blocks, dominant: {} });
     });
-  }, ['401', '403', '404'].map(id => ({ id, ...blockFiles(id, 1) })));
+  }, ['401', '403', '404']);
   const plainLines = ((plain.files || []).find(f => f.name === 'kinematics_all_valid_reaches_master.csv') || { text: '' }).text.trim().split('\n');
   ok(plainLines.length === 34 && plainLines[0].split(',').length === 69 && plainLines.every((line, i) => patientsCsv[i].startsWith(line + ',') && patientsCsv[i].slice(line.length + 1).split(',').length === 4), 'every value the script wrote is unchanged, character for character, with the four columns added after it');
   const patientSummary = JSON.parse(await read(['KIN', 'patients', 'kinematics_details'], 'batch_summary.json'));
   ok(patientSummary.less_affected_hand_not_known.join() === '404' && patientSummary.affected_hand_rule.includes('less affected hand'), 'the summary describes where the affected hand comes from');
   ok(await exists(['KIN', 'patients', 'kinematics_details'], 'processing_errors.csv'), 'the processing errors are saved');
+
+  console.log('A DAMAGED FILE INSIDE A ZIP');
+  const zipBytes = Buffer.from(await sessionZip('405', { dominant: 'RIGHT', group: 'Patient', day: 18 }), 'base64');
+  const damagedAt = zipBytes.indexOf('kinematics-LEFT') + 80;
+  zipBytes[damagedAt] ^= 0xff;
+  await put(['KIN', 'patients', 'zips'], '405.zip', zipBytes.toString('base64'));
+  await toStep6('patients');
+  await p.click('#g6-run');
+  await msg('g6-msg', 'Calculated 3 blocks');
+  ok((await p.locator('#kin-problems-list').innerText()).includes('405/s1/baseline-1: this block could not be processed'), 'a block whose file is damaged inside the ZIP is named, and the others are still calculated');
   ok(errs.length === 0, 'no page errors: ' + errs.join('; '));
   await b.close();
   done();

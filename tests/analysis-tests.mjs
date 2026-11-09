@@ -342,43 +342,46 @@ console.log('KINEMATICS INPUT AND OUTPUT');
     const whole = await zipOf('a.zip', planBlocks('930', ['N', 'B'], 3, '10'));
     const plan = A.kinematicsPlan(A.build([whole]));
     ok(same(plan.blocks.map(b => b.blockId), ['930/s1/baseline-1', '930/s1/boost-1']) && plan.blocks[0].session === 's1' && plan.dominant['930'] === 'RIGHT', 'blocks are identified the same way as in handDB');
-    const files = await A.kinematicsFiles(plan.blocks[0]);
-    ok(!files.missing && !files.source && (await files.left.text()) === KIN && (await files.behaviour.text()).startsWith('Trial,Timestamp'), 'the block files come from the chosen copy in the ZIP file');
+    const signature = async (file, offset) => new DataView(await file.slice(offset, offset + 4).arrayBuffer()).getUint32(0, true);
+    ok(plan.blocks[0].file === whole.file && !plan.blocks[0].missing && (await Promise.all(Object.values(plan.blocks[0].offsets).map(offset => signature(whole.file, offset)))).every(value => value === 0x04034b50) && new Set(Object.values(plan.blocks[0].offsets)).size === 3, 'each block points at its three files inside the chosen ZIP file');
     const noLeft = await zipOf('b.zip', planBlocks('931', ['N'], 3, '10'));
     noLeft.blocks[0].entries.left = undefined;
     noLeft.blocks[0].hasLeft = false;
     const partial = A.kinematicsPlan(A.build([noLeft])).blocks[0];
-    ok(partial.missing === 'kinematics-LEFT' && !('behaviour' in await A.kinematicsFiles(partial)), 'a missing kinematics file is named and not read');
-    const damaged = await zipOf('c.zip', planBlocks('932', ['N'], 3, '10'));
-    damaged.blocks[0].entries.left = Object.assign({}, damaged.blocks[0].entries.left, { crc: 1 });
-    ok((await A.kinematicsFiles(A.kinematicsPlan(A.build([damaged])).blocks[0])).missing.includes('could not be read'), 'a damaged kinematics file is reported, not used');
+    ok(partial.missing === 'kinematics-LEFT' && partial.offsets === null, 'a missing kinematics file is named and not read');
 
     const old = 'block_id,trial,value\nA,1,1\nA,2,2\nB,1,3\n';
     const c = A.compareKinematics(old, 'block_id,trial,value\nA,1,1\nA,2,9\nC,1,3\n');
     ok(c.comparable && c.added === 1 && c.changed === 1 && c.missing === 1 && c.examples.includes('A, trial 2: value changed.'), 'kinematics changes are counted by block and trial');
     ok(A.compareKinematics(old, old).added === 0 && A.compareKinematics(old, old).changed === 0, 'identical kinematics masters show no change');
     ok(!A.compareKinematics(old, 'block_id,trial\nA,1\n').comparable, 'different kinematics columns cannot be compared');
+    const repeated = 'block_id,trial,value\nA,1,1\nA,1,2\n';
+    ok(A.compareKinematics(repeated, repeated).changed === 0 && A.compareKinematics(repeated, repeated).added === 0, 'a repeated block and trial is matched row by row');
+    const dropped = A.compareKinematics(repeated, 'block_id,trial,value\nA,1,1\n');
+    ok(dropped.missing === 1 && dropped.changed === 0, 'losing one of two repeated rows is reported');
 
     const run = { checksums: { 'x.py': 'abc' }, versions: { pyodide: '1' }, files: [
-        { name: 'batch_summary.json', text: '{"pipeline_version":"v","configuration":{"resample_hz":90,"filter_cutoff_hz":6},"processed_blocks":1,"trials_total":2,"trials_valid_core":1,"analysis_master_rows":1,"maximum":NaN}' },
+        { name: 'batch_summary.json', text: '{"pipeline_version":"v","configuration":{"resample_hz":90,"filter_cutoff_hz":6},"processed_blocks":1,"trials_total":2,"trials_valid_core":1,"analysis_master_rows":1,"maximum":NaN,"minimum":-Infinity,"note":"NaN stays, \\"Infinity\\" too","handedness_not_known":["2"],"less_affected_hand_not_known":["2"]}' },
         { name: 'kinematics_all_valid_reaches_master.csv', text: 'block_id,trial\nA,1\n' },
         { name: 'all_trial_metrics.csv', text: 'block_id,trial\nA,1\nA,2\n' },
         { name: 'processing_errors.csv', text: 'block_id,error_type,error\nB,ValueError,bad\n' },
         { name: 'incomplete_file_triplets.csv', text: 'block_id,missing_files\nC,kinematics-LEFT\n' },
         { name: 'qc_reason_counts.csv', text: 'qc_reason,trials\nvalid,1\nonset_not_detected,1\n' }
     ] };
-    const k = A.readKinematics(run, 'controls', { dominant: { 1: 'LEFT', 2: '' } });
+    const k = A.readKinematics(run, 'controls');
+    ok(k.summary.minimum === null && k.summary.note === 'NaN stays, "Infinity" too', 'NaN and Infinity become null, but not inside text');
     ok(k.masterRows === 1 && k.summary.maximum === null && k.reasons.length === 1 && k.reasons[0].qc_reason === 'onset_not_detected', 'the script results are read, including a NaN in the summary');
     const problems = A.kinematicsProblems(k);
     ok(problems.length === 3 && problems[0].includes('B: this block could not be processed') && problems[1].includes('Missing: kinematics-LEFT') && problems[2].startsWith('Participant 2: handedness is not known'), 'every kinematics problem is listed');
-    const patientProblems = A.kinematicsProblems(A.readKinematics(run, 'patients', { dominant: { 1: 'LEFT', 2: '' } }));
+    const patientProblems = A.kinematicsProblems(A.readKinematics(run, 'patients'));
     ok(patientProblems.length === 3 && patientProblems[2] === 'Participant 2: the less affected hand is not known, so the less affected and more affected hand columns are blank.' && !patientProblems.some(p => p.includes('handedness')), 'a patient with no known less affected hand is listed in the patient wording');
     const result = A.build([whole], { group: 'patients' });
     const out = A.outputFiles([whole], result, '2026-11-10T00:00:00Z', 'patients', false, k);
     ok(same(out.slice(0, 2).map(f => f.path), ['handDB_patients.csv', 'kinematicsDB_patients.csv']) && out[1].parts[0] === 'block_id,trial\nA,1\n', 'the two masters are saved first');
     ok(out.filter(f => f.folder === 'kinematics_details').length === 5 && !out.some(f => f.path === 'kinematics_all_valid_reaches_master.csv'), 'the supporting files go in their own folder');
     ok(out.find(f => f.path === 'report_patients.txt').parts[0].includes('Trials that passed the quality checks: 1'), 'the report includes the kinematics');
-    ok(A.outputFiles([whole], result, '2026-11-10T00:00:00Z', 'patients', false).length === 3, 'the handDB files can still be made alone');
+    const alone = A.outputFiles([whole], result, '2026-11-10T00:00:00Z', 'patients', false);
+    ok(alone.length === 3 && alone[2].parts[0].includes('Kinematics: not calculated in this run'), 'the handDB files can still be made alone, and the report says so');
     ok(A.fileNames('controls', true).kinematics === 'PRACTICE_kinematicsDB_controls.csv' && A.fileNames('controls', true).details === 'PRACTICE_kinematics_details', 'practice mode has separate kinematics files');
 }
 

@@ -1,4 +1,4 @@
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.8.1';
 
 AFRAME.registerComponent('spectator-manager', {
     init: function () {
@@ -305,7 +305,7 @@ AFRAME.registerComponent('spectator-manager', {
             endReason: sm?.endReason ?? '',
             participantId: dataM?.participantId ?? '',
             experimenter: dataM?.experimenter ?? '',
-            group: dataM?.group ?? 'Control',
+            group: dataM?.group ?? '',
             homeMode: sm?.homeMode ?? 'one-box',
             dominantHand: scoreM?.dominantHand ?? 'RIGHT',
             reachHand: sm?.reachHand && scoreM ? sm.reachHand() : 'RIGHT',

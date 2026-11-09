@@ -75,7 +75,7 @@ const info = (text) => { const lines = text.trimEnd().split('\n'); return { head
   ok(si.header === 'Key,Value' && si.keys.join() === INFO_KEYS.join(), 'session info: Key,Value with the 20 keys in the planned order');
   const st = await E(() => ({ start: new Date(window.__dm.sessionStartTime).toISOString(), end: window.__dm.sessionEndTime, reach: window.__sm.calib.reach, r: window.__sm.radius, h: window.__sm.height, pauses: window.__dm.pauses, unlocks: window.__dm.setupUnlocks }));
   const m = si.map;
-  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.8.0' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
+  ok(m.ParticipantID === 'P07' && m.AppVersion === '2.8.1' && m.EndReason === 'ended-early', 'ParticipantID, AppVersion, EndReason');
   ok(m.SessionStartISO === st.start && m.SessionEndISO === new Date(st.end).toISOString() && m.SessionEndISO > m.SessionStartISO, 'SessionStartISO and SessionEndISO');
   ok(m.DominantHand === 'RIGHT' && m.Condition === '2' && m.Mode === 'short' && m.TotalTrials === '110' && m.TrialsCompleted === String(expect.n), 'DominantHand, Condition, Mode, TotalTrials, TrialsCompleted');
   ok(m.ReachHand === 'RIGHT' && +m.ReachDistance === st.reach.distance && +m.Radius === st.r && +m.Height === st.h, 'ReachHand, ReachDistance, Radius, Height');

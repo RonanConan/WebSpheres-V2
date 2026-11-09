@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.6.0';
+    const VERSION = '1.7.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand', 'LessAffectedHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
@@ -160,6 +160,14 @@ const WebSpheresAnalysis = (() => {
 
     const trialCount = (n) => `${n} ${n === 1 ? 'trial' : 'trials'}`;
     const compareText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+    const occurrenceKey = () => {
+        const seen = new Map();
+        return (...parts) => {
+            const base = parts.join('|');
+            seen.set(base, (seen.get(base) || 0) + 1);
+            return `${base}|${seen.get(base)}`;
+        };
+    };
 
     function toInteger(value) {
         const text = String(value).trim();
@@ -461,20 +469,11 @@ const WebSpheresAnalysis = (() => {
         recordedHands(result.blocks).forEach((hands, id) => { dominant[id] = hands.size === 1 ? Array.from(hands)[0] : ''; });
         const blocks = result.blocks.map(block => {
             const absent = [['kinematics-LEFT', block.source.entries.left], ['kinematics-RIGHT', block.source.entries.right]].filter(([, entry]) => !entry).map(([name]) => name);
-            return { blockId: `${block.ID}/s${block.Session}/${block.Block}`, blockName: block.Block, participantId: block.ID, session: `s${block.Session}`, source: block.source, missing: absent.join(';') };
+            const { file, entries } = block.source;
+            const offsets = absent.length ? null : { behaviour: entries.trial.offset, left: entries.left.offset, right: entries.right.offset };
+            return { blockId: `${block.ID}/s${block.Session}/${block.Block}`, blockName: block.Block, participantId: block.ID, session: `s${block.Session}`, file, offsets, missing: absent.join(';') };
         });
         return { blocks, dominant };
-    }
-
-    async function kinematicsFiles(item) {
-        const { source, ...rest } = item;
-        if (item.missing) return rest;
-        try {
-            const blob = async (entry) => new Blob([await entryBytes(source.file, entry)], { type: 'text/csv' });
-            return { ...rest, behaviour: await blob(source.entries.trial), left: await blob(source.entries.left), right: await blob(source.entries.right) };
-        } catch (e) {
-            return { ...rest, missing: 'The trial or kinematics files could not be read from the ZIP file.' };
-        }
     }
 
     function readTable(text) {
@@ -483,10 +482,10 @@ const WebSpheresAnalysis = (() => {
         return table.slice(1).map(row => Object.fromEntries(header.map((name, i) => [name, row[i]])));
     }
 
-    function readKinematics(run, group, plan) {
+    function readKinematics(run, group) {
         const file = (name) => (run.files.find(item => item.name === name) || { text: '' }).text;
-        const summary = JSON.parse(file('batch_summary.json').replace(/\bNaN\b/g, 'null'));
-        const unknown = Object.keys(plan.dominant).filter(id => !plan.dominant[id]).sort(compareText);
+        const summary = JSON.parse(file('batch_summary.json').replace(/"(?:[^"\\]|\\.)*"|-?\b(?:NaN|Infinity)\b/g, match => (match[0] === '"' ? match : 'null')));
+        const unknown = (summary.handedness_not_known || summary.less_affected_hand_not_known || []).slice().sort(compareText);
         return {
             group,
             files: run.files, checksums: run.checksums, versions: run.versions, summary,
@@ -512,12 +511,14 @@ const WebSpheresAnalysis = (() => {
         if ((oldTable[0] || []).join() !== (newTable[0] || []).join()) return { comparable: false, examples: [] };
         const header = newTable[0] || [];
         const blockAt = header.indexOf('block_id'), trialAt = header.indexOf('trial');
-        const keyOf = (row) => `${row[blockAt]}|${row[trialAt]}`;
-        const fresh = new Map(newTable.slice(1).map(row => [keyOf(row), row]));
+        const freshKey = occurrenceKey();
+        const keyedRows = newTable.slice(1).map(row => [freshKey(row[blockAt], row[trialAt]), row]);
+        const fresh = new Map(keyedRows);
+        const oldKey = occurrenceKey();
         const oldKeys = new Set(), examples = [];
         let changed = 0, missing = 0;
         oldTable.slice(1).forEach(old => {
-            const key = keyOf(old), row = fresh.get(key), where = `${old[blockAt]}, trial ${old[trialAt]}`;
+            const key = oldKey(old[blockAt], old[trialAt]), row = fresh.get(key), where = `${old[blockAt]}, trial ${old[trialAt]}`;
             oldKeys.add(key);
             if (!row) {
                 missing++;
@@ -527,7 +528,7 @@ const WebSpheresAnalysis = (() => {
                 if (examples.length < 5) examples.push(`${where}: ${header.filter((_, i) => row[i] !== old[i]).join(', ')} changed.`);
             }
         });
-        return { comparable: true, oldRows: oldTable.length - 1, added: newTable.slice(1).filter(row => !oldKeys.has(keyOf(row))).length, changed, missing, examples };
+        return { comparable: true, oldRows: oldTable.length - 1, added: keyedRows.filter(([key]) => !oldKeys.has(key)).length, changed, missing, examples };
     }
 
     function reportText(exportsRead, result, createdIso, kinematics) {
@@ -570,7 +571,7 @@ const WebSpheresAnalysis = (() => {
                 'Software:', ...list(Object.entries(kinematics.versions).map(([name, version]) => `${name} ${version}`)),
                 '',
                 'Python scripts (SHA-256):', ...list(Object.entries(kinematics.checksums).map(([name, sum]) => `${name}: ${sum}`))
-            ] : [])
+            ] : ['', 'Kinematics: not calculated in this run, so the kinematics master was not updated.'])
         ].join('\n') + '\n';
     }
 
@@ -626,18 +627,10 @@ const WebSpheresAnalysis = (() => {
         const table = parseCsv(oldText);
         if ((table[0] || []).join() !== COLUMNS.join()) return { comparable: false, examples: [] };
         const text = (value) => (value === null || value === undefined ? 'NA' : String(value));
-        const counter = () => {
-            const seen = new Map();
-            return (id, session, order, trial) => {
-                const base = [id, session, order, trial].join('|');
-                seen.set(base, (seen.get(base) || 0) + 1);
-                return `${base}|${seen.get(base)}`;
-            };
-        };
-        const freshKey = counter();
+        const freshKey = occurrenceKey();
         const keyedRows = rows.map(row => [freshKey(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)), row]);
         const fresh = new Map(keyedRows);
-        const oldKey = counter();
+        const oldKey = occurrenceKey();
         const at = (name) => COLUMNS.indexOf(name);
         const oldKeys = new Set(), oldIds = new Set(), examples = [];
         let changed = 0, missing = 0;
@@ -662,7 +655,7 @@ const WebSpheresAnalysis = (() => {
         return { comparable: true, oldRows: table.length - 1, added: addedRows.length, changed, missing, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size, examples };
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, kinematicsFiles, readKinematics, kinematicsProblems, compareKinematics };
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;

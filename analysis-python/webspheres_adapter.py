@@ -1,5 +1,7 @@
+import io
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -16,9 +18,9 @@ def record(block):
         "session": block["session"],
         "session_folder": block["session_folder"],
         "filename_participant_id": block["participant_id"],
-        "behaviour_path": Path(block["behaviour"]),
-        "left_path": Path(block["left"]),
-        "right_path": Path(block["right"]),
+        "behaviour_path": block["behaviour"],
+        "left_path": block["left"],
+        "right_path": block["right"],
     }
 
 
@@ -37,6 +39,16 @@ def missing_record(block):
     }
 
 
+def zip_member(entry):
+    with zipfile.ZipFile(entry["zip"]) as archive:
+        info = next(item for item in archive.infolist() if item.header_offset == entry["offset"])
+        return io.BytesIO(archive.read(info))
+
+
+def read_block_from_zips(load):
+    return lambda behaviour, left, right: load(zip_member(behaviour), zip_member(left), zip_member(right))
+
+
 def clear_study_rules(blocks):
     folders = sorted({block["session_folder"] for block in blocks})
     batch.SESSION_FOLDERS = {folder: folder for folder in folders}
@@ -47,12 +59,21 @@ def clear_study_rules(blocks):
     batch.MANUAL_ANALYSIS_EXCLUSIONS = ()
 
 
-def recorded_hands(recorded):
+def padded_ids(recorded):
     ids = pd.DataFrame({"participant_id": pd.Series(list(recorded), dtype="string")})
+    return list(controls.participant_ids(ids))
+
+
+def recorded_hands(recorded):
     labels = {}
-    for participant, padded in zip(recorded, controls.participant_ids(ids)):
+    for participant, padded in zip(recorded, padded_ids(recorded)):
         labels.setdefault(padded, set()).add(recorded[participant])
     return {key: next(iter(value)) if value in ({"LEFT"}, {"RIGHT"}) else "" for key, value in labels.items()}
+
+
+def hands_by_recorded_id(recorded):
+    hands = recorded_hands(recorded)
+    return {participant: hands[padded] for participant, padded in zip(recorded, padded_ids(recorded))}
 
 
 def use_recorded_handedness(dominant):
@@ -94,10 +115,14 @@ def postprocess_patient_outputs(output, recorded):
 
 
 def has_rows(path):
-    return path.exists() and len(path.read_text(encoding="utf-8").strip().splitlines()) > 1
+    if not path.exists():
+        return False
+    with path.open(encoding="utf-8") as source:
+        source.readline()
+        return bool(source.readline().strip())
 
 
-def update_summary(output, manifest):
+def update_summary(output, manifest, master_has_rows):
     path = output / "batch_summary.json"
     summary = json.loads(path.read_text(encoding="utf-8"))
     summary["input_directory"] = "WebSpheres Analysis page"
@@ -105,13 +130,15 @@ def update_summary(output, manifest):
     summary["session_folders"] = batch.SESSION_FOLDERS
     summary["patient_directories_discovered"] = len({block["participant_id"] for block in manifest["blocks"]})
     summary["group"] = manifest["group"]
+    hands = hands_by_recorded_id(manifest["dominant"]) if master_has_rows else {}
+    not_known = sorted(key for key, value in hands.items() if not value)
     if manifest["group"] == "controls" and "handedness_rule" in summary:
         summary["handedness_rule"] = "Each participant's handedness is the DominantHand value recorded in their sessions. The hand of interest is the non-dominant hand."
-        summary["left_handed_participants"] = sorted(key for key, value in manifest["dominant"].items() if value == "LEFT")
-        summary["handedness_not_known"] = sorted(key for key, value in manifest["dominant"].items() if value not in ("LEFT", "RIGHT"))
-    if manifest["group"] == "patients" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
+        summary["left_handed_participants"] = sorted(key for key, value in hands.items() if value == "LEFT")
+        summary["handedness_not_known"] = not_known
+    if manifest["group"] == "patients" and master_has_rows:
         summary["affected_hand_rule"] = "Each participant's less affected hand is the DominantHand value recorded in their sessions. The more affected hand is the other hand."
-        summary["less_affected_hand_not_known"] = sorted(key for key, value in manifest["dominant"].items() if value not in ("LEFT", "RIGHT"))
+        summary["less_affected_hand_not_known"] = not_known
     path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
@@ -123,11 +150,13 @@ def run(manifest_path):
     output = Path(manifest["output"])
     clear_study_rules(blocks)
     batch.discover_triplets = lambda _: (complete, incomplete, [], [])
+    batch.load_inputs = read_block_from_zips(batch.load_inputs)
     sys.argv = ["kinematics_batch_pipeline.py", "--input", manifest["input"], "--output", str(output)]
     batch.main()
-    if manifest["group"] == "controls" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
+    master_has_rows = has_rows(output / "kinematics_all_valid_reaches_master.csv")
+    if manifest["group"] == "controls" and master_has_rows:
         use_recorded_handedness(manifest["dominant"])
         controls.postprocess_control_outputs(output)
-    if manifest["group"] == "patients" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
+    if manifest["group"] == "patients" and master_has_rows:
         postprocess_patient_outputs(output, manifest["dominant"])
-    update_summary(output, manifest)
+    update_summary(output, manifest, master_has_rows)

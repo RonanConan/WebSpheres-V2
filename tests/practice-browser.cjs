@@ -51,7 +51,7 @@ async function openPractice(b, viewport) {
     const { p: host, ctx: hctx } = await openHost(b);
     const info = await host.evaluate(() => { window.__dm.participantId = 'P1'; return { info: window.__dm.buildSessionInfo(), file: window.__dm.filePrefix(), session: window.__dm.sessionPrefix(), practice: !!window.__practice, scripts: [...document.scripts].some(s => s.src.includes('practice')) }; });
     ok(!info.scripts && !info.practice, 'headset page without ?practice: no practice code');
-    ok(!info.info.includes('Practice') && info.info.trimEnd().split('\n').at(-1) === 'Group,Control', 'real session info has no Practice row and ends with Group');
+    ok(!info.info.includes('Practice') && info.info.trimEnd().split('\n').at(-1) === 'Group,', 'real session info has no Practice row and ends with Group, blank until it is chosen');
     ok(info.file === 'P1_' && info.session === 'P1_', 'real file names unmarked');
     await hctx.close();
 
@@ -83,6 +83,7 @@ async function openPractice(b, viewport) {
   console.log('SETUP WITH THE SIMULATED PARTICIPANT');
   await p.fill('#g-exp', 'Jo Smith');
   await p.fill('#g-id', 'G05');
+  await p.click('[data-g="group"][data-v="Control"]');
   await p.click('#g-confirm');
   await waitStep(3);
   await p.click('[data-plan-mode="fmode"]');
@@ -275,6 +276,7 @@ async function openPractice(b, viewport) {
     await open(2);
     await q.fill('#g-exp', 'Jo Smith');
     await q.fill('#g-id', 'H1');
+    await q.click('[data-g="group"][data-v="Control"]');
     await q.click('#g-confirm');
     await open(3);
     await q.click('[data-plan-mode="fmode"]');
@@ -315,6 +317,7 @@ async function openPractice(b, viewport) {
     await open(2);
     await q.fill('#g-exp', 'Jo Smith');
     await q.fill('#g-id', 'T1');
+    await q.click('[data-g="group"][data-v="Control"]');
     await q.click('#g-confirm');
     await open(3);
     await q.click('[data-plan-mode="fmode"]');

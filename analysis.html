@@ -145,6 +145,7 @@
                         <p class="g-note">This runs the kinematics scripts on this computer and may take several minutes. Keep this tab open until it finishes.</p>
                         <div class="g-actions"><button class="g-primary" id="g6-run">Calculate kinematics</button></div>
                         <p class="g-msg" id="g6-msg" role="status"></p>
+                        <label class="g-tick" id="g6-failed" hidden><input type="checkbox"><span>I understand that only the handDB master will be saved, and that the kinematics master will not be updated.</span></label>
                         <label class="g-tick" id="g6-problems" hidden><input type="checkbox"><span>I read every kinematics problem on the right.</span></label>
                         <label class="g-tick" id="g6-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the kinematics master.</span></label>
                         <div class="g-actions"><button class="g-primary" data-next="6">Next</button></div>
@@ -156,7 +157,7 @@
                         <p class="say" id="g7-say"></p>
                         <p class="path" id="g7-path"></p>
                         <p class="path" id="g7-path-kin"></p>
-                        <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. The original ZIP files are not changed.</p>
+                        <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. Any older file in the kinematics details folder that this run did not produce is moved to the history folder. The original ZIP files are not changed.</p>
                         <div class="g-actions"><button class="g-primary" id="g7-save"></button></div>
                         <p class="g-msg" id="g7-msg" role="status"></p>
                         <div class="g-actions"><button class="g-primary" data-next="7">Next</button></div>

@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.8.0', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.8.1', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -56,8 +56,8 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('info:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.8.0, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.8.0' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.8.1, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.8.1' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -79,6 +79,9 @@ const KH = 'Timestamp,HandX\n';
   ok(!(await sent()).some(m => m.code === 'KeyR') && await E(() => document.getElementById('recentre-note').textContent === '') && await E(() => document.getElementById('g-id').value === 'P21r'), 'R typed in the ID box goes into the box: no recentre, nothing relayed');
   await p.fill('#g-id', 'P21');
   await click('[data-g="dom"][data-v="RIGHT"]');
+  await click('#g-confirm'); await tick();
+  ok((await text('g2-msg')) === 'Select the group.' && (await cmds()).length === 0, 'the group must be chosen, it has no default');
+  await click('[data-g="group"][data-v="Control"]');
   await E(() => { window.__refuse = { setExperimenter: 'Setup locked. Unlock first.' }; });
   await click('#g-confirm'); await tick();
   ok((await text('g2-msg')) === 'Headset refused: Setup locked. Unlock first.' && (await cmds()).join() === 'setDominant:RIGHT,setExperimenter:Jo Smith', 'a refusal is shown and stops the sequence (ID not sent)');
@@ -86,7 +89,7 @@ const KH = 'Timestamp,HandX\n';
   await click('#g-confirm'); await tick();
   ok((await cmds()).join() === 'setDominant:RIGHT,setExperimenter:Jo Smith,setGroup:Control,setParticipant:P21' && (await text('g2-msg')) === 'Received by headset', `Confirm sends hand, condition, mode, then the ID; result shown (${(await cmds()).join()} / "${await text('g2-msg')}")`);
   ok(await openStep() === 2, 'stays on step 2 until the headset reports the values back');
-  await setState({ experimenter: 'Jo Smith', participantId: 'P21', dominantHand: 'RIGHT' }); await tick();
+  await setState({ experimenter: 'Jo Smith', participantId: 'P21', dominantHand: 'RIGHT', group: 'Control' }); await tick();
   const c2 = await checks('g2-checks');
   ok(await isDone(2) && await openStep() === 3, 'headset reports the values → step 2 ✓, Block plan opens');
   ok(c2.join('|') === 'ok:Experimenter: Jo Smith|ok:Participant ID: P21|ok:Group: Controls|ok:Dominant hand: Right', 'reported values listed with ✓');
@@ -153,7 +156,7 @@ const KH = 'Timestamp,HandX\n';
   ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start block 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.8.0', participantId: '' }); await tick();
+  await setState({ version: '2.8.1', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });

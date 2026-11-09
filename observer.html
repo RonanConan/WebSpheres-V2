@@ -1899,7 +1899,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.8.0';
+    const APP_VERSION = '2.8.1';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const MODE_PER_RUN = { standard: '352 trials per block', short: '110 trials per block', fmode: '44 trials per block (2 sets of 22)', block: '110 trials per block (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
@@ -1933,7 +1933,7 @@
     let cmdSeq = 0;
     const guide = {
         expanded: null, lastCurrent: null, sub: null, lastCue: undefined,
-        form: { dom: null, group: 'Control' }, formDirty: false, busy: false,
+        form: { dom: null, group: null }, formDirty: false, busy: false,
         plan: { mode: 'standard', home: 'one-box', charts: ['quality'], runs: [{ condition: 1, off: false, recal: false }] }, planDirty: false, planSeq: 0, planKey: '', dragFrom: null,
         breakShown: false, betweenRun: null, removedTick: false, recalSkipped: false, resume: null, recovery: [], recoveryKey: '',
         results: { open: false, autoOpened: false, shape: null, shapeBuilt: false, charts: new Set(), chartsSet: false, drawnKey: '', drawToken: 0, parsed: new Map(), saving: false, ws: { view: null, failed: false, run: 0, viewName: 'Free', data: null } },
@@ -2101,7 +2101,7 @@
         const live = receiver.isLive();
         const versionOk = !!s && s.version === APP_VERSION;
         const calib = s && s.calib;
-        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && guide.form.group === (s.group || 'Control') && $('g-id').value.trim() === s.participantId && $('g-exp').value.trim() === s.experimenter));
+        const formMatches = !!s && (!guide.formDirty || (guide.form.dom === s.dominantHand && guide.form.group === (s.group || null) && $('g-id').value.trim() === s.participantId && $('g-exp').value.trim() === s.experimenter));
         const done = {
             1: live && versionOk,
             2: !!(s && s.participantId && s.experimenter) && formMatches,
@@ -2145,7 +2145,7 @@
 
     function prefillForm(s) {
         if (guide.formDirty || !s) return;
-        guide.form = { dom: s.dominantHand, group: s.group || 'Control' };
+        guide.form = { dom: s.dominantHand, group: s.group || null };
         if (document.activeElement !== $('g-id')) $('g-id').value = s.participantId || '';
         if (document.activeElement !== $('g-exp')) $('g-exp').value = s.experimenter || '';
     }
@@ -2248,7 +2248,7 @@
             setChecks('g2-checks', [
                 sentLine('Experimenter', s.experimenter, $('g-exp').value.trim()),
                 sentLine('Participant ID', s.participantId, $('g-id').value.trim()),
-                sentLine('Group', GROUP_LABEL[s.group || 'Control'], GROUP_LABEL[guide.form.group]),
+                sentLine('Group', GROUP_LABEL[s.group], GROUP_LABEL[guide.form.group]),
                 sentLine(handWords(guide.form.group).hand, HAND_LABEL[s.dominantHand], HAND_LABEL[guide.form.dom])
             ]);
         }
@@ -2359,7 +2359,7 @@
                 if (!guide.unlockedShown) $('g-unlocked').scrollIntoView({ block: 'nearest' });
                 const idle = !st.live || guide.busy;
                 document.querySelectorAll('[data-u]').forEach(b => {
-                    b.classList.toggle('on', b.dataset.v === String(b.dataset.u === 'setCondition' ? s.condition : b.dataset.u === 'setGroup' ? (s.group || 'Control') : s.dominantHand));
+                    b.classList.toggle('on', b.dataset.v === String(b.dataset.u === 'setCondition' ? s.condition : b.dataset.u === 'setGroup' ? s.group : s.dominantHand));
                     b.disabled = idle;
                 });
                 document.querySelectorAll('[data-ucalib], #u-exp-go, #u-id-go, #g-relock').forEach(b => { b.disabled = idle; });
@@ -2584,7 +2584,7 @@
         if (!next) return;
         guide.busy = true;
         $('g-resume-msg').textContent = 'Sending…';
-        const steps = [['setDominant', r.dominantHand], ...(r.reachHand ? [['setReachHand', r.reachHand]] : []), ['setExperimenter', r.experimenter], ['setGroup', r.group || 'Control'], ['setParticipant', r.participantId], r.mode === 'custom' ? ['setCustomTrials', r.totalTrials] : ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
+        const steps = [['setDominant', r.dominantHand], ...(r.reachHand ? [['setReachHand', r.reachHand]] : []), ['setExperimenter', r.experimenter], ...(r.group ? [['setGroup', r.group]] : []), ['setParticipant', r.participantId], r.mode === 'custom' ? ['setCustomTrials', r.totalTrials] : ['setMode', r.mode], ['setHomeMode', r.homeMode], ['setCondition', next.condition], ['setPlan', { runs: r.plan.runs, charts: r.plan.charts || [] }], ['resumeAt', r.nextRun]];
         for (const [name, value] of steps) {
             const result = await sendCmd(name, value);
             if (!result.ok) {
@@ -3499,6 +3499,7 @@
         if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID must contain 1–32 letters, numbers, underscores or hyphens.', 'bad'); return; }
         if (/left|right/i.test(id)) { setMsg(2, 'The participant ID cannot contain “left” or “right” because the 3D viewer uses those words in file names.', 'bad'); return; }
         const f = guide.form;
+        if (!f.group) { setMsg(2, 'Select the group.', 'bad'); return; }
         if (!f.dom) { setMsg(2, `Select the ${handWords(f.group).lower}.`, 'bad'); return; }
         guide.busy = true;
         setMsg(2, 'Sending…', 'busy');

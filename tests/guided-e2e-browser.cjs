@@ -43,6 +43,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   ok(true, 'connects and moves to step 2 by itself');
   await o.fill('#g-exp', 'Jo Smith');
   await o.fill('#g-id', 'G05');
+  await o.click('[data-g="group"][data-v="Control"]');
   await o.click('[data-g="dom"][data-v="RIGHT"]');
   await o.click('#g-confirm');
   await waitStep(3);

@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.8.0';
+const VERSION = '2.8.1';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };
@@ -43,11 +43,11 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   ok(await openStep() === 2, 'Participant opens');
   ok((await cyan()).join() === 'g-confirm', 'one cyan button: Send to headset');
   ok(await nextShown(2) === false, 'Next hidden until sent');
-  ok((await checks('g2-checks')).join('|') === 'bad:Experimenter: not sent|bad:Participant ID: not sent|ok:Group: Controls|ok:Dominant hand: Left', 'empty form: nothing sent, headset hand shown');
-  await p.fill('#g-exp', 'Jo'); await p.fill('#g-id', 'P9'); await p.click('[data-g="dom"][data-v="RIGHT"]'); await tick();
-  ok((await checks('g2-checks')).join('|') === 'warn:Experimenter not sent: Jo|warn:Participant ID not sent: P9|ok:Group: Controls|warn:Dominant hand not sent: Right', 'typed values marked as not sent');
+  ok((await checks('g2-checks')).join('|') === 'bad:Experimenter: not sent|bad:Participant ID: not sent|bad:Group: not sent|ok:Dominant hand: Left', 'empty form: nothing sent, no group chosen, headset hand shown');
+  await p.fill('#g-exp', 'Jo'); await p.fill('#g-id', 'P9'); await p.click('[data-g="group"][data-v="Control"]'); await p.click('[data-g="dom"][data-v="RIGHT"]'); await tick();
+  ok((await checks('g2-checks')).join('|') === 'warn:Experimenter not sent: Jo|warn:Participant ID not sent: P9|warn:Group not sent: Controls|warn:Dominant hand not sent: Right', 'typed values marked as not sent');
   await p.click('#g-confirm'); await tick();
-  await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT' }); await frame(); await tick();
+  await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT', group: 'Control' }); await frame(); await tick();
   ok((await checks('g2-checks')).join('|') === 'ok:Experimenter: Jo|ok:Participant ID: P9|ok:Group: Controls|ok:Dominant hand: Right', 'after sending: values ticked');
   const wordsOf = () => p.evaluate(() => ({ form: document.getElementById('g-dom-label').textContent, unlocked: document.getElementById('u-dom-label').textContent, key: document.getElementById('key-dom-left').textContent, bar: document.getElementById('v-dom').previousElementSibling.firstChild.nodeValue, row: document.getElementById('r-dom').previousElementSibling.firstChild.nodeValue, wide: document.documentElement.scrollWidth <= window.innerWidth }));
   let words = await wordsOf();

@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.8.0';
+const VERSION = '2.8.1';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -148,7 +148,7 @@ const idbAll = (page, store) => page.evaluate((name) => new Promise((resolve, re
 }), store);
 
 const RUNS = [{ condition: 1, off: false, recal: false }, { condition: 2, off: true, recal: false }, { condition: 1, off: false, recal: false }];
-const STATE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'between', endReason: 'finished', participantId: 'P1', filePrefix: 'P1_block1_', sessionPrefix: 'P1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 1000, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 3, plan: { mode: 'fmode', home: 'one-box', runs: RUNS }, inVR: true, closing: false, saving: false, headsetCopyRun: 0, betweenMs: 0, betweenRecentres: 0, recalibrated: [], completedRuns: [], backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, info: 'Key,Value\nBlock,1\n' };
+const STATE = { type: 'state', version: VERSION, sessionId: 'A', group: 'Control', phase: 'between', endReason: 'finished', participantId: 'P1', filePrefix: 'P1_block1_', sessionPrefix: 'P1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 1000, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 3, plan: { mode: 'fmode', home: 'one-box', runs: RUNS }, inVR: true, closing: false, saving: false, headsetCopyRun: 0, betweenMs: 0, betweenRecentres: 0, recalibrated: [], completedRuns: [], backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, info: 'Key,Value\nBlock,1\n' };
 
 async function laptopSuite(b) {
   const { ctx, o, load } = await observer(b);

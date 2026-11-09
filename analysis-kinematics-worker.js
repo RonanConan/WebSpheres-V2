@@ -34,15 +34,18 @@ async function loadScripts(py) {
 
 function prepareData(py, blocks) {
     const blobs = [];
-    const manifestBlocks = blocks.map((block, index) => {
-        const entry = { block_id: block.blockId, block_name: block.blockName, participant_id: block.participantId, session: block.session, session_folder: block.session, missing: block.missing || '' };
-        if (!block.missing) {
-            [['behaviour', block.behaviour], ['left', block.left], ['right', block.right]].forEach(([kind, data]) => {
-                const name = `${index}-${kind}.csv`;
-                blobs.push({ name, data });
-                entry[kind] = `${DATA}/${name}`;
-            });
+    const mounted = new Map();
+    const zipPath = (file) => {
+        if (!mounted.has(file)) {
+            const name = `${mounted.size}.zip`;
+            blobs.push({ name, data: file });
+            mounted.set(file, `${DATA}/${name}`);
         }
+        return mounted.get(file);
+    };
+    const manifestBlocks = blocks.map((block) => {
+        const entry = { block_id: block.blockId, block_name: block.blockName, participant_id: block.participantId, session: block.session, session_folder: block.session, missing: block.missing || '' };
+        if (!block.missing) ['behaviour', 'left', 'right'].forEach((kind) => { entry[kind] = { zip: zipPath(block.file), offset: block.offsets[kind] }; });
         return entry;
     });
     py.FS.mkdirTree(DATA);

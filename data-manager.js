@@ -14,7 +14,7 @@ AFRAME.registerComponent('data-manager', {
         this.recentreCount = 0;
         this.participantId = '';
         this.experimenter = '';
-        this.group = 'Control';
+        this.group = '';
         this.sessionEndTime = 0;
         this.lastExportTimestamp = '';
         this.xrModes = [];
