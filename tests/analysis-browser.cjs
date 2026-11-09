@@ -253,6 +253,25 @@ const PICKER = () => {
   await remove(['NEW', 'patients', 'zips'], '101_vr-session-data-2026.csv');
   await p.evaluate(async () => (await window.__dir(['NEW', 'patients', 'zips'])).removeEntry('extracted', { recursive: true }));
 
+  console.log('MAC FILES IN THE FOLDER');
+  await restart();
+  await putText(['NEW', 'patients', 'zips'], '.DS_Store', 'x');
+  await putText(['NEW', 'patients', 'zips'], '._101.zip', 'x');
+  await goToStep4('patients');
+  ok((await text('#g4-msg')).startsWith('3 zip files'), 'hidden Mac files are not counted as zips');
+  await readSessions();
+  ok(!(await p.locator('#warnings').isVisible()) && !(await p.locator('#set-aside').isVisible()), 'hidden Mac files cause no warnings');
+  await remove(['NEW', 'patients', 'zips'], '.DS_Store');
+  await remove(['NEW', 'patients', 'zips'], '._101.zip');
+  await putText(['NEW', 'patients', 'zips'], '.106.zip.icloud', 'x');
+  await restart();
+  await goToStep4('patients');
+  await readSessions();
+  ok((await text('#stops-list')).includes('stored in iCloud') && (await text('#stops-list')).includes('106.zip'), 'a zip still in iCloud is named');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'a zip still in iCloud stops the save');
+  await remove(['NEW', 'patients', 'zips'], '.106.zip.icloud');
+
   console.log('NOTHING NEW');
   await restart();
   await goToStep4('patients');

@@ -1,11 +1,23 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.1.0';
+    const VERSION = '1.2.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
-    const FILE_KIND = /(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-\d{4}-\d{2}-\d{2}T[\d-]+\.csv$/;
+    const FILE_KIND = /^(.*?)(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-(\d{4}-\d{2}-\d{2}T[\d-]+)\.csv$/;
     const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group']);
+    const RESUME_LIMIT_MS = 24 * 60 * 60 * 1000;
+    const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        return c >>> 0;
+    });
+
+    function crc32(bytes) {
+        let crc = 0xffffffff;
+        for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+        return (crc ^ 0xffffffff) >>> 0;
+    }
 
     async function zipEntries(file) {
         const tailSize = Math.min(file.size, 65557);
@@ -27,9 +39,10 @@ const WebSpheresAnalysis = (() => {
             const nameLength = central.getUint16(at + 28, true);
             entries.push({
                 method: central.getUint16(at + 10, true),
+                crc: central.getUint32(at + 16, true),
                 compressedSize: central.getUint32(at + 20, true),
                 offset: central.getUint32(at + 42, true),
-                path: decoder.decode(new Uint8Array(central.buffer, central.byteOffset + at + 46, nameLength))
+                path: decoder.decode(new Uint8Array(central.buffer, central.byteOffset + at + 46, nameLength)).replace(/\\/g, '/')
             });
             at += 46 + nameLength + central.getUint16(at + 30, true) + central.getUint16(at + 32, true);
         }
@@ -41,9 +54,11 @@ const WebSpheresAnalysis = (() => {
         if (head.getUint32(0, true) !== 0x04034b50) throw new Error('bad zip entry');
         const start = entry.offset + 30 + head.getUint16(26, true) + head.getUint16(28, true);
         const raw = file.slice(start, start + entry.compressedSize);
-        if (entry.method === 0) return raw.text();
-        if (entry.method !== 8) throw new Error('unsupported zip compression');
-        return new Response(raw.stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+        if (entry.method !== 0 && entry.method !== 8) throw new Error('unsupported zip compression');
+        const stream = entry.method === 8 ? raw.stream().pipeThrough(new DecompressionStream('deflate-raw')) : raw.stream();
+        const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+        if (crc32(bytes) !== entry.crc) throw new Error('checksum mismatch');
+        return new TextDecoder().decode(bytes);
     }
 
     function parseCsv(text) {
@@ -79,6 +94,21 @@ const WebSpheresAnalysis = (() => {
         return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    function splitFolder(folder, items) {
+        const counts = {};
+        items.forEach(item => { counts[item.kind] = (counts[item.kind] || 0) + 1; });
+        const shared = Object.values(counts).some(n => n > 1);
+        const groups = new Map();
+        items.forEach(item => {
+            const key = shared ? `${item.prefix}${item.stamp}` : '';
+            if (!groups.has(key)) groups.set(key, { folder: shared ? [folder, key].filter(Boolean).join('/') : folder, group: {}, duplicate: false });
+            const target = groups.get(key);
+            if (target.group[item.kind]) target.duplicate = true;
+            target.group[item.kind] = item.entry;
+        });
+        return Array.from(groups.values());
+    }
+
     async function readExport(file, options) {
         const infoOnly = !!(options && options.infoOnly);
         const out = { name: file.name, size: file.size, file, sha256: '', blocks: [], problem: '' };
@@ -89,19 +119,22 @@ const WebSpheresAnalysis = (() => {
             out.problem = 'This file could not be read as a zip.';
             return out;
         }
-        const groups = new Map();
+        const folders = new Map();
         entries.forEach(entry => {
-            const base = entry.path.split('/').pop();
+            const parts = entry.path.split('/');
+            const base = parts[parts.length - 1];
+            if (parts.includes('__MACOSX') || base.startsWith('.')) return;
             const kind = FILE_KIND.exec(base);
             if (!kind) return;
-            const folder = entry.path.slice(0, entry.path.length - base.length).replace(/\/$/, '');
-            if (!groups.has(folder)) groups.set(folder, {});
-            groups.get(folder)[kind[1]] = entry;
+            const folder = parts.slice(0, -1).join('/');
+            if (!folders.has(folder)) folders.set(folder, []);
+            folders.get(folder).push({ entry, prefix: kind[1], kind: kind[2], stamp: kind[3] });
         });
-        for (const [folder, group] of groups) {
+        for (const { folder, group, duplicate } of Array.from(folders).flatMap(([name, items]) => splitFolder(name, items))) {
             const trialEntry = group['vr-session-data'], infoEntry = group['session-info'];
             const block = { folder, problem: '', hasLeft: !!group['kinematics-LEFT'], hasRight: !!group['kinematics-RIGHT'] };
-            if (!trialEntry) block.problem = 'This block has no trial file.';
+            if (duplicate) block.problem = 'This folder holds more than one file of the same kind, so it cannot be read safely.';
+            else if (!trialEntry) block.problem = 'This block has no trial file.';
             else if (!infoEntry) block.problem = 'This block has no session-info file, so its layout cannot be read.';
             else {
                 try {
@@ -113,7 +146,7 @@ const WebSpheresAnalysis = (() => {
                     block.info = parseInfo(await entryText(file, infoEntry));
                     block.practice = block.info.Practice === '1' || /^PRACTICE_/.test(trialEntry.path.split('/').pop());
                 } catch (e) {
-                    block.problem = 'The files in this block could not be read.';
+                    block.problem = 'The files in this block could not be read. The zip may be damaged.';
                 }
             }
             out.blocks.push(block);
@@ -223,10 +256,11 @@ const WebSpheresAnalysis = (() => {
         const lastNumber = (group) => Math.max(...group.map(b => b.number));
         const planOf = (group) => (group.find(b => b.info.Plan) || { info: {} }).info.Plan || '';
         const startOf = (group) => group.map(b => b.start).sort(compareText)[0] || '';
+        const lastStart = (group) => Math.max(...group.map(b => Date.parse(b.start)));
         const joined = [];
         groups.slice().sort((a, b) => compareText(startOf(a), startOf(b))).forEach(group => {
             const earlier = joined.slice().reverse().find(other => other[0].id === group[0].id && other[0].practice === group[0].practice);
-            if (earlier && firstNumber(group) > 1 && planOf(group) && planOf(earlier) === planOf(group) && lastNumber(earlier) < firstNumber(group)) earlier.push(...group);
+            if (earlier && firstNumber(group) > 1 && planOf(group) && planOf(earlier) === planOf(group) && lastNumber(earlier) < firstNumber(group) && Date.parse(startOf(group)) - lastStart(earlier) <= RESUME_LIMIT_MS) earlier.push(...group);
             else joined.push(group);
         });
         return joined;
@@ -254,6 +288,7 @@ const WebSpheresAnalysis = (() => {
             const planned = plan.get(block.number);
             if (observed && planned && observed !== planned) result.warnings.push(`${where}: block ${block.number} ran as ${observed}, but the plan listed it as ${planned}. It is labelled ${observed}.`);
             if (!observed && !planned) result.warnings.push(`${where}: block ${block.number} has no readable condition.`);
+            if (!observed && planned) result.warnings.push(`${where}: block ${block.number} has no readable condition, so it is labelled ${planned} from the plan.`);
             return { number: block.number, start: block.start, type: observed || planned || 'unknown', block };
         });
         plan.forEach((type, number) => {

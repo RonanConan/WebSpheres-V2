@@ -250,6 +250,39 @@ console.log('MASTER COMPARISON');
     ok(A.crossGroupStops('patients', [a], 'controls', [c]).length === 0, 'the same ID with a different session is allowed in both groups');
 }
 
+console.log('REPACKED AND MAC ZIPS');
+{
+    const twoBlocks = planBlocks('901', ['N', 'B'], 5, '10');
+    const raw = async (name, list) => {
+        const blob = await Z.make(list);
+        return A.readExport(new File([await blob.arrayBuffer()], name));
+    };
+    const filesFor = (b, dir) => [
+        { path: `${dir}901_block${b.number}_vr-session-data-${STAMP}.csv`, parts: [trials('901', b.number, b.n)] },
+        { path: `${dir}901_block${b.number}_session-info-${STAMP}.csv`, parts: [info({ ParticipantID: '901', SessionStartISO: b.start, Condition: b.condition, TrialsCompleted: b.n, Block: b.number, Plan: planText(b.plan) })] }
+    ];
+    const flat = A.build([await raw('flat.zip', twoBlocks.flatMap(b => filesFor(b, '')))]);
+    ok(flat.rows.length === 10 && flat.blocks.length === 2 && !flat.warnings.length, 'two blocks in one folder are both read');
+    const back = A.build([await raw('back.zip', twoBlocks.flatMap(b => filesFor(b, `block${b.number}\\`)))]);
+    ok(back.rows.length === 10 && back.blocks.length === 2, 'backslash paths are read');
+    const twin = await raw('twin.zip', [...filesFor(twoBlocks[0], ''), ...filesFor(twoBlocks[0], '')]);
+    const twinResult = A.build([twin]);
+    ok(!twinResult.rows.length && twinResult.setAside[0].reason.includes('more than one file of the same kind'), 'the same file twice in one folder is refused, not overwritten');
+    const mac = await raw('mac.zip', [...twoBlocks.flatMap(b => filesFor(b, `101 session/block${b.number}/`)), { path: `__MACOSX/101 session/block1/._901_block1_vr-session-data-${STAMP}.csv`, parts: ['junk'] }, { path: '101 session/.DS_Store', parts: ['junk'] }, { path: `101 session/block1/._901_block1_session-info-${STAMP}.csv`, parts: ['junk'] }]);
+    const macResult = A.build([mac]);
+    ok(macResult.rows.length === 10 && !macResult.setAside.length && !macResult.warnings.length, 'Finder extras in a Mac-made zip are ignored');
+    const bytes = new Uint8Array(await (await Z.make(filesFor(twoBlocks[0], 'block1/'))).arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    for (let i = 0; i < bytes.length - 4; i++) if (view.getUint32(i, true) === 0x02014b50) { view.setUint32(i + 16, 12345, true); break; }
+    const damaged = A.build([await A.readExport(new File([bytes], 'bad.zip'))]);
+    ok(!damaged.rows.length && damaged.setAside[0].reason.includes('may be damaged'), 'a checksum mismatch is caught');
+    const firstWeek = planBlocks('902', ['N', 'B'], 3, '10').slice(0, 1);
+    const nextWeek = planBlocks('902', ['N', 'B'], 3, '17').slice(1);
+    ok(A.build([await zipOf('w1.zip', firstWeek), await zipOf('w2.zip', nextWeek)]).sessions.length === 2, 'zips a week apart are not joined as a resume');
+    const noCondition = A.build([await zipOf('c.zip', planBlocks('903', ['B'], 3, '10', { condition: 7 }))]);
+    ok(noCondition.rows[0].BlockType === 'boost' && noCondition.warnings.some(w => w.includes('labelled boost from the plan')), 'a label taken from the plan is warned about');
+}
+
 console.log('RECORDED GROUP');
 {
     const withGroup = async (name, id, group, day) => {

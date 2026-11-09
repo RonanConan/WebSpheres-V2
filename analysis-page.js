@@ -241,7 +241,7 @@
         } catch (e) {
             state.root = null;
             state.folderOk = false;
-            setMsg('g2-msg', 'That folder could not be read. Select it again and allow access when your browser asks.', 'bad');
+            setMsg('g2-msg', 'That folder could not be read. Select it again and allow access when your browser asks. On a Mac, also check that Chrome is allowed to use this folder under System Settings, Privacy & Security, Files and Folders.', 'bad');
         }
         render();
     }
@@ -290,7 +290,7 @@
         const zips = await (await state.root.getDirectoryHandle(group)).getDirectoryHandle('zips');
         const files = [];
         for await (const [name, handle] of zips.entries()) {
-            if (handle.kind === 'file' && /\.zip$/i.test(name)) files.push(handle);
+            if (handle.kind === 'file' && !name.startsWith('.') && /\.zip$/i.test(name)) files.push(handle);
         }
         return Promise.all(files.sort((a, b) => (a.name < b.name ? -1 : 1)).map(handle => handle.getFile()));
     }
@@ -299,6 +299,12 @@
         const zips = await (await state.root.getDirectoryHandle(group)).getDirectoryHandle('zips');
         const { dirs, files } = await listFolder(zips);
         return dirs.concat(files.filter(name => !/\.zip$/i.test(name))).filter(name => !name.startsWith('.') && !name.endsWith('.crswap')).sort();
+    }
+
+    async function iCloudPlaceholders(group) {
+        const groupDir = await state.root.getDirectoryHandle(group);
+        const names = (await listFolder(groupDir)).files.concat((await listFolder(await groupDir.getDirectoryHandle('zips'))).files);
+        return names.filter(name => /^\..+\.icloud$/.test(name)).map(name => name.slice(1, -7)).sort();
     }
 
     async function countZips() {
@@ -339,7 +345,9 @@
             const result = A.build(state.exports, { includePractice, group: state.group });
             result.stops.push(...A.crossGroupStops(state.group, state.exports, other, otherExports));
             const stray = await strayItems(state.group);
-            if (stray.length) result.warnings.push(`These items in the ${state.group} zips folder were not read because they are not zip files: ${stray.join(', ')}. Sessions saved as loose files or inside subfolders are not included.`);
+            if (stray.length) result.warnings.push(`These items in the ${state.group} zips folder were not read because they are not zip files: ${stray.join(', ')}. Sessions saved as loose files or inside subfolders are not included. Copy the original zip into this folder instead.`);
+            const notDownloaded = await iCloudPlaceholders(state.group);
+            if (notDownloaded.length) result.stops.push(`These files are stored in iCloud and are not on this computer yet: ${notDownloaded.join(', ')}. Open the folder in Finder, download them, then read the sessions again.`);
             state.result = result;
             const groupDir = await state.root.getDirectoryHandle(state.group);
             const old = await readText(groupDir, outputNames().master);
