@@ -47,13 +47,18 @@ def clear_study_rules(blocks):
     batch.MANUAL_ANALYSIS_EXCLUSIONS = ()
 
 
-def use_recorded_handedness(dominant):
-    ids = pd.DataFrame({"participant_id": pd.Series(list(dominant), dtype="string")})
+def recorded_hands(recorded):
+    ids = pd.DataFrame({"participant_id": pd.Series(list(recorded), dtype="string")})
     labels = {}
-    for participant, padded in zip(dominant, controls.participant_ids(ids)):
-        labels.setdefault(padded, set()).add(dominant[participant])
-    unknown = {key for key, value in labels.items() if value not in ({"LEFT"}, {"RIGHT"})}
-    controls.LEFT_HANDED_PARTICIPANTS = {key for key, value in labels.items() if value == {"LEFT"}}
+    for participant, padded in zip(recorded, controls.participant_ids(ids)):
+        labels.setdefault(padded, set()).add(recorded[participant])
+    return {key: next(iter(value)) if value in ({"LEFT"}, {"RIGHT"}) else "" for key, value in labels.items()}
+
+
+def use_recorded_handedness(dominant):
+    hands = recorded_hands(dominant)
+    unknown = {key for key, value in hands.items() if not value}
+    controls.LEFT_HANDED_PARTICIPANTS = {key for key, value in hands.items() if value == "LEFT"}
     add_fields = controls.add_control_hand_fields
 
     def add_recorded_fields(frame):
@@ -65,6 +70,27 @@ def use_recorded_handedness(dominant):
         return result
 
     controls.add_control_hand_fields = add_recorded_fields
+
+
+def add_affected_hand_fields(path, hands):
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    less_affected = controls.participant_ids(frame).map(lambda participant: hands.get(participant, ""))
+    more_affected = less_affected.map(lambda hand: {"LEFT": "RIGHT", "RIGHT": "LEFT"}.get(hand, ""))
+    reaching_hand = frame["hand"].str.upper()
+    hand_role = pd.Series("unknown", index=frame.index, dtype="string")
+    hand_role.loc[less_affected.ne("") & reaching_hand.eq(less_affected)] = "less_affected"
+    hand_role.loc[more_affected.ne("") & reaching_hand.eq(more_affected)] = "more_affected"
+    frame["less_affected_hand"] = less_affected
+    frame["more_affected_hand"] = more_affected
+    frame["hand_role"] = hand_role
+    frame["is_more_affected_reach"] = hand_role.eq("more_affected")
+    frame.to_csv(path, index=False)
+
+
+def postprocess_patient_outputs(output, recorded):
+    hands = recorded_hands(recorded)
+    add_affected_hand_fields(output / "all_trial_metrics.csv", hands)
+    add_affected_hand_fields(output / "kinematics_all_valid_reaches_master.csv", hands)
 
 
 def has_rows(path):
@@ -83,6 +109,9 @@ def update_summary(output, manifest):
         summary["handedness_rule"] = "Each participant's handedness is the DominantHand value recorded in their sessions. The hand of interest is the non-dominant hand."
         summary["left_handed_participants"] = sorted(key for key, value in manifest["dominant"].items() if value == "LEFT")
         summary["handedness_not_known"] = sorted(key for key, value in manifest["dominant"].items() if value not in ("LEFT", "RIGHT"))
+    if manifest["group"] == "patients" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
+        summary["affected_hand_rule"] = "Each participant's less affected hand is the DominantHand value recorded in their sessions. The more affected hand is the other hand."
+        summary["less_affected_hand_not_known"] = sorted(key for key, value in manifest["dominant"].items() if value not in ("LEFT", "RIGHT"))
     path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
@@ -99,4 +128,6 @@ def run(manifest_path):
     if manifest["group"] == "controls" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
         use_recorded_handedness(manifest["dominant"])
         controls.postprocess_control_outputs(output)
+    if manifest["group"] == "patients" and has_rows(output / "kinematics_all_valid_reaches_master.csv"):
+        postprocess_patient_outputs(output, manifest["dominant"])
     update_summary(output, manifest)

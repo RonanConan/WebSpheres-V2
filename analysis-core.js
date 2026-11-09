@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.5.0';
+    const VERSION = '1.6.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand', 'LessAffectedHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
@@ -486,8 +486,9 @@ const WebSpheresAnalysis = (() => {
     function readKinematics(run, group, plan) {
         const file = (name) => (run.files.find(item => item.name === name) || { text: '' }).text;
         const summary = JSON.parse(file('batch_summary.json').replace(/\bNaN\b/g, 'null'));
-        const unknown = group === 'controls' ? Object.keys(plan.dominant).filter(id => !plan.dominant[id]).sort(compareText) : [];
+        const unknown = Object.keys(plan.dominant).filter(id => !plan.dominant[id]).sort(compareText);
         return {
+            group,
             files: run.files, checksums: run.checksums, versions: run.versions, summary,
             master: file('kinematics_all_valid_reaches_master.csv'),
             masterRows: summary.analysis_master_rows,
@@ -502,7 +503,7 @@ const WebSpheresAnalysis = (() => {
         return [
             ...kinematics.errors.map(item => `${item.block_id}: this block could not be processed, so it is not in the kinematics master. ${item.error_type}: ${item.error}`),
             ...kinematics.incomplete.map(item => `${item.block_id}: this block is not in the kinematics master. Missing: ${item.missing_files}`),
-            ...kinematics.unknownHands.map(id => `Participant ${id || '(no ID)'}: handedness is not known, so the dominant and non-dominant hand columns are blank.`)
+            ...kinematics.unknownHands.map(id => `Participant ${id || '(no ID)'}: ${kinematics.group === 'patients' ? 'the less affected hand is not known, so the less affected and more affected hand columns are blank.' : 'handedness is not known, so the dominant and non-dominant hand columns are blank.'}`)
         ];
     }
 
