@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.0.0';
+    const VERSION = '1.1.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
@@ -80,11 +80,11 @@ const WebSpheresAnalysis = (() => {
     }
 
     async function readExport(file, options) {
-        const out = { name: file.name, size: file.size, sha256: '', blocks: [], problem: '' };
+        const infoOnly = !!(options && options.infoOnly);
+        const out = { name: file.name, size: file.size, file, sha256: '', blocks: [], problem: '' };
         let entries;
         try {
             entries = await zipEntries(file);
-            if (!options || options.hash !== false) out.sha256 = await sha256(file);
         } catch (e) {
             out.problem = 'This file could not be read as a zip.';
             return out;
@@ -105,9 +105,11 @@ const WebSpheresAnalysis = (() => {
             else if (!infoEntry) block.problem = 'This block has no session-info file, so its layout cannot be read.';
             else {
                 try {
-                    const table = parseCsv(await entryText(file, trialEntry));
-                    block.header = table[0] || [];
-                    block.table = table.slice(1);
+                    if (!infoOnly) {
+                        const table = parseCsv(await entryText(file, trialEntry));
+                        block.header = table[0] || [];
+                        block.table = table.slice(1);
+                    }
                     block.info = parseInfo(await entryText(file, infoEntry));
                     block.practice = block.info.Practice === '1' || /^PRACTICE_/.test(trialEntry.path.split('/').pop());
                 } catch (e) {
@@ -216,6 +218,20 @@ const WebSpheresAnalysis = (() => {
         return merged;
     }
 
+    function joinResumedSessions(groups) {
+        const firstNumber = (group) => Math.min(...group.map(b => b.number));
+        const lastNumber = (group) => Math.max(...group.map(b => b.number));
+        const planOf = (group) => (group.find(b => b.info.Plan) || { info: {} }).info.Plan || '';
+        const startOf = (group) => group.map(b => b.start).sort(compareText)[0] || '';
+        const joined = [];
+        groups.slice().sort((a, b) => compareText(startOf(a), startOf(b))).forEach(group => {
+            const earlier = joined.slice().reverse().find(other => other[0].id === group[0].id && other[0].practice === group[0].practice);
+            if (earlier && firstNumber(group) > 1 && planOf(group) && planOf(earlier) === planOf(group) && lastNumber(earlier) < firstNumber(group)) earlier.push(...group);
+            else joined.push(group);
+        });
+        return joined;
+    }
+
     function groupSessions(blocks, zipCount) {
         const parent = Array.from({ length: zipCount }, (_, i) => i);
         const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
@@ -226,7 +242,7 @@ const WebSpheresAnalysis = (() => {
             if (!sessions.has(key)) sessions.set(key, []);
             sessions.get(key).push(b);
         });
-        return Array.from(sessions.values());
+        return joinResumedSessions(Array.from(sessions.values()));
     }
 
     function layoutSession(blocks, id, sessionNumber, result) {
@@ -399,12 +415,17 @@ const WebSpheresAnalysis = (() => {
         ].join('\n') + '\n';
     }
 
-    function fileNames(group) {
-        return { master: `handDB_${group}.csv`, blocks: `blocks_${group}.csv`, report: `report_${group}.txt` };
+    function fileNames(group, practice) {
+        const prefix = practice ? 'PRACTICE_' : '';
+        return { master: `${prefix}handDB_${group}.csv`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt` };
     }
 
-    function outputFiles(exportsRead, result, createdIso, group) {
-        const names = fileNames(group);
+    async function addChecksums(exportsRead) {
+        for (const zip of exportsRead) zip.sha256 = await sha256(zip.file);
+    }
+
+    function outputFiles(exportsRead, result, createdIso, group, practice) {
+        const names = fileNames(group, practice);
         return [
             { path: names.master, parts: [toCsv(COLUMNS, result.rows)] },
             { path: names.blocks, parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
@@ -415,8 +436,10 @@ const WebSpheresAnalysis = (() => {
     function checkStudyFolder(folder) {
         const name = folder.name;
         const lower = name.toLowerCase();
-        if (lower in GROUPS) return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder that contains it.` };
+        if (Object.hasOwn(GROUPS, lower)) return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder that contains it.` };
         if (lower === 'zips' || lower === 'history') return { status: 'wrong', message: `You selected the ${name} folder. Select the experiment folder two levels above it.` };
+        const miscased = folder.dirs.find(dir => Object.hasOwn(GROUPS, dir.toLowerCase()) && !Object.hasOwn(GROUPS, dir));
+        if (miscased) return { status: 'wrong', message: `Rename the ${miscased} folder to ${miscased.toLowerCase()}, all in lower case, then select ${name} again.` };
         const present = Object.keys(GROUPS).filter(group => folder.dirs.includes(group));
         const complete = present.filter(group => folder.groups[group].includes('zips'));
         if (complete.length === Object.keys(GROUPS).length) return { status: 'ok', message: `${name} is an experiment folder. It has patients and controls folders.` };
@@ -442,14 +465,24 @@ const WebSpheresAnalysis = (() => {
         const table = parseCsv(oldText);
         if ((table[0] || []).join() !== COLUMNS.join()) return { comparable: false, examples: [] };
         const text = (value) => (value === null || value === undefined ? 'NA' : String(value));
-        const keyOf = (id, session, order, trial) => [id, session, order, trial].join('|');
-        const fresh = new Map(rows.map(row => [keyOf(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)), row]));
+        const counter = () => {
+            const seen = new Map();
+            return (id, session, order, trial) => {
+                const base = [id, session, order, trial].join('|');
+                seen.set(base, (seen.get(base) || 0) + 1);
+                return `${base}|${seen.get(base)}`;
+            };
+        };
+        const freshKey = counter();
+        const keyedRows = rows.map(row => [freshKey(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)), row]);
+        const fresh = new Map(keyedRows);
+        const oldKey = counter();
         const at = (name) => COLUMNS.indexOf(name);
         const oldKeys = new Set(), oldIds = new Set(), examples = [];
         let changed = 0, missing = 0;
         table.slice(1).forEach(old => {
             const id = old[at('ID')], where = `Participant ${id}, session ${old[at('Session')]}, block ${old[at('BlockOrder')]}, trial ${old[at('Trial')]}`;
-            const key = keyOf(id, old[at('Session')], old[at('BlockOrder')], old[at('Trial')]);
+            const key = oldKey(id, old[at('Session')], old[at('BlockOrder')], old[at('Trial')]);
             oldKeys.add(key);
             oldIds.add(id);
             const row = fresh.get(key);
@@ -464,11 +497,11 @@ const WebSpheresAnalysis = (() => {
                 if (examples.length < 5) examples.push(`${where}: ${differs.map(name => `${name} was ${old[at(name)]}, now ${text(row[name])}`).join('; ')}.`);
             }
         });
-        const addedRows = rows.filter(row => !oldKeys.has(keyOf(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial))));
+        const addedRows = keyedRows.filter(([key]) => !oldKeys.has(key)).map(([, row]) => row);
         return { comparable: true, oldRows: table.length - 1, added: addedRows.length, changed, missing, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size, examples };
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster };
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;

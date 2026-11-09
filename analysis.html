@@ -3,24 +3,11 @@
 <head>
     <title>WebSpheres Analysis</title>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="webspheres-theme.css">
     <style>
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 400; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-400.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 600; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-600.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 700; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-700.woff2") format("woff2"); }
-        @font-face { font-family: "WebSpheres Figures"; font-weight: 700; font-display: swap; unicode-range: U+25, U+2E, U+2F, U+30-39, U+3A; src: url("fonts/atkinson-hyperlegible-mono-700.woff2") format("woff2"); }
-        :root {
-            --r-control: 0.5rem;
-            --bg: #0b0e14; --bar: rgba(11, 14, 20, 0.92); --panel: #151a24; --line: #252c3a; --edge: #566176; --text: #dfe5f0; --muted: #7d8799; --dim: #66728a;
-            --accent: #00e5ff; --ok: #3ddc84; --warn: #ffb347; --err: #ff5c5c;
-            --fill-accent: #26c6dc; --fill-accent-hover: #3fd3e6; --fill-ok: #3bc87b;
-            --tile-baseline: #1d2533; --tile-boost: #0f3a44;
-            --mono: "WebSpheres Figures", "Atkinson Hyperlegible Next", ui-monospace, Menlo, Consolas, monospace;
-            --sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            --scale: 1;
-            font-size: calc(18px * var(--scale));
-        }
+        :root { --panel: #151a24; --tile-baseline: #1d2533; --tile-boost: #0f3a44; }
         * { box-sizing: border-box; }
         [hidden] { display: none !important; }
         html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.4; overflow: hidden; }
@@ -40,36 +27,12 @@
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         .g-head { padding: 0.9rem 1.25rem 0.6rem; }
         .g-head h2 { margin: 0; font-size: 1.05rem; }
-        .step { position: relative; }
-        .step::before { content: ""; position: absolute; left: 2.2rem; top: 0; bottom: 0; width: 2px; background: var(--line); transform: translateX(-1px); }
-        .step.done::before { background: var(--fill-ok); }
-        .step:first-of-type::before { top: 1.5rem; }
-        .step:last-of-type::before { bottom: auto; height: 1.5rem; }
-        .step-head { position: relative; width: 100%; display: flex; align-items: center; gap: 0.85rem; text-align: left; background: transparent; border: 0; border-radius: 0; min-height: 3rem; padding: 0 1.25rem; font-size: 1.05rem; font-weight: 400; }
-        .step-head:hover:not(:disabled) .step-title { text-decoration: underline; text-underline-offset: 0.2em; }
-        .step-head:disabled { opacity: 1; color: var(--dim); cursor: default; }
-        .step-head:disabled .step-mark { border-color: var(--line); color: var(--dim); }
-        .step-mark { position: relative; width: 1.9rem; height: 1.9rem; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--edge); border-radius: 50%; background: var(--bg); font: 700 0.85rem var(--sans); color: var(--muted); }
-        .step.current .step-mark { border-color: var(--accent); color: var(--accent); }
-        .step.done .step-mark { background: var(--fill-ok); border-color: var(--fill-ok); color: #06210f; }
-        .step.open .step-head { color: #fff; font-weight: 700; }
-        .step-title { flex: none; }
-        .step-val { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.85rem; }
-        .step-body { display: none; padding: 0 1.25rem 1.5rem 4rem; }
-        .step.open .step-body { display: block; }
         .say { margin: 0.2rem 0 0.7rem; font-size: 1.3rem; font-weight: 600; line-height: 1.3; }
-        .g-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; cursor: pointer; line-height: 1.3; }
-        .g-tick input { width: 1.25rem; height: 1.25rem; flex: none; margin: 0; accent-color: var(--accent); }
         .g-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.8rem; }
         .g-actions > button { width: 100%; }
         .g-actions > button:only-child, .g-actions > button.wide { grid-column: 1 / -1; }
-        .g-primary { background: var(--fill-accent); border-color: var(--fill-accent); color: #031418; font-size: 1.1rem; font-weight: 700; }
-        .g-primary:hover:not(:disabled) { background: var(--fill-accent-hover); border-color: var(--fill-accent-hover); }
         .g-primary:disabled { background: var(--panel); border-color: var(--line); color: var(--muted); opacity: 1; }
-        .g-msg { margin: 0.6rem 0 0; line-height: 1.35; }
         .g-msg:empty { display: none; }
-        .g-msg.ok { color: var(--ok); } .g-msg.bad { color: var(--err); } .g-msg.busy { color: var(--warn); }
-        .g-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
         .path { margin: 0.4rem 0 0.6rem; padding: 0.5rem 0.7rem; background: #0f131b; border: 1px solid var(--line); border-radius: 0.375rem; font-weight: 700; overflow-wrap: anywhere; }
         .opts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
         .opts button { border-radius: 0; font-size: 1.05rem; }

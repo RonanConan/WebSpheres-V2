@@ -104,8 +104,8 @@ const PICKER = () => {
   ok(!(await enabled(2)), 'Next is disabled before a folder is selected');
   await p.evaluate(() => { window.__realPicker = window.showDirectoryPicker; window.showDirectoryPicker = async () => { throw new DOMException('aborted', 'AbortError'); }; });
   await selectFolder();
-  await waitMsg('g2-msg', 'No folder was received');
-  ok(!(await enabled(2)), 'a folder that never arrives is explained and blocks Next');
+  await waitMsg('g2-msg', 'No folder was selected');
+  ok(!(await enabled(2)) && !(await text('#g2-msg')).includes('Chrome'), 'cancelling explains what happened without blaming the browser');
   await p.evaluate(() => { window.showDirectoryPicker = window.__realPicker; });
   await pick(['EXP027', 'patients']);
   await selectFolder();
@@ -165,6 +165,11 @@ const PICKER = () => {
   await tick(7, 2);
   await p.click('[data-next="7"]');
   await waitMsg('g7-msg', 'All steps are complete for Patients');
+  await untick(7, 2);
+  ok((await text('#g7-msg')) === '' && !(await enabled(7)), 'unticking the last step after Finish takes the completion back');
+  await tick(7, 2);
+  await p.click('[data-next="7"]');
+  await waitMsg('g7-msg', 'All steps are complete for Patients');
   ok(await p.locator('#g7-restart').isVisible(), 'another analysis can be started');
 
   console.log('UNTICKING GOES BACK');
@@ -192,6 +197,61 @@ const PICKER = () => {
   const kept = hist.find(n => n.startsWith('handDB_patients'));
   ok((await read(['NEW', 'patients', 'history'], kept)) === master, 'the history copy is the previous master');
   ok((await read(['NEW', 'patients', 'zips'], '101.zip')) === zipBefore, 'the zips are untouched');
+
+  console.log('SAVING SAFELY');
+  await restart();
+  await goToStep4('patients');
+  await put(['NEW', 'patients', 'zips'], '104.zip', await sessionZip('104', [{ n: 11 }], { day: 20 }));
+  await p.click('#g4-recheck');
+  await waitMsg('g4-msg', '3 zip files are');
+  await readSessions();
+  await tick(5, 0);
+  await next(5); await waitStep(6);
+  const beforeFail = await read(['NEW', 'patients'], 'handDB_patients.csv');
+  const historyBefore = await list(['NEW', 'patients', 'history']);
+  await p.evaluate(() => {
+    const real = FileSystemFileHandle.prototype.createWritable;
+    let failed = false;
+    FileSystemFileHandle.prototype.createWritable = function (...a) {
+      if (this.name === 'blocks_patients.csv' && !failed) { failed = true; return Promise.reject(new DOMException('full', 'QuotaExceededError')); }
+      return real.apply(this, a);
+    };
+  });
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'the earlier files were put back');
+  ok((await read(['NEW', 'patients'], 'handDB_patients.csv')) === beforeFail, 'a failed save puts the earlier master back');
+  ok((await list(['NEW', 'patients', 'history'])).join() === historyBefore.join(), 'a failed save leaves no extra history copies');
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'Saved handDB_patients.csv with 726 trials');
+  ok(true, 'saving again after a failure works');
+  await restart();
+  await goToStep4('patients');
+  await put(['NEW', 'patients', 'zips'], '105.zip', await sessionZip('105', [{ n: 11 }], { day: 21 }));
+  await p.click('#g4-recheck');
+  await waitMsg('g4-msg', '4 zip files are');
+  await readSessions();
+  await tick(5, 0);
+  await next(5); await waitStep(6);
+  const master2 = await read(['NEW', 'patients'], 'handDB_patients.csv');
+  await putText(['NEW', 'patients'], 'handDB_patients.csv', master2 + '"x"\n');
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'has changed since the sessions were read');
+  ok((await read(['NEW', 'patients'], 'handDB_patients.csv')) === master2 + '"x"\n', 'a master that changed after reading is not overwritten');
+  await putText(['NEW', 'patients'], 'handDB_patients.csv', master2);
+  await remove(['NEW', 'patients', 'zips'], '105.zip');
+
+  console.log('ITEMS THAT ARE NOT ZIPS');
+  await restart();
+  await putText(['NEW', 'patients', 'zips'], '101_vr-session-data-2026.csv', 'x');
+  await putText(['NEW', 'patients', 'zips', 'extracted'], 'a.csv', 'x');
+  await goToStep4('patients');
+  await readSessions();
+  const stray = await text('#warnings-list');
+  ok(stray.includes('101_vr-session-data-2026.csv') && stray.includes('extracted'), 'loose files and subfolders are named');
+  await tick(5, 0);
+  ok(!(await enabled(5)), 'the warning must be acknowledged');
+  await remove(['NEW', 'patients', 'zips'], '101_vr-session-data-2026.csv');
+  await p.evaluate(async () => (await window.__dir(['NEW', 'patients', 'zips'])).removeEntry('extracted', { recursive: true }));
 
   console.log('NOTHING NEW');
   await restart();
@@ -254,6 +314,26 @@ const PICKER = () => {
   ok((await text('#set-aside-list')).includes('practice.zip: This is a practice session'), 'a practice zip is named and left out');
   await remove(['NEW', 'patients', 'zips'], 'practice.zip');
 
+  console.log('PRACTICE MODE');
+  await put(['NEW', 'patients', 'zips'], 'practice.zip', await sessionZip('900', [{ n: 11 }], { practice: true, day: 13 }));
+  const realMaster = await read(['NEW', 'patients'], 'handDB_patients.csv');
+  await p.goto('https://test.local/analysis.html?practice');
+  await p.waitForSelector('.step.open');
+  await pick(['NEW']);
+  await goToStep4('patients');
+  await readSessions();
+  await tick(5, 0);
+  await p.click('[data-next="5"]');
+  await waitStep(6);
+  ok((await text('#g6-path')) === 'NEW/patients/PRACTICE_handDB_patients.csv', 'practice mode names a separate file');
+  await p.click('#g6-save');
+  await waitMsg('g6-msg', 'Saved PRACTICE_handDB_patients.csv');
+  ok((await read(['NEW', 'patients'], 'handDB_patients.csv')) === realMaster, 'practice mode leaves the real master alone');
+  await remove(['NEW', 'patients', 'zips'], 'practice.zip');
+  await p.goto('https://test.local/analysis.html');
+  await p.waitForSelector('.step.open');
+  await pick(['NEW']);
+
   console.log('REMEMBERED FOLDER');
   await restart();
   await tick(1, 0); await tick(1, 1); await next(1); await waitStep(2);
@@ -290,7 +370,7 @@ const PICKER = () => {
   const firefox = () => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined });
   const q = await other.newPage();
   await q.addInitScript(firefox);
-  await serve(q);
+  await serve(q, { realBrowser: true });
   await q.goto('https://test.local/analysis.html');
   ok(await q.locator('#browser-stop').isVisible() && !(await q.locator('#steps').isVisible()), 'the Analysis page stops in other browsers');
   await q.goto('https://test.local/observer.html');

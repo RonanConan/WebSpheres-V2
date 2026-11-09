@@ -3,7 +3,7 @@
     const A = WebSpheresAnalysis;
     const STEPS = [1, 2, 3, 4, 5, 6, 7];
     const includePractice = /[?&]practice\b/.test(location.search);
-    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false };
+    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null };
 
     try {
         const textSize = JSON.parse(localStorage.getItem('webspheres-observer-settings') || '{}').textSize;
@@ -16,6 +16,7 @@
     const allTicked = (n) => ticksIn(n).every(input => input.checked);
     const groupTitle = () => (state.group === 'patients' ? 'Patients' : 'Controls');
     const zipsPath = () => `${state.root.name}/${state.group}/zips`;
+    const outputNames = () => A.fileNames(state.group, includePractice);
 
     function setMsg(id, text, kind) {
         $(id).textContent = text;
@@ -145,7 +146,7 @@
         $('g2-again').textContent = state.remembered ? `Use ${state.remembered.name} again` : '';
         $('g2-choose').disabled = $('g2-setup').disabled = $('g2-again').disabled = $('g4-recheck').disabled = state.busy;
         if (state.group && state.root) {
-            const names = A.fileNames(state.group);
+            const names = outputNames();
             $('g4-path').textContent = zipsPath();
             $('g6-path').textContent = `${state.root.name}/${state.group}/${names.master}`;
             $('g6-save').textContent = `Save ${names.master}`;
@@ -169,6 +170,7 @@
             state.exports = [];
             state.result = null;
             state.comparison = null;
+            state.masterText = null;
             $('g5-warned').hidden = true;
             $('g5-group').hidden = true;
             $('g5-changes').hidden = true;
@@ -249,9 +251,8 @@
         try {
             handle = await window.showDirectoryPicker({ id: 'webspheres-study', mode: 'readwrite' });
         } catch (e) {
-            setMsg('g2-msg', e.name === 'AbortError'
-                ? 'No folder was received. If you did select one, this browser did not give the page permission to edit it. Open this page in Chrome or Edge, select the folder, and allow access when asked.'
-                : 'That folder cannot be used. Select the experiment folder inside your GitHub folder.', 'bad');
+            if (e.name === 'AbortError') setMsg('g2-msg', 'No folder was selected. If you did select one, select it again and allow access when your browser asks.', 'busy');
+            else setMsg('g2-msg', 'That folder cannot be used. Select the experiment folder inside your GitHub folder.', 'bad');
             return;
         }
         await useFolder(handle);
@@ -294,6 +295,12 @@
         return Promise.all(files.sort((a, b) => (a.name < b.name ? -1 : 1)).map(handle => handle.getFile()));
     }
 
+    async function strayItems(group) {
+        const zips = await (await state.root.getDirectoryHandle(group)).getDirectoryHandle('zips');
+        const { dirs, files } = await listFolder(zips);
+        return dirs.concat(files.filter(name => !/\.zip$/i.test(name))).filter(name => !name.startsWith('.') && !name.endsWith('.crswap')).sort();
+    }
+
     async function countZips() {
         if (!state.root || !state.group) return;
         try {
@@ -328,12 +335,15 @@
             state.exports = [];
             for (const file of files) state.exports.push(await A.readExport(file));
             const otherExports = [];
-            for (const file of await zipFiles(other)) otherExports.push(await A.readExport(file, { hash: false }));
+            for (const file of await zipFiles(other)) otherExports.push(await A.readExport(file, { infoOnly: true }));
             const result = A.build(state.exports, { includePractice, group: state.group });
             result.stops.push(...A.crossGroupStops(state.group, state.exports, other, otherExports));
+            const stray = await strayItems(state.group);
+            if (stray.length) result.warnings.push(`These items in the ${state.group} zips folder were not read because they are not zip files: ${stray.join(', ')}. Sessions saved as loose files or inside subfolders are not included.`);
             state.result = result;
             const groupDir = await state.root.getDirectoryHandle(state.group);
-            const old = await readText(groupDir, A.fileNames(state.group).master);
+            const old = await readText(groupDir, outputNames().master);
+            state.masterText = old;
             state.comparison = old === null ? null : A.compareMaster(old, result.rows);
             setMsg('g4-msg', `${plural(state.zipCount, 'zip file')} read.`);
             $('g5-warned').hidden = !result.warnings.length;
@@ -371,25 +381,52 @@
         state.busy = true;
         setMsg('g6-msg', 'Saving.', 'busy');
         render();
+        const replaced = [];
+        let groupDir, history;
         try {
+            groupDir = await state.root.getDirectoryHandle(state.group);
+            if (await readText(groupDir, outputNames().master) !== state.masterText) {
+                setMsg('g6-msg', 'The master has changed since the sessions were read, so nothing was saved. Go back to step 4 and read the sessions again.', 'bad');
+                return;
+            }
             const created = new Date();
             const stamp = created.toISOString().slice(0, 19).replace(/:/g, '-');
-            const files = A.outputFiles(state.exports, state.result, created.toISOString(), state.group);
-            const groupDir = await state.root.getDirectoryHandle(state.group);
-            const history = await groupDir.getDirectoryHandle('history', { create: true });
+            await A.addChecksums(state.exports);
+            const files = A.outputFiles(state.exports, state.result, created.toISOString(), state.group, includePractice);
+            history = await groupDir.getDirectoryHandle('history', { create: true });
             for (const file of files) {
                 const old = await readText(groupDir, file.path);
-                if (old !== null) await writeText(history, await historyName(history, file.path, stamp), old);
+                const copy = old === null ? '' : await historyName(history, file.path, stamp);
+                if (copy) await writeText(history, copy, old);
+                replaced.push({ path: file.path, old, copy });
             }
             for (const file of files) await writeText(groupDir, file.path, file.parts[0]);
             if (await readText(groupDir, files[0].path) !== files[0].parts[0]) throw new Error('read-back mismatch');
             state.saved = true;
             setMsg('g6-msg', `Saved ${files[0].path} with ${plural(state.result.rows.length, 'trial')}.`, 'ok');
         } catch (e) {
-            setMsg('g6-msg', 'The master could not be saved. Nothing in the zips folder was changed. Check that your browser has permission to edit the folder, then try again.', 'bad');
+            const restored = await restoreFiles(groupDir, history, replaced);
+            setMsg('g6-msg', restored
+                ? 'The master could not be saved, so the earlier files were put back. The zips were not changed. Check that your browser has permission to edit the folder, then try again.'
+                : 'The master could not be saved and some earlier files could not be put back. Copies are in the history folder. The zips were not changed.', 'bad');
+        } finally {
+            state.busy = false;
+            render();
         }
-        state.busy = false;
-        render();
+    }
+
+    async function restoreFiles(groupDir, history, replaced) {
+        let restored = true;
+        for (const item of replaced) {
+            try {
+                if (item.old === null) await groupDir.removeEntry(item.path).catch(e => { if (e.name !== 'NotFoundError') throw e; });
+                else await writeText(groupDir, item.path, item.old);
+                if (item.copy) await history.removeEntry(item.copy);
+            } catch (e) {
+                restored = false;
+            }
+        }
+        return restored;
     }
 
     async function next(n) {
@@ -432,7 +469,7 @@
     document.querySelectorAll('[data-group]').forEach(button => button.addEventListener('click', () => chooseGroup(button.dataset.group)));
     document.querySelectorAll('.g-tick input').forEach(input => input.addEventListener('change', () => {
         const n = +input.closest('.step').dataset.step;
-        if (!input.checked && state.reached > n) {
+        if (!input.checked && (state.reached > n || state.finished)) {
             resetAfter(n);
             input.checked = false;
         }
@@ -447,7 +484,6 @@
         resetAfter(0);
         state.reached = 1;
         state.open = 1;
-        stepEl(1).querySelectorAll('.g-tick input').forEach(input => { input.checked = false; });
         render();
     });
     render();

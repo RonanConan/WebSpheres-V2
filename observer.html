@@ -19,26 +19,8 @@
         }
     }
     </script>
+    <link rel="stylesheet" href="webspheres-theme.css">
     <style>
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 400; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-400.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 600; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-600.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 700; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-700.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Mono"; font-weight: 500; font-display: swap; src: url("fonts/atkinson-hyperlegible-mono-500.woff2") format("woff2"); }
-        @font-face { font-family: "Atkinson Hyperlegible Mono"; font-weight: 700; font-display: swap; src: url("fonts/atkinson-hyperlegible-mono-700.woff2") format("woff2"); }
-        @font-face { font-family: "WebSpheres Figures"; font-weight: 500; font-display: swap; unicode-range: U+25, U+2E, U+2F, U+30-39, U+3A; src: url("fonts/atkinson-hyperlegible-mono-500.woff2") format("woff2"); }
-        @font-face { font-family: "WebSpheres Figures"; font-weight: 700; font-display: swap; unicode-range: U+25, U+2E, U+2F, U+30-39, U+3A; src: url("fonts/atkinson-hyperlegible-mono-700.woff2") format("woff2"); }
-        :root {
-            --scale: 1;
-            --r-control: 0.5rem;
-            --bg: #0b0e14; --bar: rgba(11, 14, 20, 0.92); --line: #252c3a; --edge: #566176; --text: #dfe5f0; --muted: #7d8799; --dim: #66728a;
-            --accent: #00e5ff; --left: #3a86ea; --right: #e5534b; --crit: #ffd34d;
-            --ok: #3ddc84; --warn: #ffb347; --err: #ff5c5c;
-            --fill-accent: #26c6dc; --fill-accent-hover: #3fd3e6; --fill-warn: #efa848; --fill-warn-hover: #f6b561; --fill-ok: #3bc87b;
-            --mono: "WebSpheres Figures", "Atkinson Hyperlegible Next", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-            --id: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-            --sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            font-size: calc(18px * var(--scale));
-        }
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
         #app { display: grid; grid-template-columns: 0 minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: 100vh; }
@@ -119,22 +101,7 @@
         .g-banner[hidden] { display: none; }
         .g-banner .g-actions { margin-top: 0.5rem; }
         #g-resume { position: sticky; top: 3.9rem; z-index: 2; background: var(--bg); }
-        .step { position: relative; }
-        .step::before { content: ""; position: absolute; left: 2.2rem; top: 0; bottom: 0; width: 2px; background: var(--line); transform: translateX(-1px); }
-        .step.done::before { background: var(--fill-ok); }
-        .step:first-of-type::before { top: 1.5rem; }
-        .step:last-of-type::before { bottom: auto; height: 1.5rem; }
         #guide:has(.step[hidden]) .step::before { display: none; }
-        .step-head { position: relative; width: 100%; display: flex; align-items: center; gap: 0.85rem; text-align: left; background: transparent; border: 0; border-radius: 0; min-height: 3rem; padding: 0 1.25rem; font-size: 1.05rem; font-weight: 400; }
-        .step-head:hover:not(:disabled) > span:nth-child(2) { text-decoration: underline; text-underline-offset: 0.2em; }
-        .step-head:disabled { opacity: 1; color: var(--dim); cursor: default; }
-        .step-head:disabled .step-mark { border-color: var(--line); color: var(--dim); }
-        .step-mark { position: relative; width: 1.9rem; height: 1.9rem; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--edge); border-radius: 50%; background: var(--bg); font: 700 0.85rem var(--sans); color: var(--muted); }
-        .step.current .step-mark { border-color: var(--accent); color: var(--accent); }
-        .step.done .step-mark { background: var(--fill-ok); border-color: var(--fill-ok); color: #06210f; }
-        .step.open .step-head { color: #fff; font-weight: 700; }
-        .step-body { display: none; padding: 0 1.25rem 1.5rem 4rem; }
-        .step.open .step-body { display: block; }
         .say { margin: 0.2rem 0 1rem; font-size: 1.45rem; font-weight: 600; line-height: 1.3; }
         .checks { list-style: none; margin: 0.6rem 0; padding: 0; }
         .checks li { display: flex; gap: 0.6rem; padding: 0.22rem 0; line-height: 1.4; }
@@ -155,12 +122,8 @@
         #g7-run .g-actions { margin-top: 1rem; }
         #g7-notes > .g-actions:first-child, #g7-run-more > .g-actions:first-child { margin-top: 0; }
         #g-note-status:empty { display: none; }
-        .step-val { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.85rem; }
-        .step-head > span:nth-child(2) { flex: none; }
         .g6-all summary { padding: 0.3rem 0; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
         .g6-all .label { margin-top: 0.5rem; }
-        .g-primary { background: var(--fill-accent); border-color: var(--fill-accent); color: #031418; font-size: 1.1rem; font-weight: 700; }
-        .g-primary:hover:not(:disabled) { background: var(--fill-accent-hover); border-color: var(--fill-accent-hover); }
         .g-primary.amber { background: var(--fill-warn); border-color: var(--fill-warn); color: #1a1000; }
         .g-primary.amber:hover:not(:disabled) { background: var(--fill-warn-hover); border-color: var(--fill-warn-hover); }
         .g-primary:disabled { background: #151a24; border-color: var(--line); color: var(--muted); opacity: 1; }
@@ -173,9 +136,6 @@
         .g-unlocked[hidden] { display: none; }
         .g-unlocked > .label { color: var(--warn); }
         .g-inline { display: flex; gap: 0.5rem; }
-        .g-msg { margin: 0.6rem 0 0; min-height: 1.2em; line-height: 1.35; }
-        .g-msg.ok { color: var(--ok); } .g-msg.bad { color: var(--err); } .g-msg.busy { color: var(--warn); }
-        .g-note { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
         #g-id, #g-exp, #u-id, #u-exp { width: 100%; min-height: 44px; padding: 0 0.6rem; font: 1.2rem var(--id); color: var(--text); background: #0f131b; border: 1px solid var(--edge); border-radius: 0.375rem; }
         #g-exp, #u-exp { font-family: var(--sans); }
         #g-id:focus, #g-exp:focus, #u-id:focus, #u-exp:focus { outline: none; border-color: var(--accent); }
@@ -337,8 +297,6 @@
         button.run-add { width: 7.5rem; margin-left: 0.8rem; border: 1px dashed var(--edge); background: transparent; color: var(--accent); font-weight: 700; white-space: normal; }
         .plan-hint { margin-top: 1rem; color: var(--muted); font-size: 0.85rem; }
         .g-timer { font: 600 2.2rem var(--mono); color: var(--warn); margin: 0.4rem 0; }
-        .g-tick { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; cursor: pointer; line-height: 1.3; }
-        .g-tick input { width: 1.25rem; height: 1.25rem; flex: none; margin: 0; accent-color: var(--accent); }
         #help { position: absolute; inset: 0; background: rgba(11, 14, 20, 0.94); display: none; align-items: center; justify-content: center; overflow-y: auto; }
         #help.open { display: flex; }
         #help-inner { padding: 1.5rem; }

@@ -7,9 +7,11 @@ const MOCK_PEER = path.join(__dirname, 'mock-peer.js');
 const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.173.0/';
 const THREE_DIR = path.join(TOOLS, 'node_modules', 'three');
 const JS = 'application/javascript';
-const typeOf = f => f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? JS : f.endsWith('.woff2') ? 'font/woff2' : f.endsWith('.txt') ? 'text/plain' : 'audio/mpeg';
+const CHROME = () => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => ({ brands: [{ brand: 'Chromium', version: '1' }, { brand: 'Google Chrome', version: '1' }] }) });
+const typeOf = f => f.endsWith('.html') ? 'text/html' : f.endsWith('.css') ? 'text/css' : f.endsWith('.js') ? JS : f.endsWith('.woff2') ? 'font/woff2' : f.endsWith('.txt') ? 'text/plain' : 'audio/mpeg';
 
-function serve(page, opts) {
+async function serve(page, opts) {
+  if (!(opts && opts.realBrowser)) await page.addInitScript(CHROME);
   const peer = (opts && opts.peer) || 'mock';
   const root = (opts && opts.root) || ROOT;
   return page.route('**/*', async route => {

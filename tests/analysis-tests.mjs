@@ -100,6 +100,11 @@ console.log('SESSIONS');
     const later = planBlocks('202', ['B'], 11, '10').map(b => Object.assign(b, { start: '2026-11-10T15:00:00.000Z' }));
     const same_day = A.build([await zipOf('m.zip', day), await zipOf('p.zip', later)]);
     ok(same_day.sessions.length === 2, 'two separate plans on one day are two sessions');
+    const resumed = planBlocks('204', ['N', 'B'], 11, '10');
+    const parts = A.build([await zipOf('p1.zip', resumed.slice(0, 1)), await zipOf('p2.zip', resumed.slice(1))]);
+    ok(parts.sessions.length === 1 && same(labels(parts), ['baseline-1', 'boost-1']) && !parts.warnings.length, 'later blocks of a resumed session stay in that session');
+    const again = A.build([await zipOf('w1.zip', planBlocks('205', ['N', 'B'], 11, '10')), await zipOf('w2.zip', planBlocks('205', ['N', 'B'], 11, '17'))]);
+    ok(again.sessions.length === 2, 'a later session with the same plan stays separate');
 }
 {
     const blocks = planBlocks('203', ['N', 'B'], 11, '10');
@@ -179,6 +184,8 @@ console.log('PLANS AND NOTES');
 {
     const figures = await Z.make([{ path: 'figure.svg', parts: ['<svg/>'] }]);
     const a = await A.readExport(new File([await figures.arrayBuffer()], 'figures.zip'));
+    const lean = await A.readExport(new File([await (await Z.make([{ path: `block1/9_vr-session-data-${STAMP}.csv`, parts: ['a'] }, { path: `block1/9_session-info-${STAMP}.csv`, parts: ['Key,Value\nParticipantID,9\n'] }])).arrayBuffer()], 'lean.zip'), { infoOnly: true });
+    ok(lean.blocks[0].info.ParticipantID === '9' && lean.blocks[0].table === undefined, 'reading session-info only skips the trial table');
     const b = await A.readExport(new File(['not a zip at all'], 'broken.zip'));
     const r = A.build([a, b]);
     ok(r.setAside.length === 2 && r.setAside[0].reason.includes('no WebSpheres') && r.setAside[1].reason.includes('could not be read'), 'zips that are not sessions are listed, not used');
@@ -189,6 +196,7 @@ console.log('OUTPUT FILES');
     const zip = await zipOf('a.zip', planBlocks('601', ['N', 'B'], 11, '10'));
     const r = A.build([zip], { group: 'patients' });
     ok(r.rows.every(x => x.Group === 'Patient') && r.blocks[0].Group === 'Patient', 'the group is recorded on every row');
+    await A.addChecksums([zip]);
     const files = A.outputFiles([zip], r, '2026-11-10T12:00:00.000Z', 'patients');
     ok(same(files.map(f => f.path), ['handDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the block summary and a report');
     ok(files[1].parts[0].split('\n').length === 4 && files[1].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
@@ -208,6 +216,9 @@ console.log('STUDY FOLDER');
     ok(check('EXP027', ['patients'], [], { patients: ['zips'] }).status === 'setup', 'missing folders can be added');
     const wrong = check('exp026', ['Data', '.git'], ['script.R']);
     ok(wrong.status === 'wrong' && wrong.message.includes('not an experiment folder'), 'an unrelated folder is refused and cannot be set up');
+    ok(check('constructor', [], []).status === 'setup', 'a folder named after a built-in property is not mistaken for a group');
+    const cased = check('EXP027', ['Patients', 'controls'], [], { controls: ['zips'] });
+    ok(cased.status === 'wrong' && cased.message.includes('Rename the Patients folder to patients'), 'a capitalised group folder gets a specific fix');
 }
 
 console.log('MASTER COMPARISON');
@@ -227,6 +238,11 @@ console.log('MASTER COMPARISON');
     const fewer = A.build([await zipOf('c.zip', planBlocks('701', ['N'], 11, '10'))], { group: 'patients' });
     ok(A.compareMaster(oldText, fewer.rows).missing === 11, 'rows that disappear are counted');
     ok(A.compareMaster('"Other"\n"x"\n', first.rows).comparable === false, 'a master with other columns is reported as not comparable');
+    const twice = planBlocks('704', ['N', 'N'], 3, '10').map(b => Object.assign(b, { number: 1 }));
+    const clash = A.build([await zipOf('d.zip', [twice[0]]), await zipOf('e.zip', [Object.assign({}, twice[1])])], { group: 'patients' });
+    clash.rows.forEach(r => { r.Session = 1; });
+    const stable = A.compareMaster(A.toCsv(A.COLUMNS, clash.rows), clash.rows);
+    ok(stable.changed === 0 && stable.missing === 0 && stable.added === 0, 'repeated block numbers compare cleanly');
     const a = await zipOf('a.zip', planBlocks('703', ['N'], 3, '10'));
     const b = await zipOf('b.zip', planBlocks('703', ['N'], 3, '10'));
     const c = await zipOf('c.zip', planBlocks('703', ['N'], 3, '12'));
@@ -260,6 +276,8 @@ console.log('BROWSER CHECK');
     ok(B.supported(brands('Not:A-Brand', 'Chromium', 'Microsoft Edge')), 'Edge is supported');
     ok(!B.supported(brands('Not A;Brand', 'Chromium', 'Brave')) && !B.supported(brands('Chromium', 'Opera')), 'other Chromium browsers are not');
     ok(!B.supported([]), 'a browser with no brand information is not');
+    ok(!B.supported(brands('Chromium', 'HeadlessChrome')), 'the test browser is not treated as a supported browser');
+    ok(A.fileNames('patients', true).master === 'PRACTICE_handDB_patients.csv' && A.fileNames('patients').master === 'handDB_patients.csv', 'practice output has its own file names');
     ok(B.embedded('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Claude/4.23118.0 Chrome/152.0.7977.167 Safari/537.36 MSIX'), 'an app window that cannot edit folders is detected');
     ok(!B.embedded('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36'), 'normal Chrome is not treated as an app window');
 }
