@@ -763,7 +763,7 @@ const ResultsCharts = (() => {
             title: 'Hand choice by target',
             height: (width, data) => 70 + panels(width, data.runs.length).rows * (LINE_H + 94),
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Hand choice by target', [`Hand used to hit each target. Dominant hand: ${data.dominant}.`]);
+                const top = header(ctx, width, data, theme, 'Hand choice by target', [`Hand used to hit each target. ${data.patient ? 'Less affected hand' : 'Dominant hand'}: ${data.dominant}.`]);
                 legend(ctx, width, 38, theme, [{ label: 'Left hand', color: theme.left }, { label: 'Right hand', color: theme.right }]);
                 const p = panels(width, data.runs.length);
                 data.runs.forEach((run, i) => {
@@ -799,13 +799,13 @@ const ResultsCharts = (() => {
             title: 'Hand use across session',
             height: () => SESSION_H,
             draw: (ctx, width, data, opts, theme, hits) => {
-                const top = header(ctx, width, data, theme, 'Hand use across session', [`Percentage of hits made with the non-dominant hand, calculated in groups of ${SET_SIZE} trials. Dominant hand: ${data.dominant}.`]);
+                const top = header(ctx, width, data, theme, 'Hand use across session', [`Percentage of hits made with the ${data.patient ? 'more affected hand' : 'non-dominant hand'}, calculated in groups of ${SET_SIZE} trials. ${data.patient ? 'Less affected hand' : 'Dominant hand'}: ${data.dominant}.`]);
                 sessionPlot(ctx, width, top, data, theme, hits, {
                     sets: (run) => handUseSets(run, data.dominantCode),
                     max: (all) => Math.min(100, niceMax(Math.max(10, ...all.map(s => s.value).filter(v => v !== null)))),
                     reference: 50,
                     format: v => String(Math.round(v * 10) / 10),
-                    yTitle: 'Non-dominant hand (% of hits)',
+                    yTitle: `${data.patient ? 'More affected hand' : 'Non-dominant hand'} (% of hits)`,
                     lines: [{ key: 'value', color: data.dominantCode === 'LEFT' ? theme.right : theme.left, tip: (s, v) => `${Math.round(v)}% of ${s.n} hits` }]
                 });
             }

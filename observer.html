@@ -348,7 +348,7 @@
                     <div class="g-row"><div class="label">Experimenter</div><input id="g-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Participant ID</div><input id="g-id" type="text" maxlength="32" autocomplete="off" spellcheck="false"></div>
                     <div class="g-row"><div class="label">Group</div><div class="opts"><button tabindex="-1" data-g="group" data-v="Control">Controls</button><button tabindex="-1" data-g="group" data-v="Patient">Patients</button></div></div>
-                    <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-g="dom" data-v="LEFT">Left</button><button tabindex="-1" data-g="dom" data-v="RIGHT">Right</button></div></div>
+                    <div class="g-row"><div class="label" id="g-dom-label">Dominant hand</div><div class="opts"><button tabindex="-1" data-g="dom" data-v="LEFT">Left</button><button tabindex="-1" data-g="dom" data-v="RIGHT">Right</button></div></div>
                     <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-confirm">Send to headset</button></div>
                     <p class="g-msg" id="g2-msg"></p>
                     <ul class="checks" id="g2-checks"></ul>
@@ -484,7 +484,7 @@
                     <div class="g-unlocked" id="g-unlocked" hidden>
                         <div class="label">Setup unlocked</div>
                         <p class="g-note">Changes take effect immediately and are recorded.</p>
-                        <div class="g-row"><div class="label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
+                        <div class="g-row"><div class="label" id="u-dom-label">Dominant hand</div><div class="opts"><button tabindex="-1" data-u="setDominant" data-v="LEFT">Left</button><button tabindex="-1" data-u="setDominant" data-v="RIGHT">Right</button></div></div>
                         <div class="g-row"><div class="label">Condition</div><div class="opts"><button tabindex="-1" data-u="setCondition" data-v="1">No boost</button><button tabindex="-1" data-u="setCondition" data-v="2">Boost</button></div></div>
                         <div class="g-row"><div class="label">Group</div><div class="opts"><button tabindex="-1" data-u="setGroup" data-v="Control">Controls</button><button tabindex="-1" data-u="setGroup" data-v="Patient">Patients</button></div></div>
                         <div class="g-row"><div class="label">Experimenter</div><div class="g-inline"><input id="u-exp" type="text" maxlength="64" autocomplete="off" spellcheck="false"><button tabindex="-1" id="u-exp-go">Change</button></div></div>
@@ -587,8 +587,8 @@
                     <kbd>S</kbd><span>Save headset copy</span>
                     <kbd>P</kbd><span>Start / pause / resume</span>
                     <kbd>C</kbd><span>Switch condition</span>
-                    <kbd>1</kbd><span>Dominant hand: left</span>
-                    <kbd>2</kbd><span>Dominant hand: right</span>
+                    <kbd>1</kbd><span id="key-dom-left">Dominant hand: left</span>
+                    <kbd>2</kbd><span id="key-dom-right">Dominant hand: right</span>
                     <kbd>N</kbd><span>Mode: 110</span>
                     <kbd>F</kbd><span>Mode: 44 (2 sets of 22)</span>
                     <kbd>B</kbd><span>Mode: 110 (5 sets of 22)</span>
@@ -1742,9 +1742,9 @@
         stream: (rec) => 'The 3D view is not receiving current data.' + rec,
         trial: () => 'Trials completed in the current block, out of the planned total.',
         score: () => 'Points earned in the current block.',
-        cond: () => 'No boost: Both hands have a 30% critical-hit chance.\nBoost: The non-dominant hand has a 55% chance; the dominant hand has a 5% chance.',
-        dom: () => 'The dominant hand has a lower critical-hit chance during Boost.',
-        fire: () => 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.',
+        cond: () => `No boost: Both hands have a 30% critical-hit chance.\nBoost: The ${currentHands().other} has a 55% chance; the ${currentHands().lower} has a 5% chance.`,
+        dom: () => `The ${currentHands().lower} has a lower critical-hit chance during Boost.`,
+        fire: () => currentHands().fire,
         target: () => 'Current target number (1–11), matching the trial data file.',
         recentre: () => 'Time of last recentre.',
         hand: () => 'Tracked: The hand is currently tracked.\nLost: The hand was tracked but is no longer tracked.\nNo data: No tracking data have been received yet.',
@@ -1906,6 +1906,28 @@
     const CALIB_LABEL = { reach: 'reach', height: 'height', lap: 'home' };
     const HOME_LABEL = { 'one-box': 'One box', 'per-hand': 'One per hand' };
     const HAND_LABEL = { LEFT: 'Left', RIGHT: 'Right' };
+    const HAND_WORDS = {
+        Control: { hand: 'Dominant hand', short: 'Dominant', lower: 'dominant hand', other: 'non-dominant hand', fire: 'Fire mode activates after three consecutive non-dominant-hand critical hits and ends after any dominant-hand hit. It does not affect points.' },
+        Patient: { hand: 'Less affected hand', short: 'Less affected', lower: 'less affected hand', other: 'more affected hand', fire: 'Fire mode activates after three consecutive critical hits with the more affected hand and ends after any hit with the less affected hand. It does not affect points.' }
+    };
+    const handWords = (group) => (group === 'Patient' ? HAND_WORDS.Patient : HAND_WORDS.Control);
+    const currentHands = () => handWords((receiver.headsetState || {}).group);
+
+    function showHandWords() {
+        const words = currentHands();
+        const setRowLabel = (value, label) => {
+            const row = $(value) && $(value).previousElementSibling;
+            if (!row) return;
+            row.firstChild.nodeValue = label;
+            row.querySelector('.info').setAttribute('aria-label', `About ${label}`);
+        };
+        $('g-dom-label').textContent = handWords(guide.form.group).hand;
+        $('u-dom-label').textContent = words.hand;
+        $('key-dom-left').textContent = `${words.hand}: left`;
+        $('key-dom-right').textContent = `${words.hand}: right`;
+        setRowLabel('v-dom', words.short);
+        setRowLabel('r-dom', words.hand);
+    }
     const failureText = (r) => r.offline ? r.reason : `Headset refused: ${r.reason}`;
     const pendingCmds = new Map();
     let cmdSeq = 0;
@@ -2153,6 +2175,7 @@
     }
 
     function renderGuide() {
+        showHandWords();
         const st = guideStatus();
         const s = st.s;
         const now = Date.now();
@@ -2226,7 +2249,7 @@
                 sentLine('Experimenter', s.experimenter, $('g-exp').value.trim()),
                 sentLine('Participant ID', s.participantId, $('g-id').value.trim()),
                 sentLine('Group', GROUP_LABEL[s.group || 'Control'], GROUP_LABEL[guide.form.group]),
-                sentLine('Dominant hand', HAND_LABEL[s.dominantHand], HAND_LABEL[guide.form.dom])
+                sentLine(handWords(guide.form.group).hand, HAND_LABEL[s.dominantHand], HAND_LABEL[guide.form.dom])
             ]);
         }
         $('g-confirm').classList.toggle('g-primary', !st.done[2]);
@@ -2947,6 +2970,7 @@
             session: `${PRACTICE ? 'PRACTICE, ' : ''}${s.participantId || 'No ID'}, ${new Date().toLocaleDateString('en-GB')}`,
             dominant: HAND_LABEL[s.dominantHand] || '–',
             dominantCode: s.dominantHand,
+            patient: s.group === 'Patient',
             homeHalf: s.homeMode === 'per-hand' ? 0.1 : 0.4
         };
     }
@@ -3475,7 +3499,7 @@
         if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) { setMsg(2, 'Participant ID must contain 1–32 letters, numbers, underscores or hyphens.', 'bad'); return; }
         if (/left|right/i.test(id)) { setMsg(2, 'The participant ID cannot contain “left” or “right” because the 3D viewer uses those words in file names.', 'bad'); return; }
         const f = guide.form;
-        if (!f.dom) { setMsg(2, 'Select the dominant hand.', 'bad'); return; }
+        if (!f.dom) { setMsg(2, `Select the ${handWords(f.group).lower}.`, 'bad'); return; }
         guide.busy = true;
         setMsg(2, 'Sending…', 'busy');
         for (const [name, value] of [['setDominant', f.dom], ['setExperimenter', exp], ['setGroup', f.group], ['setParticipant', id]]) {
@@ -3538,7 +3562,7 @@
         $('g-unlock-yes').addEventListener('click', () => { $('g-unlock-confirm').hidden = true; runGuideCmd(7, 'unlockSetup', undefined, 'Setup unlocked. It will lock again when the block resumes.'); });
         document.querySelectorAll('[data-u]').forEach(b => b.addEventListener('click', () => {
             const condition = b.dataset.u === 'setCondition';
-            runGuideCmd(7, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, { setCondition: 'Condition changed', setGroup: 'Group changed' }[b.dataset.u] || 'Dominant hand changed');
+            runGuideCmd(7, b.dataset.u, condition ? +b.dataset.v : b.dataset.v, { setCondition: 'Condition changed', setGroup: 'Group changed' }[b.dataset.u] || `${currentHands().hand} changed`);
         }));
         document.querySelectorAll('[data-ucalib]').forEach(b => b.addEventListener('click', () => calibrateCmd(7, b.dataset.ucalib)));
         [['u-exp', 'setExperimenter', 'Experimenter changed'], ['u-id', 'setParticipant', 'Participant ID changed']].forEach(([id, name, okText]) => {

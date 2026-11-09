@@ -328,6 +328,15 @@ async function panelSuite(b) {
   });
   const axes = { workspaceMap: ['Left–right of home centre (cm)', 'Forward of home (cm)', 'Height above home (cm)'], workspaceTime: ['Area (cm²)', 'Trial number (across the session)'], handChoice: ['Share of hits (%)', 'Target (1 = far left, 11 = far right)'], handUse: ['Non-dominant hand (% of hits)', 'Trial number (across the session)'], times: ['Time (ms)', 'Target (1 = far left, 11 = far right)'], quality: ['Time in block (min:s)'] };
   Object.entries(axes).forEach(([id, want]) => ok(want.every(w => written[id].includes(w)), `${id}: axes titled`));
+  const patientWords = await O(() => {
+    const seen = [], real = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (s, ...a) { seen.push(String(s)); return real.call(this, s, ...a); };
+    const data = { runs: [{ run: 1, label: 'Block 1', trials: [], hits: [] }], session: 'P1', dominant: 'Right', dominantCode: 'RIGHT', patient: true, homeHalf: 0.4 };
+    ['handChoice', 'handUse'].forEach(id => { try { ResultsCharts.render(document.createElement('canvas'), id, data, { shape: ResultsCharts.SHAPE_DEFAULT }, 'light', 1400, 1); } catch (e) { seen.push('THREW ' + e.message); } });
+    CanvasRenderingContext2D.prototype.fillText = real;
+    return seen.join(' ');
+  });
+  ok(patientWords.includes('Less affected hand: Right') && patientWords.includes('more affected hand') && !/dominant/i.test(patientWords), `patient charts use the affected-hand wording${patientWords.includes('THREW') ? ' ' + patientWords.slice(0, 200) : ''}`);
   ok(Object.values(written).flat().every(s => !/ball/i.test(s)), 'no specialist wording on any figure');
   ok(Object.values(written).flat().every(s => !s.includes('·')), 'no middle dots on any figure');
   ok(!written.quality.includes('Within limits') && written.times.includes('Movement time') && written.handChoice.includes('Hits'), 'legends and hit counts present; no limits legend on the timeline');

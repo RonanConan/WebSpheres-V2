@@ -147,7 +147,7 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   const peaks = rows.map(r => +r.peak_velocity_m_s);
   ok(peaks.every(v => v > 1.4 && v < 1.9), `peak speed matches the synthetic reach (${Math.min(...peaks).toFixed(2)} to ${Math.max(...peaks).toFixed(2)} m/s)`);
   const hand = (await read(['KIN', 'controls'], 'handDB_controls.csv')).trim().split('\n');
-  ok(hand[0].endsWith('"Group","DominantHand"') && hand[1].endsWith('"Control","LEFT"'), 'handDB carries the recorded dominant hand');
+  ok(hand[0].endsWith('"Group","DominantHand","LessAffectedHand"') && hand[1].endsWith('"Control","LEFT",""'), 'handDB carries the recorded dominant hand');
   const details = await p.evaluate(async () => { const out = []; for await (const [n] of (await window.__dir(['KIN', 'controls', 'kinematics_details'])).entries()) out.push(n); return out.sort(); });
   ok(details.includes('all_trial_metrics.csv') && details.includes('all_block_audit.csv') && details.includes('kinematics_non_dominant_valid_reaches.csv') && details.includes('batch_summary.json'), 'the supporting files are saved together');
   const report = await read(['KIN', 'controls'], 'report_controls.txt');
@@ -163,6 +163,24 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   await p.check('#g6-problems input');
   await p.click('[data-next="6"]'); await wait(7);
   ok((await p.locator('#g7-say').innerText()) === 'The master files are already up to date.' && await p.locator('[data-next="7"]').isEnabled(), 'nothing needs saving');
+
+  console.log('THE MASTER GROWS');
+  const beforeGrowth = await read(['KIN', 'controls'], 'kinematicsDB_controls.csv');
+  await put(['KIN', 'controls', 'zips'], '304.zip', await sessionZip('304', { dominant: 'RIGHT', group: 'Control', day: 15 }));
+  await toStep6('controls');
+  await p.click('#g6-run');
+  await msg('g6-msg', 'Calculated 4 blocks');
+  ok((await p.locator('#kin-comparison').innerText()) === '11 new reaches, and 0 existing rows changed.', 'a new session is reported as additions only');
+  await p.check('#g6-problems input');
+  await p.click('[data-next="6"]'); await wait(7);
+  await p.click('#g7-save');
+  await msg('g7-msg', 'kinematicsDB_controls.csv with 44 reaches');
+  const afterGrowth = (await read(['KIN', 'controls'], 'kinematicsDB_controls.csv')).trim().split('\n');
+  const earlier = beforeGrowth.trim().split('\n');
+  ok(afterGrowth.length === 45 && earlier.every(line => afterGrowth.includes(line)), 'the kinematics master keeps every earlier row exactly and adds the new session');
+  ok(afterGrowth.filter(line => line.startsWith('304/s1/')).length === 11, 'the new session is in the kinematics master');
+  const kinHistory = await p.evaluate(async () => { const out = []; for await (const [n] of (await window.__dir(['KIN', 'controls', 'history'])).entries()) out.push(n); return out.filter(n => n.startsWith('kinematicsDB_controls-')); });
+  ok(kinHistory.length === 1 && (await read(['KIN', 'controls', 'history'], kinHistory[0])) === beforeGrowth, 'the previous kinematics master is kept in history');
 
   console.log('PATIENTS AND A DAMAGED BLOCK');
   await put(['KIN', 'patients', 'zips'], '401.zip', await sessionZip('401', { dominant: 'RIGHT', group: 'Patient', day: 13 }));

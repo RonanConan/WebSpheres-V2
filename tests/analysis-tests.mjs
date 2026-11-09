@@ -136,7 +136,7 @@ console.log('TRIAL VALUES');
     ok(rows[2].Hand === 'LEFT' && rows[2].HitType === 'critical', 'hand and hit type are tidied as in pt_pipeline.R');
     ok(rows[0].MovementTime === 801 && rows[0].DecisionTime === 401, 'MovementTime is the game TotalMovementTime');
     const csv = A.toCsv(A.COLUMNS, rows).split('\n');
-    ok(csv[0] === '"ID","Session","Block","BlockType","BlockNum","Trial","Target","Hand","Points","HitType","DecisionTime","MovementTime","BlockOrder","Phase","Condition","Mode","Group","DominantHand"', 'handDB columns are in the agreed order');
+    ok(csv[0] === '"ID","Session","Block","BlockType","BlockNum","Trial","Target","Hand","Points","HitType","DecisionTime","MovementTime","BlockOrder","Phase","Condition","Mode","Group","DominantHand","LessAffectedHand"', 'handDB columns are in the agreed order');
     ok(csv[1].startsWith('"301",1,"baseline-1","baseline",1,1,1,"RIGHT",5,"normal",401,801,1,"no-boost","NM","standard"'), 'a CSV row is written as expected');
     ok(csv[2].includes(',NA,0,"skip",'), 'a missing hand is written as NA without quotes');
 }
@@ -316,7 +316,17 @@ console.log('HANDEDNESS');
 {
     const r = A.build([await zipOf('a.zip', planBlocks('920', ['N'], 3, '10', { info: { DominantHand: 'left' } }))]);
     ok(r.rows.every(x => x.DominantHand === 'LEFT') && r.blocks[0].DominantHand === 'LEFT', 'the recorded dominant hand is on every row and block');
-    ok(A.COLUMNS.at(-1) === 'DominantHand' && A.BLOCK_COLUMNS.at(-1) === 'DominantHand', 'the new column is added at the end');
+    ok(A.COLUMNS.at(-1) === 'LessAffectedHand' && A.BLOCK_COLUMNS.at(-1) === 'LessAffectedHand' && A.COLUMNS.at(-2) === 'DominantHand', 'the new columns are added at the end');
+    const patient = A.build([await zipOf('a.zip', planBlocks('924', ['N'], 3, '10', { info: { DominantHand: 'LEFT', Group: 'Patient' } }))], { group: 'patients' });
+    ok(patient.rows.every(x => x.LessAffectedHand === 'LEFT' && x.DominantHand === '') && patient.blocks[0].LessAffectedHand === 'LEFT' && patient.blocks[0].DominantHand === '', 'for patients the recorded hand is the less affected hand, not the dominant hand');
+    const control = A.build([await zipOf('a.zip', planBlocks('925', ['N'], 3, '10', { info: { DominantHand: 'LEFT', Group: 'Control' } }))], { group: 'controls' });
+    ok(control.rows.every(x => x.DominantHand === 'LEFT' && x.LessAffectedHand === ''), 'for controls the recorded hand is the dominant hand');
+    const patientMixed = A.build([await zipOf('a.zip', planBlocks('926', ['N'], 3, '10', { info: { DominantHand: 'LEFT', Group: 'Patient' } })), await zipOf('b.zip', planBlocks('926', ['N'], 3, '11', { info: { DominantHand: 'RIGHT', Group: 'Patient' } }))], { group: 'patients' });
+    ok(patientMixed.warnings.includes('Participant 926 is recorded with more than one less affected hand: LEFT and RIGHT. Check which hand is correct.'), 'a patient recorded with both hands uses the patient wording');
+    const patientChanged = A.build([await zipOf('a.zip', planBlocks('927', ['N'], 3, '10', { changes: '1000|2|DominantHand|LEFT|RIGHT', info: { Group: 'Patient' } }))], { group: 'patients' });
+    ok(patientChanged.warnings.some(w => w.includes('Less affected hand changed from LEFT to RIGHT after trial 2')), 'a patient hand change uses the patient wording');
+    const patientNone = A.build([await zipOf('a.zip', planBlocks('928', ['N'], 3, '10', { info: { DominantHand: '', Group: 'Patient' } }))], { group: 'patients' });
+    ok(patientNone.warnings.includes('Participant 928 has no recorded less affected hand.'), 'a patient with no recorded hand uses the patient wording');
     ok(!r.warnings.length, 'one recorded hand gives no warning');
     const mixed = A.build([await zipOf('a.zip', planBlocks('921', ['N'], 3, '10', { info: { DominantHand: 'LEFT' } })), await zipOf('b.zip', planBlocks('921', ['N'], 3, '11', { info: { DominantHand: 'RIGHT' } }))]);
     ok(mixed.warnings.some(w => w === 'Participant 921 is recorded with more than one dominant hand: LEFT and RIGHT. Their handedness will be treated as not known.'), 'a participant with both hands recorded is flagged');

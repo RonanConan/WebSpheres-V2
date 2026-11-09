@@ -49,6 +49,20 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   await p.click('#g-confirm'); await tick();
   await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT' }); await frame(); await tick();
   ok((await checks('g2-checks')).join('|') === 'ok:Experimenter: Jo|ok:Participant ID: P9|ok:Group: Controls|ok:Dominant hand: Right', 'after sending: values ticked');
+  const wordsOf = () => p.evaluate(() => ({ form: document.getElementById('g-dom-label').textContent, unlocked: document.getElementById('u-dom-label').textContent, key: document.getElementById('key-dom-left').textContent, bar: document.getElementById('v-dom').previousElementSibling.firstChild.nodeValue, row: document.getElementById('r-dom').previousElementSibling.firstChild.nodeValue, wide: document.documentElement.scrollWidth <= window.innerWidth }));
+  let words = await wordsOf();
+  ok(words.form === 'Dominant hand' && words.bar === 'Dominant' && words.row === 'Dominant hand', 'controls keep the dominant-hand wording');
+  await p.evaluate(() => document.querySelector('[data-g="group"][data-v="Patient"]').click()); await tick();
+  words = await wordsOf();
+  ok(words.form === 'Less affected hand' && words.bar === 'Dominant', 'choosing Patients changes the form label straight away; other labels wait for the headset');
+  ok((await checks('g2-checks')).at(-1) === 'ok:Less affected hand: Right', 'the sent check uses the patient wording');
+  await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT', group: 'Patient' }); await frame(); await tick();
+  words = await wordsOf();
+  ok(words.unlocked === 'Less affected hand' && words.key === 'Less affected hand: left' && words.bar === 'Less affected' && words.row === 'Less affected hand' && words.wide, 'patient sessions use the less affected hand wording everywhere, and the page still fits');
+  await p.evaluate(() => document.querySelector('[data-g="group"][data-v="Control"]').click()); await tick();
+  await st({ participantId: 'P9', experimenter: 'Jo', dominantHand: 'RIGHT', group: 'Control' }); await frame(); await tick();
+  words = await wordsOf();
+  ok(words.form === 'Dominant hand' && words.bar === 'Dominant', 'going back to Controls restores the wording');
   ok(await openStep() === 3, 'sending moves on to Block plan');
   ok((await text('g2-val')) === 'P9, Right', 'collapsed Participant shows ID and hand');
 

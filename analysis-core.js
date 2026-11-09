@@ -1,7 +1,7 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.4.0';
-    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand'];
-    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand'];
+    const VERSION = '1.5.0';
+    const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
+    const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand', 'LessAffectedHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
     const FILE_KIND = /^(.*?)(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-(\d{4}-\d{2}-\d{2}T[\d-]+)\.csv$/;
@@ -321,7 +321,7 @@ const WebSpheresAnalysis = (() => {
         return items;
     }
 
-    function checkBlock(block, where, result) {
+    function checkBlock(block, where, result, group) {
         const info = block.info;
         const completed = toInteger(info.TrialsCompleted);
         if (completed !== null && completed !== block.table.length) result.warnings.push(`${where}: the session-info file reports ${trialCount(completed)}, but the trial file contains ${block.table.length}.`);
@@ -331,12 +331,17 @@ const WebSpheresAnalysis = (() => {
         if (!block.hasLeft || !block.hasRight) result.notes.push(`${where}: the kinematics files are incomplete. This block is in handDB, but it will be left out of the kinematics master.`);
         String(info.SetupChanges || '').split(';').filter(Boolean).forEach(change => {
             const parts = change.split('|');
-            if (CHANGE_FIELDS.has(parts[2])) result.warnings.push(`${where}: ${parts[2]} changed from ${parts[3]} to ${parts[4]} after trial ${parts[1]}. ${parts[2] === 'Group' ? 'All trials are labelled with the group of the folder they are in.' : 'All trials are labelled with the final value.'}`);
+            if (CHANGE_FIELDS.has(parts[2])) result.warnings.push(`${where}: ${parts[2] === 'DominantHand' && group === 'Patient' ? 'Less affected hand' : parts[2]} changed from ${parts[3]} to ${parts[4]} after trial ${parts[1]}. ${parts[2] === 'Group' ? 'All trials are labelled with the group of the folder they are in.' : 'All trials are labelled with the final value.'}`);
         });
     }
 
     function dominantHand(info) {
         return String(info.DominantHand || '').trim().toUpperCase();
+    }
+
+    function handColumns(info, group) {
+        const hand = dominantHand(info);
+        return group === 'Patient' ? { DominantHand: '', LessAffectedHand: hand } : { DominantHand: hand, LessAffectedHand: '' };
     }
 
     function buildRows(block, item, id, sessionNumber, result, where, group) {
@@ -357,7 +362,7 @@ const WebSpheresAnalysis = (() => {
                 Hand: hand === 'NA' || hand === '' ? null : hand,
                 Points: integer(row[at.Points]), HitType: hitType,
                 DecisionTime: integer(row[at.DecisionTime]), MovementTime: integer(row[at.TotalMovementTime]),
-                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group, DominantHand: dominantHand(block.info)
+                BlockOrder: item.number, Phase: item.phase, Condition: condition, Mode: block.info.Mode || '', Group: group, ...handColumns(block.info, group)
             });
         });
         if (unreadable) result.warnings.push(`${where}: ${unreadable === 1 ? '1 value could not be read as a whole number and is' : `${unreadable} values could not be read as whole numbers and are`} recorded as NA.`);
@@ -380,15 +385,17 @@ const WebSpheresAnalysis = (() => {
         const hands = new Map();
         blocks.forEach(block => {
             if (!hands.has(block.ID)) hands.set(block.ID, new Set());
-            if (block.DominantHand) hands.get(block.ID).add(block.DominantHand);
+            if (block.DominantHand || block.LessAffectedHand) hands.get(block.ID).add(block.DominantHand || block.LessAffectedHand);
         });
         return hands;
     }
 
-    function checkDominantHands(result) {
+    function checkDominantHands(result, group) {
+        const word = group === 'Patient' ? 'less affected hand' : 'dominant hand';
+        const consequence = group === 'Patient' ? 'Check which hand is correct.' : 'Their handedness will be treated as not known.';
         recordedHands(result.blocks).forEach((hands, id) => {
-            if (hands.size > 1) result.warnings.push(`Participant ${id || '(no ID)'} is recorded with more than one dominant hand: ${Array.from(hands).sort(compareText).join(' and ')}. Their handedness will be treated as not known.`);
-            if (!hands.size) result.warnings.push(`Participant ${id || '(no ID)'} has no recorded dominant hand.`);
+            if (hands.size > 1) result.warnings.push(`Participant ${id || '(no ID)'} is recorded with more than one ${word}: ${Array.from(hands).sort(compareText).join(' and ')}. ${consequence}`);
+            if (!hands.size) result.warnings.push(`Participant ${id || '(no ID)'} has no recorded ${word}.`);
         });
     }
 
@@ -421,7 +428,7 @@ const WebSpheresAnalysis = (() => {
             items.filter(item => item.block).forEach(item => {
                 const block = item.block;
                 const where = `Participant ${id || '(no ID)'}, session ${sessionNumber}, ${item.name}`;
-                checkBlock(block, where, result);
+                checkBlock(block, where, result, groupLabel);
                 const condition = buildRows(block, item, id, sessionNumber, result, where, groupLabel);
                 result.blocks.push({
                     ID: id, Session: sessionNumber, Block: item.name, BlockOrder: item.number, BlockType: item.type, BlockNum: item.typeNumber,
@@ -429,13 +436,13 @@ const WebSpheresAnalysis = (() => {
                     PlannedTrials: toInteger(block.info.TotalTrials === undefined ? '' : block.info.TotalTrials), CompletedTrials: toInteger(block.info.TrialsCompleted === undefined ? '' : block.info.TrialsCompleted),
                     RowsInHandDB: block.table.length, EndReason: block.info.EndReason || '', Plan: block.info.Plan || '', AppVersion: block.info.AppVersion || '',
                     Practice: block.practice ? 'yes' : 'no', KinematicsFiles: block.hasLeft && block.hasRight ? 'both' : block.hasLeft ? 'left only' : block.hasRight ? 'right only' : 'none',
-                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; '), Group: groupLabel, DominantHand: dominantHand(block.info),
+                    SourceZip: block.zip.name, SourceFolder: block.folder, OtherCopies: block.otherCopies.join('; '), Group: groupLabel, ...handColumns(block.info, groupLabel),
                     source: { file: block.zip.file, entries: block.entries }
                 });
             });
         });
         checkSimilarIds(result.sessions, result);
-        checkDominantHands(result);
+        checkDominantHands(result, groupLabel);
         return result;
     }
 

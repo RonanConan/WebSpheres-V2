@@ -157,7 +157,7 @@ const PICKER = () => {
   await waitMsg('g7-msg', 'Saved handDB_patients.csv with 704 trials');
   const master = await read(['NEW', 'patients'], 'handDB_patients.csv');
   ok(master.trim().split('\n').length === 705, 'the master has a header and 704 rows');
-  ok(master.split('\n')[1].endsWith('"Patient","RIGHT"'), 'rows carry the group');
+  ok(master.split('\n')[1].endsWith('"Patient","","RIGHT"'), 'rows carry the group');
   ok((await list(['NEW', 'patients'])).join() === 'blocks_patients.csv,handDB_patients.csv,history,kinematicsDB_patients.csv,kinematics_details,report_patients.txt,zips', 'the master, summary and report are saved');
   ok((await list(['NEW', 'patients', 'history'])).length === 0, 'nothing goes to history on the first save');
   ok(await enabled(7), 'Next is enabled after saving');
