@@ -247,7 +247,9 @@
         try {
             handle = await window.showDirectoryPicker({ id: 'webspheres-study', mode: 'readwrite' });
         } catch (e) {
-            if (e.name !== 'AbortError') setMsg('g2-msg', 'That folder cannot be used. Select the experiment folder inside your GitHub folder.', 'bad');
+            setMsg('g2-msg', e.name === 'AbortError'
+                ? 'No folder was received. If you did select one, this browser did not give the page permission to edit it. Open this page in Chrome or Edge, select the folder, and allow access when asked.'
+                : 'That folder cannot be used. Select the experiment folder inside your GitHub folder.', 'bad');
             return;
         }
         await useFolder(handle);

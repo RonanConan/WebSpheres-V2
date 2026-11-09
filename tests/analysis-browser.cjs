@@ -102,6 +102,11 @@ const PICKER = () => {
 
   console.log('STEP 2: FOLDER CHECKS');
   ok(!(await enabled(2)), 'Next is disabled before a folder is selected');
+  await p.evaluate(() => { window.__realPicker = window.showDirectoryPicker; window.showDirectoryPicker = async () => { throw new DOMException('aborted', 'AbortError'); }; });
+  await selectFolder();
+  await waitMsg('g2-msg', 'No folder was received');
+  ok(!(await enabled(2)), 'a folder that never arrives is explained and blocks Next');
+  await p.evaluate(() => { window.showDirectoryPicker = window.__realPicker; });
   await pick(['EXP027', 'patients']);
   await selectFolder();
   await waitMsg('g2-msg', 'You selected the patients folder');
