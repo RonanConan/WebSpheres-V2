@@ -105,7 +105,7 @@ async function openPage(b, block) {
   ok((await q.evaluate(() => getComputedStyle(document.getElementById('stage')).borderTopLeftRadius)) === '13.5px', '3D view has rounded corners');
   ok(near((await box('#conn')).l, stage.l), 'top bar starts at the edge of the 3D view');
   ok(near((await box('#bottombar > :first-child')).l, stage.l), 'bottom bar starts at the edge of the 3D view');
-  ok(near((await box('#btn-help')).r, stage.r), 'bottom bar ends at the edge of the 3D view');
+  ok(near((await box('#btn-analysis')).r, stage.r), 'bottom bar ends at the edge of the 3D view');
 
   const mark = await q.evaluate(() => { const c = getComputedStyle(document.querySelector('.step .step-mark')); return { radius: c.borderRadius, image: c.backgroundImage, w: parseFloat(c.width), h: parseFloat(c.height) }; });
   ok(mark.radius === '50%' && mark.image === 'none' && near(mark.w, mark.h, 0.01), 'step numbers are plain circles');

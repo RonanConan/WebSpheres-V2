@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WebSpheres Analysis</title>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 400; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-400.woff2") format("woff2"); }
+        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 600; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-600.woff2") format("woff2"); }
+        @font-face { font-family: "Atkinson Hyperlegible Next"; font-weight: 700; font-display: swap; src: url("fonts/atkinson-hyperlegible-next-700.woff2") format("woff2"); }
+        @font-face { font-family: "WebSpheres Figures"; font-weight: 700; font-display: swap; unicode-range: U+25, U+2E, U+2F, U+30-39, U+3A; src: url("fonts/atkinson-hyperlegible-mono-700.woff2") format("woff2"); }
+        :root {
+            --r-control: 0.5rem;
+            --bg: #0b0e14; --panel: #151a24; --line: #252c3a; --edge: #566176; --text: #dfe5f0; --muted: #7d8799;
+            --accent: #00e5ff; --ok: #3ddc84; --warn: #ffb347; --err: #ff5c5c;
+            --fill-accent: #26c6dc; --fill-accent-hover: #3fd3e6;
+            --tile-baseline: #1d2533; --tile-boost: #0f3a44;
+            --mono: "WebSpheres Figures", "Atkinson Hyperlegible Next", ui-monospace, Menlo, Consolas, monospace;
+            --sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            --scale: 1;
+            font-size: calc(18px * var(--scale));
+        }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.4; }
+        main { max-width: 92rem; margin: 0 auto; padding: 2rem 2.5rem 4rem; }
+        h1 { margin: 0; font-size: 2rem; font-weight: 700; line-height: 1.15; }
+        h2 { margin: 0 0 0.6rem; font-size: 1.15rem; font-weight: 700; }
+        p { margin: 0; }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .lead { margin-top: 0.4rem; color: var(--muted); max-width: 44rem; }
+        button {
+            font: inherit; font-size: 1rem; font-weight: 600; color: var(--text); background: var(--panel); border: 1px solid var(--edge);
+            border-radius: var(--r-control); min-height: max(44px, 2.45rem); padding: 0 0.95rem; cursor: pointer; white-space: nowrap;
+        }
+        button:hover:not(:disabled) { border-color: var(--muted); }
+        button:disabled { opacity: 0.35; cursor: not-allowed; }
+        .primary { background: var(--fill-accent); border-color: var(--fill-accent); color: #031418; font-size: 1.1rem; font-weight: 700; }
+        .primary:hover:not(:disabled) { background: var(--fill-accent-hover); border-color: var(--fill-accent-hover); }
+        .primary:disabled { background: var(--panel); border-color: var(--line); color: var(--muted); opacity: 1; }
+        #drop { margin-top: 1.5rem; padding: 2rem 1.5rem; border: 2px dashed var(--edge); border-radius: 0.75rem; }
+        #drop.over { border-color: var(--accent); background: var(--tile-boost); }
+        #drop-title { font-size: 1.45rem; font-weight: 600; line-height: 1.3; }
+        .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.9rem; }
+        #status { margin-top: 0.8rem; color: var(--muted); }
+        #status:empty { display: none; }
+        #status.bad { color: var(--err); }
+        #summary { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+        #totals { font-family: var(--mono); font-size: 1.45rem; font-weight: 700; line-height: 1.25; }
+        #check-line { margin-top: 0.15rem; color: var(--muted); }
+        #download-note { margin-top: 0.5rem; color: var(--ok); }
+        #download-note:empty { display: none; }
+        #stops { margin-top: 1.2rem; padding: 0.8rem 1rem; border: 1px solid var(--err); border-radius: var(--r-control); }
+        #stops h2 { color: var(--err); }
+        .participant { margin-top: 1.6rem; }
+        .session { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 0.8rem; align-items: start; padding: 0.55rem 0; }
+        .session + .session { border-top: 1px solid var(--line); }
+        .session-name { font-weight: 700; }
+        .session-date { color: var(--muted); font-size: 0.85rem; }
+        .strip { display: flex; flex-wrap: wrap; gap: 3px; }
+        .tile { min-width: 7.2rem; padding: 0.5rem 0.65rem; background: var(--tile-baseline); border: 1px solid var(--line); line-height: 1.3; }
+        .tile:first-child { border-radius: var(--r-control) 0 0 var(--r-control); }
+        .tile:last-child { border-radius: 0 var(--r-control) var(--r-control) 0; }
+        .tile:only-child { border-radius: var(--r-control); }
+        .tile.boost { background: var(--tile-boost); border-color: var(--accent); }
+        .tile.partial { border-color: var(--warn); }
+        .tile.nodata { background: transparent; border: 1px dashed var(--edge); color: var(--muted); }
+        .tile-name { font-weight: 700; }
+        .tile-count { font-family: var(--mono); font-weight: 700; }
+        .tile.partial .tile-count { color: var(--warn); }
+        .tile-detail { color: var(--muted); font-size: 0.8rem; }
+        .tile.boost .tile-detail { color: #a9c7cf; }
+        .list-section { margin-top: 2rem; }
+        .list-section ul { margin: 0; padding: 0 0 0 1.2rem; }
+        .list-section li { padding: 0.15rem 0; }
+        #warnings h2 { color: var(--warn); }
+        #practice-row { margin-top: 1.6rem; display: flex; align-items: center; gap: 0.55rem; }
+        #practice-row input { width: 1.2rem; height: 1.2rem; accent-color: var(--fill-accent); }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>WebSpheres Analysis</h1>
+        <p class="lead">Your files stay on this computer. This page reads them in your browser and is blocked from sending data anywhere.</p>
+        <section id="drop">
+            <p id="drop-title">Drop WebSpheres zip files or a folder here</p>
+            <div class="actions">
+                <button id="choose-files" type="button">Choose zip files</button>
+                <button id="choose-folder" type="button">Choose a folder</button>
+                <button id="start-again" type="button" hidden>Start again</button>
+            </div>
+            <input id="pick-files" type="file" accept=".zip" multiple hidden>
+            <input id="pick-folder" type="file" webkitdirectory hidden>
+            <p id="status" role="status"></p>
+        </section>
+        <div id="results" hidden>
+            <section id="summary">
+                <div>
+                    <p id="totals"></p>
+                    <p id="check-line">Check that the sessions below match what you ran.</p>
+                </div>
+                <div>
+                    <button id="download" class="primary" type="button">Download handDB</button>
+                    <p id="download-note" role="status"></p>
+                </div>
+            </section>
+            <section id="stops" hidden>
+                <h2>This must be fixed before handDB can be saved</h2>
+                <ul id="stops-list"></ul>
+            </section>
+            <div id="layout"></div>
+            <label id="practice-row" hidden><input id="include-practice" type="checkbox"><span id="practice-text"></span></label>
+            <section id="warnings" class="list-section" hidden>
+                <h2>Check these before using the file</h2>
+                <ul id="warnings-list"></ul>
+            </section>
+            <section id="notes" class="list-section" hidden>
+                <h2>Notes</h2>
+                <ul id="notes-list"></ul>
+            </section>
+            <section id="set-aside" class="list-section" hidden>
+                <h2>Not used</h2>
+                <ul id="set-aside-list"></ul>
+            </section>
+        </div>
+    </main>
+    <script src="zip-writer.js"></script>
+    <script src="analysis-core.js"></script>
+    <script src="analysis-page.js"></script>
+</body>
+</html>

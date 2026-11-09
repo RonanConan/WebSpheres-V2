@@ -655,6 +655,7 @@
             <button tabindex="-1" id="btn-readouts" data-panel="drawer-readouts">Status</button>
             <button tabindex="-1" id="btn-settings" data-panel="drawer-settings">Settings</button>
             <button tabindex="-1" id="btn-help" data-panel="help">Keys</button>
+            <button tabindex="-1" id="btn-analysis">Analysis</button>
         </div>
     </footer>
 </div>
@@ -3611,6 +3612,7 @@
         document.querySelectorAll('[data-test-downloads]').forEach(b => b.addEventListener('click', () => { testDownloads(); renderGuide(); }));
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
+        $('btn-analysis').addEventListener('click', () => window.open('analysis.html', '_blank', 'noopener'));
     }
 
     window.__obs = {
