@@ -96,5 +96,9 @@ const WebSpheresZip = (() => {
         return new Blob([...body, ...central, end], { type: 'application/zip' });
     }
 
-    return { make };
+    const crc32 = (bytes) => (updateCrc(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
+
+    return { make, crc32 };
 })();
+
+if (typeof module !== 'undefined') module.exports = WebSpheresZip;

@@ -91,6 +91,11 @@ json.dumps({"python": platform.python_version(), "numpy": numpy.__version__, "pa
     postMessage({ type: 'done', files: readOutputs(py), checksums, versions: { pyodide: py.version, ...JSON.parse(versions) } });
 }
 
+self.addEventListener('unhandledrejection', (event) => {
+    event.preventDefault();
+    postMessage({ type: 'failed', message: String(event.reason && event.reason.message ? event.reason.message : event.reason) });
+});
+
 self.onmessage = async ({ data }) => {
     try {
         await run(data);

@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.7.0';
+    const VERSION = '1.8.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand', 'LessAffectedHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
@@ -7,17 +7,7 @@ const WebSpheresAnalysis = (() => {
     const FILE_KIND = /^(.*?)(vr-session-data|session-info|kinematics-LEFT|kinematics-RIGHT)-(\d{4}-\d{2}-\d{2}T[\d-]+)\.csv$/;
     const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group', 'DominantHand']);
     const RESUME_LIMIT_MS = 24 * 60 * 60 * 1000;
-    const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
-        let c = n;
-        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-        return c >>> 0;
-    });
-
-    function crc32(bytes) {
-        let crc = 0xffffffff;
-        for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
-        return (crc ^ 0xffffffff) >>> 0;
-    }
+    const { crc32 } = typeof WebSpheresZip !== 'undefined' ? WebSpheresZip : require('./zip-writer.js');
 
     async function zipEntries(file) {
         const tailSize = Math.min(file.size, 65557);
@@ -41,6 +31,7 @@ const WebSpheresAnalysis = (() => {
                 method: central.getUint16(at + 10, true),
                 crc: central.getUint32(at + 16, true),
                 compressedSize: central.getUint32(at + 20, true),
+                size: central.getUint32(at + 24, true),
                 offset: central.getUint32(at + 42, true),
                 path: decoder.decode(new Uint8Array(central.buffer, central.byteOffset + at + 46, nameLength)).replace(/\\/g, '/')
             });
@@ -120,7 +111,8 @@ const WebSpheresAnalysis = (() => {
         try {
             entries = await zipEntries(file);
         } catch (e) {
-            out.problem = 'This file could not be read as a ZIP file.';
+            out.unreadable = e.name === 'NotReadableError' || e.name === 'NotFoundError';
+            out.problem = out.unreadable ? 'This file could not be read. If it is stored in iCloud Drive or OneDrive, make sure it is downloaded to this computer, then read the sessions again.' : 'This file could not be read as a ZIP file.';
             return out;
         }
         const folders = new Map();
@@ -212,6 +204,7 @@ const WebSpheresAnalysis = (() => {
     function collectBlocks(exportsRead, result, includePractice) {
         const candidates = [];
         exportsRead.forEach((zip, zipIndex) => {
+            if (zip.unreadable) { result.stops.push(`${zip.name}: ${zip.problem}`); return; }
             if (zip.problem) { result.setAside.push({ name: zip.name, reason: zip.problem }); return; }
             if (!zip.blocks.length) { result.setAside.push({ name: zip.name, reason: 'This ZIP file contains no WebSpheres trial data.' }); return; }
             zip.blocks.forEach(block => {
@@ -250,7 +243,9 @@ const WebSpheresAnalysis = (() => {
         });
         const merged = [];
         byKey.forEach(copies => {
-            const ordered = copies.slice().sort((a, b) => b.table.length - a.table.length);
+            const kinematics = (c) => [c.entries.left, c.entries.right].filter(Boolean);
+            const kinematicsSize = (c) => kinematics(c).reduce((sum, entry) => sum + entry.size, 0);
+            const ordered = copies.slice().sort((a, b) => b.table.length - a.table.length || kinematics(b).length - kinematics(a).length || kinematicsSize(b) - kinematicsSize(a));
             const best = ordered[0];
             ordered.slice(1).forEach(other => {
                 const same = other.table.every((row, i) => rowSignature(row, other.index) === rowSignature(best.table[i], best.index));
@@ -258,7 +253,7 @@ const WebSpheresAnalysis = (() => {
             });
             best.zipIndexes = copies.map(c => c.zipIndex);
             best.otherCopies = ordered.slice(1).map(c => c.label);
-            if (best.otherCopies.length) result.notes.push(`${best.label} was also found in ${best.otherCopies.join(' and ')}. The copy with the most trials was used.`);
+            if (best.otherCopies.length) result.notes.push(`${best.label} was also found in ${best.otherCopies.join(' and ')}. The copy with the most trials, then the most kinematics data, was used.`);
             merged.push(best);
         });
         return merged;
@@ -267,13 +262,17 @@ const WebSpheresAnalysis = (() => {
     function joinResumedSessions(groups) {
         const firstNumber = (group) => Math.min(...group.map(b => b.number));
         const lastNumber = (group) => Math.max(...group.map(b => b.number));
-        const planOf = (group) => (group.find(b => b.info.Plan) || { info: {} }).info.Plan || '';
+        const planOf = (group) => parsePlan((group.find(b => b.info.Plan) || { info: {} }).info.Plan);
+        const samePlanSoFar = (earlier, group) => {
+            const before = planOf(earlier), after = planOf(group);
+            return earlier.every(b => before.has(b.number) && before.get(b.number) === after.get(b.number));
+        };
         const startOf = (group) => group.map(b => b.start).sort(compareText)[0] || '';
         const lastStart = (group) => Math.max(...group.map(b => Date.parse(b.start)));
         const joined = [];
         groups.slice().sort((a, b) => compareText(startOf(a), startOf(b))).forEach(group => {
             const earlier = joined.slice().reverse().find(other => other[0].id === group[0].id && other[0].practice === group[0].practice);
-            if (earlier && firstNumber(group) > 1 && planOf(group) && planOf(earlier) === planOf(group) && lastNumber(earlier) < firstNumber(group) && Date.parse(startOf(group)) - lastStart(earlier) <= RESUME_LIMIT_MS) earlier.push(...group);
+            if (earlier && firstNumber(group) > 1 && samePlanSoFar(earlier, group) && lastNumber(earlier) < firstNumber(group) && Date.parse(startOf(group)) - lastStart(earlier) <= RESUME_LIMIT_MS) earlier.push(...group);
             else joined.push(group);
         });
         return joined;
@@ -465,7 +464,7 @@ const WebSpheresAnalysis = (() => {
     }
 
     function kinematicsPlan(result) {
-        const dominant = {};
+        const dominant = Object.create(null);
         recordedHands(result.blocks).forEach((hands, id) => { dominant[id] = hands.size === 1 ? Array.from(hands)[0] : ''; });
         const blocks = result.blocks.map(block => {
             const absent = [['kinematics-LEFT', block.source.entries.left], ['kinematics-RIGHT', block.source.entries.right]].filter(([, entry]) => !entry).map(([name]) => name);
@@ -506,29 +505,42 @@ const WebSpheresAnalysis = (() => {
         ];
     }
 
+    function compareRows(oldRows, newRows, oldKey, newKey, where, differences) {
+        const countNew = occurrenceKey(), countOld = occurrenceKey();
+        const keyed = newRows.map(row => [countNew(...newKey(row)), row]);
+        const fresh = new Map(keyed);
+        const oldKeys = new Set(), examples = [];
+        let changed = 0, missing = 0;
+        oldRows.forEach(old => {
+            const key = countOld(...oldKey(old));
+            oldKeys.add(key);
+            const row = fresh.get(key);
+            if (!row) {
+                missing++;
+                if (examples.length < 5) examples.push(`${where(old)} is no longer present.`);
+                return;
+            }
+            const differs = differences(row, old);
+            if (differs) {
+                changed++;
+                if (examples.length < 5) examples.push(`${where(old)}: ${differs}.`);
+            }
+        });
+        return { added: keyed.filter(([key]) => !oldKeys.has(key)).length, changed, missing, examples };
+    }
+
     function compareKinematics(oldText, newText) {
         const oldTable = parseCsv(oldText), newTable = parseCsv(newText);
         if ((oldTable[0] || []).join() !== (newTable[0] || []).join()) return { comparable: false, examples: [] };
         const header = newTable[0] || [];
         const blockAt = header.indexOf('block_id'), trialAt = header.indexOf('trial');
-        const freshKey = occurrenceKey();
-        const keyedRows = newTable.slice(1).map(row => [freshKey(row[blockAt], row[trialAt]), row]);
-        const fresh = new Map(keyedRows);
-        const oldKey = occurrenceKey();
-        const oldKeys = new Set(), examples = [];
-        let changed = 0, missing = 0;
-        oldTable.slice(1).forEach(old => {
-            const key = oldKey(old[blockAt], old[trialAt]), row = fresh.get(key), where = `${old[blockAt]}, trial ${old[trialAt]}`;
-            oldKeys.add(key);
-            if (!row) {
-                missing++;
-                if (examples.length < 5) examples.push(`${where} is no longer present.`);
-            } else if (row.join() !== old.join()) {
-                changed++;
-                if (examples.length < 5) examples.push(`${where}: ${header.filter((_, i) => row[i] !== old[i]).join(', ')} changed.`);
-            }
-        });
-        return { comparable: true, oldRows: oldTable.length - 1, added: keyedRows.filter(([key]) => !oldKeys.has(key)).length, changed, missing, examples };
+        const sameValue = (a, b) => a === b || (a !== '' && b !== '' && Number(a) === Number(b));
+        const keyOf = (row) => [row[blockAt], row[trialAt]];
+        const differences = (row, old) => {
+            const names = header.filter((_, i) => !sameValue(row[i], old[i]));
+            return names.length ? `${names.join(', ')} changed` : '';
+        };
+        return { comparable: true, ...compareRows(oldTable.slice(1), newTable.slice(1), keyOf, keyOf, old => `${old[blockAt]}, trial ${old[trialAt]}`, differences) };
     }
 
     function reportText(exportsRead, result, createdIso, kinematics) {
@@ -603,6 +615,10 @@ const WebSpheresAnalysis = (() => {
         const miscased = folder.dirs.find(dir => Object.hasOwn(GROUPS, dir.toLowerCase()) && !Object.hasOwn(GROUPS, dir));
         if (miscased) return { status: 'wrong', message: `Rename the ${miscased} folder to ${miscased.toLowerCase()}, all in lower case, then select ${name} again.` };
         const present = Object.keys(GROUPS).filter(group => folder.dirs.includes(group));
+        for (const group of present) {
+            const wrongCase = folder.groups[group].find(dir => ['zips', 'history'].includes(dir.toLowerCase()) && !['zips', 'history'].includes(dir));
+            if (wrongCase) return { status: 'wrong', message: `Rename the ${wrongCase} folder inside ${group} to ${wrongCase.toLowerCase()}, all in lower case, then select ${name} again.` };
+        }
         const complete = present.filter(group => folder.groups[group].includes('zips'));
         if (complete.length === Object.keys(GROUPS).length) return { status: 'ok', message: `${name} contains the patients and controls folders.` };
         if (present.length) return { status: 'setup', message: `${name} is missing required folders. Select Set up this folder to create them.` };
@@ -627,32 +643,15 @@ const WebSpheresAnalysis = (() => {
         const table = parseCsv(oldText);
         if ((table[0] || []).join() !== COLUMNS.join()) return { comparable: false, examples: [] };
         const text = (value) => (value === null || value === undefined ? 'NA' : String(value));
-        const freshKey = occurrenceKey();
-        const keyedRows = rows.map(row => [freshKey(row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)), row]);
-        const fresh = new Map(keyedRows);
-        const oldKey = occurrenceKey();
         const at = (name) => COLUMNS.indexOf(name);
-        const oldKeys = new Set(), oldIds = new Set(), examples = [];
-        let changed = 0, missing = 0;
-        table.slice(1).forEach(old => {
-            const id = old[at('ID')], where = `Participant ${id}, session ${old[at('Session')]}, block ${old[at('BlockOrder')]}, trial ${old[at('Trial')]}`;
-            const key = oldKey(id, old[at('Session')], old[at('BlockOrder')], old[at('Trial')]);
-            oldKeys.add(key);
-            oldIds.add(id);
-            const row = fresh.get(key);
-            if (!row) {
-                missing++;
-                if (examples.length < 5) examples.push(`${where} is no longer present.`);
-                return;
-            }
-            const differs = COLUMNS.filter(name => text(row[name]) !== old[at(name)]);
-            if (differs.length) {
-                changed++;
-                if (examples.length < 5) examples.push(`${where}: ${differs.map(name => `${name} changed from ${old[at(name)]} to ${text(row[name])}`).join('; ')}.`);
-            }
-        });
-        const addedRows = keyedRows.filter(([key]) => !oldKeys.has(key)).map(([, row]) => row);
-        return { comparable: true, oldRows: table.length - 1, added: addedRows.length, changed, missing, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size, examples };
+        const oldRows = table.slice(1);
+        const oldIds = new Set(oldRows.map(old => old[at('ID')]));
+        const compared = compareRows(oldRows, rows,
+            old => [old[at('ID')], old[at('Session')], old[at('BlockOrder')], old[at('Trial')]],
+            row => [row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)],
+            old => `Participant ${old[at('ID')]}, session ${old[at('Session')]}, block ${old[at('BlockOrder')]}, trial ${old[at('Trial')]}`,
+            (row, old) => COLUMNS.filter(name => text(row[name]) !== old[at(name)]).map(name => `${name} changed from ${old[at(name)]} to ${text(row[name])}`).join('; '));
+        return { comparable: true, ...compared, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size };
     }
 
     return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics };

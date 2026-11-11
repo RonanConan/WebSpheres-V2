@@ -51,8 +51,10 @@ async function sessionZip(id, options) {
   const files = [
     { path: `block1/${prefix}vr-session-data-${STAMP}.csv`, parts: [data.behaviour] },
     { path: `block1/${prefix}session-info-${STAMP}.csv`, parts: [info] },
-    { path: `block1/${prefix}kinematics-LEFT-${STAMP}.csv`, parts: [o.damaged ? HEADER : data.left] },
-    { path: `block1/${prefix}kinematics-RIGHT-${STAMP}.csv`, parts: [data.right] }
+    ...(o.noKinematics ? [] : [
+      { path: `block1/${prefix}kinematics-LEFT-${STAMP}.csv`, parts: [o.damaged ? HEADER : data.left] },
+      { path: `block1/${prefix}kinematics-RIGHT-${STAMP}.csv`, parts: [data.right] }
+    ])
   ];
   return Buffer.from(await (await Z.make(files)).arrayBuffer()).toString('base64');
 }
@@ -232,6 +234,46 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   await p.click('#g6-run');
   await msg('g6-msg', 'Calculated 3 blocks');
   ok((await p.locator('#kin-problems-list').innerText()).includes('405/s1/baseline-1: this block could not be processed'), 'a block whose file is damaged inside the ZIP is named, and the others are still calculated');
+
+  console.log('A ZIP CHANGED DURING A CALCULATION');
+  const stale = await p.evaluate(async () => {
+    const zips = await window.__dir(['KIN', 'patients', 'zips']);
+    const file = await (await zips.getFileHandle('401.zip')).getFile();
+    const { blocks, dominant } = WebSpheresAnalysis.kinematicsPlan(WebSpheresAnalysis.build([await WebSpheresAnalysis.readExport(file)], { group: 'patients' }));
+    const bytes = await file.arrayBuffer();
+    const writable = await (await zips.getFileHandle('401.zip')).createWritable();
+    await writable.write(bytes);
+    await writable.close();
+    const started = performance.now();
+    return new Promise((resolve) => {
+      const worker = new Worker('/analysis-kinematics-worker.js', { type: 'module' });
+      const stop = setTimeout(() => { worker.terminate(); resolve({ type: 'no answer', seconds: (performance.now() - started) / 1000 }); }, 180000);
+      worker.onmessage = ({ data }) => { if (data.type === 'done' || data.type === 'failed') { clearTimeout(stop); worker.terminate(); resolve({ type: data.type, message: data.message || '', seconds: (performance.now() - started) / 1000 }); } };
+      worker.postMessage({ group: 'patients', blocks, dominant });
+    });
+  });
+  ok(stale.type === 'failed' && stale.seconds < 120, `a ZIP that cannot be read during the calculation ends the run with a failure instead of a hang (${stale.type} after ${Math.round(stale.seconds)} s: ${String(stale.message).slice(0, 80)})`);
+
+  console.log('CONTROL IDS THAT LOOK LIKE MISSING VALUES');
+  await put(['KIN', 'controls', 'zips'], 'NA.zip', await sessionZip('NA', { dominant: 'LEFT', group: 'Control', day: 19 }));
+  await put(['KIN', 'controls', 'zips'], '7.zip', await sessionZip('7', { dominant: 'LEFT', group: 'Control', day: 20 }));
+  await put(['KIN', 'controls', 'zips'], '007.zip', await sessionZip('007', { dominant: 'RIGHT', group: 'Control', day: 21 }));
+  await put(['KIN', 'controls', 'zips'], 'NOK.zip', await sessionZip('NOK', { group: 'Control', day: 22, noKinematics: true }));
+  await toStep6('controls');
+  await p.click('#g6-run');
+  await msg('g6-msg', 'Calculated 7 blocks');
+  const controlProblems = await p.locator('#kin-problems-list').innerText();
+  ok(controlProblems.includes('NOK/s1/baseline-1: this block is not in the kinematics master') && !controlProblems.includes('Participant NOK'), 'a participant with no rows in the kinematics master is not said to have blank hand columns');
+  for (const id of ['#g6-problems', '#g6-changes']) if (await p.locator(id).isVisible()) await p.check(`${id} input`);
+  await p.click('[data-next="6"]'); await wait(7);
+  await p.click('#g7-save');
+  await msg('g7-msg', 'Saved handDB_controls.csv');
+  const naCsv = (await read(['KIN', 'controls'], 'kinematicsDB_controls.csv')).trim().split('\n');
+  const naHead = naCsv[0].split(',');
+  const naRows = naCsv.slice(1).map(line => Object.fromEntries(line.split(',').map((v, i) => [naHead[i], v]))).filter(r => r.block_id.startsWith('NA/'));
+  ok(naRows.length === 11 && naRows.every(r => r.participant_id === 'NA' && r.dominant_hand === 'LEFT' && r.hand_role === (r.hand === 'LEFT' ? 'dominant' : 'non_dominant')), 'a control with the ID NA keeps that ID and their recorded left hand');
+  const idRows = (id) => naCsv.slice(1).map(line => Object.fromEntries(line.split(',').map((v, i) => [naHead[i], v]))).filter(r => r.block_id.startsWith(`${id}/`));
+  ok(idRows('7').length === 11 && idRows('7').every(r => r.dominant_hand === 'LEFT') && idRows('007').length === 11 && idRows('007').every(r => r.dominant_hand === 'RIGHT'), 'participants 7 and 007 keep their own recorded hands, as in handDB');
   ok(errs.length === 0, 'no page errors: ' + errs.join('; '));
   await b.close();
   done();

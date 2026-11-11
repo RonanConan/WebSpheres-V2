@@ -105,6 +105,13 @@ console.log('SESSIONS');
     ok(parts.sessions.length === 1 && same(labels(parts), ['baseline-1', 'boost-1']) && !parts.warnings.length, 'later blocks of a resumed session stay in that session');
     const again = A.build([await zipOf('w1.zip', planBlocks('205', ['N', 'B'], 11, '10')), await zipOf('w2.zip', planBlocks('205', ['N', 'B'], 11, '17'))]);
     ok(again.sessions.length === 2, 'a later session with the same plan stays separate');
+    const editedBreak = planBlocks('206', ['N', 'B'], 11, '10');
+    editedBreak[1].info = { Plan: '1:no-boost:headset-off|2:boost:headset-on' };
+    const editedParts = A.build([await zipOf('e1.zip', editedBreak.slice(0, 1)), await zipOf('e2.zip', editedBreak.slice(1))]);
+    ok(editedParts.sessions.length === 1 && same(labels(editedParts), ['baseline-1', 'boost-1']) && editedParts.rows.every(row => row.Session === 1), 'a resumed session stays together when only a break was changed in the plan');
+    const otherRuns = planBlocks('207', ['N', 'B'], 11, '10');
+    otherRuns[1].info = { Plan: '1:boost:headset-on|2:boost:headset-on' };
+    ok(A.build([await zipOf('o1.zip', otherRuns.slice(0, 1)), await zipOf('o2.zip', otherRuns.slice(1))]).sessions.length === 2, 'a later part whose plan disagrees about the blocks already run stays separate');
 }
 {
     const blocks = planBlocks('203', ['N', 'B'], 11, '10');
@@ -219,6 +226,8 @@ console.log('STUDY FOLDER');
     ok(check('constructor', [], []).status === 'setup', 'a folder named after a built-in property is not mistaken for a group');
     const cased = check('EXP027', ['Patients', 'controls'], [], { controls: ['zips'] });
     ok(cased.status === 'wrong' && cased.message.includes('Rename the Patients folder to patients'), 'a capitalised group folder gets a specific fix');
+    const casedZips = check('EXP027', ['patients', 'controls'], [], { patients: ['Zips', 'history'], controls: ['zips'] });
+    ok(casedZips.status === 'wrong' && casedZips.message === 'Rename the Zips folder inside patients to zips, all in lower case, then select EXP027 again.', 'a capitalised zips folder gets a specific fix');
 }
 
 console.log('MASTER COMPARISON');
@@ -276,6 +285,9 @@ console.log('REPACKED AND MAC ZIPS');
     for (let i = 0; i < bytes.length - 4; i++) if (view.getUint32(i, true) === 0x02014b50) { view.setUint32(i + 16, 12345, true); break; }
     const damaged = A.build([await A.readExport(new File([bytes], 'bad.zip'))]);
     ok(!damaged.rows.length && damaged.setAside[0].reason.includes('may be damaged'), 'a checksum mismatch is caught');
+    class Unreadable extends File { slice() { return { arrayBuffer: () => Promise.reject(new DOMException('gone', 'NotReadableError')) }; } }
+    const offline = A.build([await A.readExport(new Unreadable(['x'], 'cloud.zip'))]);
+    ok(offline.stops.length === 1 && offline.stops[0].startsWith('cloud.zip: This file could not be read. If it is stored in iCloud Drive or OneDrive') && !offline.setAside.length, 'a ZIP file that cannot be read from the disk stops the analysis');
     const firstWeek = planBlocks('902', ['N', 'B'], 3, '10').slice(0, 1);
     const nextWeek = planBlocks('902', ['N', 'B'], 3, '17').slice(1);
     ok(A.build([await zipOf('w1.zip', firstWeek), await zipOf('w2.zip', nextWeek)]).sessions.length === 2, 'zips a week apart are not joined as a resume');
@@ -331,6 +343,8 @@ console.log('HANDEDNESS');
     const mixed = A.build([await zipOf('a.zip', planBlocks('921', ['N'], 3, '10', { info: { DominantHand: 'LEFT' } })), await zipOf('b.zip', planBlocks('921', ['N'], 3, '11', { info: { DominantHand: 'RIGHT' } }))]);
     ok(mixed.warnings.some(w => w === 'Participant 921 is recorded with more than one dominant hand: LEFT and RIGHT. Their handedness will be treated as not known.'), 'a participant with both hands recorded is flagged');
     ok(A.kinematicsPlan(mixed).dominant['921'] === '', 'conflicting handedness is passed on as not known');
+    const proto = A.build([await zipOf('a.zip', planBlocks('__proto__', ['N'], 3, '10', { info: { DominantHand: 'LEFT' } }))]);
+    ok(JSON.stringify(A.kinematicsPlan(proto).dominant) === '{"__proto__":"LEFT"}', 'every participant ID reaches the kinematics, whatever it is called');
     const none = A.build([await zipOf('a.zip', planBlocks('922', ['N'], 3, '10', { info: { DominantHand: '' } }))]);
     ok(none.warnings.includes('Participant 922 has no recorded dominant hand.') && none.rows[0].DominantHand === '', 'no recorded hand is flagged and left blank');
     const changed = A.build([await zipOf('a.zip', planBlocks('923', ['N'], 3, '10', { changes: '1000|2|DominantHand|LEFT|RIGHT' }))]);
@@ -349,12 +363,24 @@ console.log('KINEMATICS INPUT AND OUTPUT');
     noLeft.blocks[0].hasLeft = false;
     const partial = A.kinematicsPlan(A.build([noLeft])).blocks[0];
     ok(partial.missing === 'kinematics-LEFT' && partial.offsets === null, 'a missing kinematics file is named and not read');
+    const withoutKinematics = await zipOf('a.zip', planBlocks('933', ['N'], 3, '10'));
+    Object.assign(withoutKinematics.blocks[0], { hasLeft: false, hasRight: false });
+    Object.assign(withoutKinematics.blocks[0].entries, { left: undefined, right: undefined });
+    const fullCopy = await zipOf('b.zip', planBlocks('933', ['N'], 3, '10'));
+    const preferred = A.build([withoutKinematics, fullCopy]);
+    ok(preferred.blocks[0].SourceZip === 'b.zip' && preferred.blocks[0].KinematicsFiles === 'both' && A.kinematicsPlan(preferred).blocks[0].missing === '' && preferred.notes.some(n => n.includes('The copy with the most trials, then the most kinematics data, was used.')), 'of two copies with the same trials, the one with kinematics files is used');
+    const shortCopy = await zipOf('a.zip', planBlocks('934', ['N'], 3, '10'));
+    shortCopy.blocks[0].entries.left = Object.assign({}, shortCopy.blocks[0].entries.left, { size: 1 });
+    const longer = A.build([shortCopy, await zipOf('b.zip', planBlocks('934', ['N'], 3, '10'))]);
+    ok(longer.blocks[0].SourceZip === 'b.zip', 'of two copies with the same trials and files, the one with more kinematics data is used');
 
     const old = 'block_id,trial,value\nA,1,1\nA,2,2\nB,1,3\n';
     const c = A.compareKinematics(old, 'block_id,trial,value\nA,1,1\nA,2,9\nC,1,3\n');
     ok(c.comparable && c.added === 1 && c.changed === 1 && c.missing === 1 && c.examples.includes('A, trial 2: value changed.'), 'kinematics changes are counted by block and trial');
     ok(A.compareKinematics(old, old).added === 0 && A.compareKinematics(old, old).changed === 0, 'identical kinematics masters show no change');
     ok(!A.compareKinematics(old, 'block_id,trial\nA,1\n').comparable, 'different kinematics columns cannot be compared');
+    const floats = A.compareKinematics('block_id,trial,count,flag\nA,1,73,True\nA,2,48,False\n', 'block_id,trial,count,flag\nA,1,73.0,True\nA,2,48.0,False\nB,1,,False\n');
+    ok(floats.changed === 0 && floats.missing === 0 && floats.added === 1, 'a whole number written as 73.0 is not reported as a change');
     const repeated = 'block_id,trial,value\nA,1,1\nA,1,2\n';
     ok(A.compareKinematics(repeated, repeated).changed === 0 && A.compareKinematics(repeated, repeated).added === 0, 'a repeated block and trial is matched row by row');
     const dropped = A.compareKinematics(repeated, 'block_id,trial,value\nA,1,1\n');

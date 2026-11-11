@@ -7,7 +7,10 @@ const csvLines = async (file, offset) => {
 
 self.onmessage = async ({ data }) => {
     postMessage({ type: 'status', stage: 'loading' });
-    if (data.blocks.some(block => block.participantId === '668')) return;
+    if (data.blocks.some(block => block.participantId === '668')) {
+        postMessage({ type: 'status', stage: 'calculating' });
+        return;
+    }
     if (data.blocks.some(block => block.participantId === '666')) {
         postMessage({ type: 'failed', message: 'test failure' });
         return;
@@ -27,6 +30,7 @@ self.onmessage = async ({ data }) => {
             for (const line of await csvLines(block.file, block.offsets.behaviour)) master.push(`${block.blockId},${line.split(',')[0]},1`);
         }
     }
+    if (data.blocks.some(block => block.participantId === '669')) master.splice(1);
     const rows = master.length - 1;
     const unknown = Object.keys(data.dominant).filter(id => !data.dominant[id]);
     const summary = { pipeline_version: 'test-version', configuration: { resample_hz: 90, filter_cutoff_hz: 6 }, processed_blocks: processed, trials_total: rows + 1, trials_valid_core: rows, analysis_master_rows: rows, [data.group === 'patients' ? 'less_affected_hand_not_known' : 'handedness_not_known']: unknown };

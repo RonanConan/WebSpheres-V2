@@ -6,7 +6,7 @@
     const QUIET_CHECK_MS = 30000;
     const QUIET_CHECKS_ALLOWED = 20;
     const includePractice = /[?&]practice\b/.test(location.search);
-    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null };
+    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null, upToDate: false };
 
     try {
         const textSize = JSON.parse(localStorage.getItem('webspheres-observer-settings') || '{}').textSize;
@@ -92,8 +92,13 @@
         $('layout').replaceChildren(...sections);
     }
 
-    const unchanged = (c) => !!c && c.comparable && c.added === 0 && c.changed === 0 && c.missing === 0;
     const needsConfirm = (c) => !!c && (!c.comparable || c.changed > 0 || c.missing > 0);
+
+    function changeList(c) {
+        if (!c || !c.comparable || !(c.changed + c.missing)) return [];
+        const more = c.changed + c.missing - c.examples.length;
+        return c.examples.concat(more > 0 ? [more === 1 ? 'There is 1 more.' : `There are ${more.toLocaleString('en-GB')} more.`] : []);
+    }
 
     function renderKinematics() {
         const k = state.kin;
@@ -109,7 +114,7 @@
         else if (!c.comparable) $('kin-comparison').textContent = 'The current kinematics master has different columns, so it could not be compared with these sessions.';
         else $('kin-comparison').textContent = `${reaches(c.added, 'new ')}, and ${plural(c.changed + c.missing, 'existing row')} changed.`;
         fillList('kin-problems', 'kin-problems-list', A.kinematicsProblems(k));
-        fillList('kin-changes', 'kin-changes-list', c && c.comparable ? c.examples : []);
+        fillList('kin-changes', 'kin-changes-list', changeList(c));
         fillList('kin-reasons', 'kin-reasons-list', k.reasons.map(item => `${item.qc_reason}: ${plural(+item.trials, 'trial')}`));
     }
 
@@ -125,18 +130,13 @@
         if (!c) $('comparison').textContent = 'This will be the first master for this group.';
         else if (!c.comparable) $('comparison').textContent = 'The current master has different columns, so it could not be compared with these sessions.';
         else $('comparison').textContent = `${plural(c.addedParticipants, 'new participant')}, ${plural(c.added, 'new trial')}, and ${plural(c.changed + c.missing, 'existing row')} changed.`;
-        const changes = c && c.comparable && c.changed + c.missing ? c.examples.concat(c.changed + c.missing > c.examples.length ? [c.changed + c.missing - c.examples.length === 1 ? 'There is 1 more.' : `There are ${(c.changed + c.missing - c.examples.length).toLocaleString('en-GB')} more.`] : []) : [];
-        fillList('changes', 'changes-list', changes);
+        fillList('changes', 'changes-list', changeList(c));
         renderLayout(result);
         fillList('stops', 'stops-list', result.stops);
         fillList('group-mismatch', 'group-mismatch-list', result.groupMismatches);
         fillList('warnings', 'warnings-list', result.warnings);
         fillList('notes', 'notes-list', result.notes);
         fillList('set-aside', 'set-aside-list', result.setAside.map(item => `${item.name}: ${item.reason}`));
-    }
-
-    function allUnchanged() {
-        return unchanged(state.comparison) && unchanged(state.kinComparison);
     }
 
     function canLeave(n) {
@@ -173,9 +173,9 @@
             $('g7-path-kin').textContent = `${state.root.name}/${state.group}/${names.kinematics}`;
             $('g7-save').textContent = state.kinFailed ? 'Save the handDB master' : 'Save the master files';
         }
-        $('g7-say').textContent = allUnchanged() ? 'The master files are already up to date.' : state.kinFailed ? 'Save the handDB master here. The kinematics master will not be updated.' : 'Save the master files here.';
+        $('g7-say').textContent = state.upToDate ? 'The master files are already up to date.' : state.kinFailed ? 'Save the handDB master here. The kinematics master will not be updated.' : 'Save the master files here.';
         $('g7-path-kin').hidden = state.kinFailed;
-        $('g7-save').hidden = allUnchanged();
+        $('g7-save').hidden = state.upToDate;
         $('g6-run').disabled = state.busy || !!state.kin;
         $('g7-save').disabled = state.busy || state.saved;
         document.querySelectorAll('[data-group]').forEach(button => button.classList.toggle('on', button.dataset.group === state.group));
@@ -212,7 +212,7 @@
             setMsg('g6-msg', '');
             renderKinematics();
         }
-        if (n < 7) { state.saved = false; setMsg('g7-msg', ''); }
+        if (n < 7) { state.saved = false; state.upToDate = false; setMsg('g7-msg', ''); }
         setMsg('g8-msg', '');
     }
 
@@ -344,11 +344,15 @@
 
     async function countZips() {
         if (!state.root || !state.group) return;
+        const group = state.group;
         try {
-            state.zipCount = (await zipFiles(state.group)).length;
+            const count = (await zipFiles(group)).length;
+            if (group !== state.group) return;
+            state.zipCount = count;
             if (state.zipCount) setMsg('g4-msg', `There ${state.zipCount === 1 ? 'is' : 'are'} ${plural(state.zipCount, 'ZIP file')} in this folder.`);
             else setMsg('g4-msg', 'No ZIP files found. Copy the session ZIP files into this folder, then select Check the folder again.', 'bad');
         } catch (e) {
+            if (group !== state.group) return;
             state.zipCount = 0;
             setMsg('g4-msg', 'The folder could not be read. Go back to step 2 and select it again.', 'bad');
         }
@@ -380,6 +384,19 @@
         for (let i = 0; i < files.length; i += ZIPS_AT_ONCE) read.push(...await Promise.all(files.slice(i, i + ZIPS_AT_ONCE).map(file => A.readExport(file, options))));
         return read;
     }
+
+    async function changedZip() {
+        for (const zip of state.exports) {
+            try {
+                await zip.file.slice(0, 1).arrayBuffer();
+            } catch (e) {
+                return zip.name;
+            }
+        }
+        return '';
+    }
+
+    const zipChanged = (name, outcome) => `${name} has changed or been removed since the sessions were read, so ${outcome}. Go back to step 4 and read the sessions again.`;
 
     async function readSessions() {
         state.busy = true;
@@ -424,9 +441,9 @@
     function runKinematics(job) {
         return new Promise((resolve, reject) => {
             const worker = new Worker('analysis-kinematics-worker.js', { type: 'module' });
-            let quietChecks = 0;
+            let quietChecks = 0, calculating = false;
             const watchdog = setInterval(() => {
-                quietChecks++;
+                if (calculating) quietChecks++;
                 if (quietChecks >= QUIET_CHECKS_ALLOWED) finish(reject, new Error('The kinematics program stopped responding.'));
             }, QUIET_CHECK_MS);
             const finish = (settle, value) => { clearInterval(watchdog); worker.terminate(); settle(value); };
@@ -434,6 +451,7 @@
             worker.onmessageerror = () => finish(reject, new Error('The kinematics program sent a message that could not be read.'));
             worker.onmessage = ({ data }) => {
                 quietChecks = 0;
+                if (data.type === 'status' && data.stage === 'calculating') calculating = true;
                 if (data.type === 'status') setMsg('g6-msg', data.stage === 'loading' ? 'Loading the kinematics program…' : 'Starting the calculation…', 'busy');
                 if (data.type === 'progress') setMsg('g6-msg', `Calculating block ${data.completed.toLocaleString('en-GB')} of ${data.total.toLocaleString('en-GB')}…`, 'busy');
                 if (data.type === 'done') finish(resolve, data);
@@ -452,9 +470,15 @@
         setMsg('g6-msg', 'Preparing the blocks…', 'busy');
         render();
         try {
+            const changed = await changedZip();
+            if (changed) {
+                setMsg('g6-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
+                return;
+            }
             const plan = A.kinematicsPlan(state.result);
             const run = await runKinematics({ group: state.group, blocks: plan.blocks, dominant: plan.dominant });
             const kinematics = A.readKinematics(run, state.group);
+            if (!kinematics.masterRows) throw new Error(['No reach passed the quality checks, so the kinematics master would be empty.', ...A.kinematicsProblems(kinematics).slice(0, 1)].join(' '));
             const old = await readText(await state.root.getDirectoryHandle(state.group), outputNames().kinematics);
             const comparison = old === null ? null : A.compareKinematics(old, kinematics.master);
             state.kin = kinematics;
@@ -465,6 +489,11 @@
             setMsg('g6-msg', `Calculated ${plural(kinematics.summary.processed_blocks, 'block')}.`, 'ok');
             renderKinematics();
         } catch (e) {
+            const changed = await changedZip();
+            if (changed) {
+                setMsg('g6-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
+                return;
+            }
             state.kinFailed = true;
             $('g6-failed').hidden = false;
             setMsg('g6-msg', `The kinematics could not be calculated, and nothing was saved. Calculate them again, or tick the box below to save only the handDB master. Details: ${e.message}`, 'bad');
@@ -481,30 +510,63 @@
     }
 
     function historyName(taken, name, stamp) {
-        const dot = name.lastIndexOf('.');
+        const dot = name.lastIndexOf('.') > 0 ? name.lastIndexOf('.') : name.length;
         let candidate = `${name.slice(0, dot)}-${stamp}${name.slice(dot)}`;
         for (let i = 2; taken.has(candidate); i++) candidate = `${name.slice(0, dot)}-${stamp}-${i}${name.slice(dot)}`;
         taken.add(candidate);
         return candidate;
     }
 
-    async function plannedChanges(groupDir, files) {
+    const withoutCreated = (text) => text.replace(/^Created: .*$/m, '');
+
+    function sameOutput(file, old, bytes) {
+        if (sameBytes(old, bytes)) return true;
+        return file.path === outputNames().report && withoutCreated(new TextDecoder().decode(old)) === withoutCreated(file.parts[0]);
+    }
+
+    async function folderIn(groupDir, name, create) {
+        try {
+            return await groupDir.getDirectoryHandle(name, { create });
+        } catch (e) {
+            if (e.name === 'NotFoundError') return null;
+            throw e;
+        }
+    }
+
+    async function plannedChanges(groupDir, files, create) {
         const encoder = new TextEncoder();
         const changes = [], folders = new Map();
         for (const file of files) {
-            if (file.folder && !folders.has(file.folder)) folders.set(file.folder, { dir: await groupDir.getDirectoryHandle(file.folder, { create: true }), current: new Set() });
+            if (file.folder && !folders.has(file.folder)) folders.set(file.folder, { dir: await folderIn(groupDir, file.folder, create), current: new Set() });
             const dir = file.folder ? folders.get(file.folder).dir : groupDir;
             if (file.folder) folders.get(file.folder).current.add(file.path);
             const bytes = encoder.encode(file.parts[0]);
-            const old = await readBytes(dir, file.path);
-            if (!old || !sameBytes(old, bytes)) changes.push({ dir, path: file.path, label: file.folder ? `${file.folder}-${file.path}` : file.path, old, bytes });
+            const old = dir ? await readBytes(dir, file.path) : null;
+            if (!old || !sameOutput(file, old, bytes)) changes.push({ dir, path: file.path, label: file.folder ? `${file.folder}-${file.path}` : file.path, old, bytes });
         }
         for (const [folder, { dir, current }] of folders) {
+            if (!dir) continue;
             for (const path of (await listFolder(dir)).files) {
                 if (!current.has(path) && !path.startsWith('.') && !path.endsWith('.crswap')) changes.push({ dir, path, label: `${folder}-${path}`, old: await readBytes(dir, path), bytes: null });
             }
         }
         return changes;
+    }
+
+    async function pendingChanges(create) {
+        const groupDir = await state.root.getDirectoryHandle(state.group);
+        await A.addChecksums(state.exports);
+        const created = new Date();
+        const files = A.outputFiles(state.exports, state.result, created.toISOString(), state.group, includePractice, state.kin);
+        return { created, changes: await plannedChanges(groupDir, files, create) };
+    }
+
+    async function nothingToSave() {
+        try {
+            return !(await changedZip()) && !(await pendingChanges(false)).changes.length;
+        } catch (e) {
+            return false;
+        }
     }
 
     async function save() {
@@ -520,12 +582,14 @@
                 setMsg('g7-msg', 'A master file has changed since the sessions were read, so nothing was saved. Go back to step 4 and read the sessions again.', 'bad');
                 return;
             }
-            const created = new Date();
+            const changed = await changedZip();
+            if (changed) {
+                setMsg('g7-msg', zipChanged(changed, 'nothing was saved'), 'bad');
+                return;
+            }
+            const { created, changes } = await pendingChanges(true);
             const stamp = created.toISOString().slice(0, 19).replace(/:/g, '-');
-            await A.addChecksums(state.exports);
-            const files = A.outputFiles(state.exports, state.result, created.toISOString(), state.group, includePractice, state.kin);
             history = await groupDir.getDirectoryHandle('history', { create: true });
-            const changes = await plannedChanges(groupDir, files);
             const taken = new Set((await listFolder(history)).files);
             for (const item of changes) {
                 touched.push(item);
@@ -535,14 +599,16 @@
                 }
             }
             for (const item of changes) {
-                item.changed = true;
                 if (item.bytes) await writeFile(item.dir, item.path, item.bytes);
                 else await item.dir.removeEntry(item.path);
+                item.changed = true;
             }
             for (const item of changes) {
                 if (item.bytes && !sameBytes(await readBytes(item.dir, item.path), item.bytes)) throw new Error('read-back mismatch');
             }
             state.saved = true;
+            state.masterText = await readText(groupDir, names.master);
+            if (state.kin) state.kinMasterText = await readText(groupDir, names.kinematics);
             const savedMaster = `Saved ${names.master} with ${plural(state.result.rows.length, 'trial')}`;
             setMsg('g7-msg', state.kin ? `${savedMaster}, and ${names.kinematics} with ${reaches(state.kin.masterRows)}.` : `${savedMaster}. ${names.kinematics} was not updated.`, 'ok');
         } catch (e) {
@@ -579,7 +645,13 @@
             resetAfter(4);
             if (!(await readSessions())) return;
         }
-        if (n === 6 && allUnchanged()) state.saved = true;
+        if (n === 6) {
+            state.busy = true;
+            render();
+            state.upToDate = await nothingToSave();
+            state.busy = false;
+            if (state.upToDate) state.saved = true;
+        }
         if (n === 8) {
             state.finished = true;
             setMsg('g8-msg', `All steps are complete for ${groupTitle()}.`, 'ok');
@@ -622,7 +694,11 @@
     $('g2-choose').addEventListener('click', chooseFolder);
     $('g2-again').addEventListener('click', useRemembered);
     $('g2-setup').addEventListener('click', setUpFolder);
-    $('g4-recheck').addEventListener('click', countZips);
+    $('g4-recheck').addEventListener('click', () => {
+        if (state.reached > 4) resetAfter(4);
+        countZips();
+    });
+    window.addEventListener('beforeunload', (event) => { if (state.busy) event.preventDefault(); });
     $('g6-run').addEventListener('click', calculateKinematics);
     $('g7-save').addEventListener('click', save);
     $('g8-restart').addEventListener('click', () => {
