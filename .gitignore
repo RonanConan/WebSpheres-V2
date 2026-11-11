@@ -1,1 +1,4 @@
 For Claude/
+.claude/
+*_audit.md
+*_results.md
