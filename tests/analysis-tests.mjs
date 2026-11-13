@@ -205,9 +205,10 @@ console.log('OUTPUT FILES');
     ok(r.rows.every(x => x.Group === 'Patient') && r.blocks[0].Group === 'Patient', 'the group is recorded on every row');
     await A.addChecksums([zip]);
     const files = A.outputFiles([zip], r, '2026-11-10T12:00:00.000Z', 'patients');
-    ok(same(files.map(f => f.path), ['handDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the block summary and a report');
-    ok(files[1].parts[0].split('\n').length === 4 && files[1].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
-    const report = files[2].parts[0];
+    ok(same(files.map(f => f.path), ['handDB_patients.csv', 'propDB_patients.csv', 'pseDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the proportions and PSE masters, the block summary and a report');
+    ok(files[3].parts[0].split('\n').length === 4 && files[3].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
+    const report = files[4].parts[0];
+    ok(report.includes('Proportions and PSE\nBlocks: 2'), 'the report counts the PSE blocks');
     ok(report.includes('Trials: 22') && /a\.zip: [0-9a-f]{64}/.test(report), 'the report has totals and a checksum for each zip');
 }
 
@@ -407,8 +408,40 @@ console.log('KINEMATICS INPUT AND OUTPUT');
     ok(out.filter(f => f.folder === 'kinematics_details').length === 5 && !out.some(f => f.path === 'kinematics_all_valid_reaches_master.csv'), 'the supporting files go in their own folder');
     ok(out.find(f => f.path === 'report_patients.txt').parts[0].includes('Trials that passed the quality checks: 1'), 'the report includes the kinematics');
     const alone = A.outputFiles([whole], result, '2026-11-10T00:00:00Z', 'patients', false);
-    ok(alone.length === 3 && alone[2].parts[0].includes('Kinematics: not calculated in this run'), 'the handDB files can still be made alone, and the report says so');
+    ok(alone.length === 5 && alone[4].parts[0].includes('Kinematics: not calculated in this run'), 'the handDB files can still be made alone, and the report says so');
     ok(A.fileNames('controls', true).kinematics === 'PRACTICE_kinematicsDB_controls.csv' && A.fileNames('controls', true).details === 'PRACTICE_kinematics_details', 'practice mode has separate kinematics files');
+}
+
+console.log('PROPORTIONS AND PSE');
+{
+    const block = (id, session, order, name, counts, hand) => counts.flatMap(([target, hits, total, skipped]) => Array.from({ length: total }, (_, i) => ({
+        ID: id, Session: session, Block: name, BlockType: name.replace(/-\d+$/, ''), BlockNum: +name.slice(-1), BlockOrder: order, Target: target,
+        Hand: skipped && i === 0 ? null : i < hits ? hand : hand === 'LEFT' ? 'RIGHT' : 'LEFT'
+    })));
+    const r008 = block('008', 2, 5, 'baseline-3', [[1, 10, 10], [2, 10, 10], [3, 10, 10], [4, 8, 10], [5, 5, 10], [6, 1, 10], [7, 0, 10], [8, 0, 10], [9, 0, 10], [10, 0, 10], [11, 1, 10]], 'LEFT');
+    const r001 = block('001', 1, 1, 'baseline-1', [[1, 2, 3], [2, 0, 6], [3, 3, 5], [4, 1, 8], [5, 5, 8], [6, 1, 3], [7, 6, 10], [8, 1, 3], [9, 1, 2], [10, 3, 8], [11, 2, 6]], 'LEFT');
+    const flat = block('006', 1, 1, 'baseline-1', Array.from({ length: 11 }, (_, i) => [i + 1, 0, 10]), 'LEFT');
+    const proportions = A.proportionRows([...r001, ...flat, ...r008], { '001': 'LEFT', '006': 'LEFT', '008': 'LEFT' });
+    ok(proportions.length === 33 && proportions[0].Proportion === 66.6666666666667 && proportions[3].Proportion === 12.5 && proportions[0].targeted_hits === 2 && proportions[0].total_trials === 3, 'proportions match the R script to the printed digit');
+    const pse = A.pseRows(proportions);
+    const byId = Object.fromEntries(pse.map(row => [row.ID, row]));
+    ok(Math.abs(byId['008'].PSE - 4.99792409586191) < 1e-12 && byId['008'].PSE_bounded === false, 'a PSE inside targets 1 to 11 matches the R script (4.99792409586191)');
+    ok(Math.abs(byId['001'].PSE_raw - -125.412358976724) < 1e-9 && byId['001'].PSE === 1 && byId['001'].PSE_bounded === true, 'a PSE outside targets 1 to 11 is set to 1 and flagged, as in the R script');
+    ok(Math.abs(byId['006'].PSE_raw) > 1000 && byId['006'].PSE === null && byId['006'].PSE_bounded === null, 'a curve too flat to fit gives no PSE, as in the R script');
+    const skipped = A.proportionRows(block('009', 1, 1, 'baseline-1', [[1, 0, 3], [2, 1, 3, true], [3, 3, 3]], 'RIGHT'), { '009': 'RIGHT' });
+    ok(skipped[1].targeted_hits === null && skipped[1].Proportion === null && skipped[1].total_trials === 3 && A.pseRows(skipped)[0].points.filter(p => p.share !== null).length === 2, 'a target with a skipped trial is left out of the fit, as in the R script');
+    ok(A.pseRows(A.proportionRows(block('010', 1, 1, 'baseline-1', [[4, 1, 2]], 'LEFT'), { '010': 'LEFT' }))[0].PSE_raw === null, 'one target alone gives no PSE');
+    const unknown = { pse: A.pseRows(A.proportionRows(block('011', 1, 1, 'baseline-1', [[1, 1, 2], [2, 1, 2]], 'LEFT'), { '011': '' })) };
+    ok(unknown.pse[0].PSE === null && A.pseProblems(unknown, 'patients')[0] === 'Participant 011: the more affected hand is not known, so their proportions and PSE are blank.', 'an unknown targeted hand is listed as a problem');
+    const recorded = A.build([await zipOf('a.zip', planBlocks('950', ['N'], 11, '10', { info: { DominantHand: 'LEFT' } }))], { group: 'controls' });
+    const tables = A.pseTables(recorded);
+    ok(tables.targeted['950'] === 'RIGHT' && tables.proportions.every(row => row.TargetedHand === 'RIGHT'), 'the targeted hand is the other hand from the one recorded');
+    const csv = A.toCsv(A.PSE_COLUMNS, tables.pse);
+    ok(csv.split('\n')[0] === '"ID","Session","Block","BlockType","BlockNum","TargetedHand","PSE_raw","PSE","PSE_bounded"' && /,(TRUE|FALSE|NA)\n$/.test(csv), 'the PSE master has the R columns, with Session for Week');
+    ok(A.comparePse(csv, tables.pse).changed === 0 && A.comparePse(csv, tables.pse).added === 0 && A.compareProportions(A.toCsv(A.PROP_COLUMNS, tables.proportions), tables.proportions).changed === 0, 'an unchanged PSE master and proportions master compare as unchanged');
+    const grown = A.pseTables(A.build([await zipOf('a.zip', planBlocks('950', ['N'], 11, '10', { info: { DominantHand: 'LEFT' } })), await zipOf('b.zip', planBlocks('951', ['N', 'B'], 11, '11'))], { group: 'controls' }));
+    const added = A.comparePse(csv, grown.pse);
+    ok(added.added === 2 && added.addedRows.every(row => row.ID === '951'), 'the blocks added in this run are found');
 }
 
 console.log('BROWSER CHECK');

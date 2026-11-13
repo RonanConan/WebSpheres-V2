@@ -1,6 +1,8 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.8.0';
+    const VERSION = '1.9.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
+    const PROP_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Target', 'total_trials', 'targeted_hits', 'TargetedHand', 'Proportion'];
+    const PSE_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'TargetedHand', 'PSE_raw', 'PSE', 'PSE_bounded'];
     const BLOCK_COLUMNS = ['ID', 'Session', 'Block', 'BlockOrder', 'BlockType', 'BlockNum', 'Phase', 'Condition', 'Mode', 'BlockStart', 'BlockEnd', 'PlannedTrials', 'CompletedTrials', 'RowsInHandDB', 'EndReason', 'Plan', 'AppVersion', 'Practice', 'KinematicsFiles', 'SourceZip', 'SourceFolder', 'OtherCopies', 'Group', 'DominantHand', 'LessAffectedHand'];
     const GROUPS = { patients: 'Patient', controls: 'Control' };
     const REQUIRED = ['Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'TotalMovementTime'];
@@ -453,9 +455,10 @@ const WebSpheresAnalysis = (() => {
         return result;
     }
 
+    const cellText = (value) => (value === null || value === undefined ? 'NA' : typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : String(value));
+
     function csvValue(value) {
-        if (value === null || value === undefined) return 'NA';
-        if (typeof value === 'number') return String(value);
+        if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean') return cellText(value);
         return `"${String(value).replace(/"/g, '""')}"`;
     }
 
@@ -473,6 +476,132 @@ const WebSpheresAnalysis = (() => {
             return { blockId: `${block.ID}/s${block.Session}/${block.Block}`, blockName: block.Block, participantId: block.ID, session: `s${block.Session}`, file, offsets, missing: absent.join(';') };
         });
         return { blocks, dominant };
+    }
+
+    const OTHER_HAND = { LEFT: 'RIGHT', RIGHT: 'LEFT' };
+    const DOUBLE_EPSILON = 2.220446049250313e-16;
+    const rValue = (x) => (Math.abs(x) >= 1e15 ? x : Number(x.toPrecision(15)));
+
+    function targetedHands(result) {
+        const targeted = Object.create(null);
+        recordedHands(result.blocks).forEach((hands, id) => { targeted[id] = hands.size === 1 ? OTHER_HAND[Array.from(hands)[0]] || '' : ''; });
+        return targeted;
+    }
+
+    function proportionRows(rows, targeted) {
+        const blocks = new Map();
+        rows.forEach(row => {
+            if (row.Target === null || row.Target === undefined) return;
+            const key = `${row.ID}|${row.Session}|${row.BlockOrder}`;
+            if (!blocks.has(key)) blocks.set(key, { row, targets: new Map() });
+            const targets = blocks.get(key).targets;
+            if (!targets.has(row.Target)) targets.set(row.Target, { total: 0, hits: 0, missingHand: false });
+            const count = targets.get(row.Target);
+            count.total++;
+            if (row.Hand === null) count.missingHand = true;
+            else if (row.Hand === targeted[row.ID]) count.hits++;
+        });
+        const out = [];
+        blocks.forEach(({ row, targets }) => {
+            const hand = targeted[row.ID] || '';
+            Array.from(targets.keys()).sort((a, b) => a - b).forEach(target => {
+                const count = targets.get(target);
+                const known = !!hand && !count.missingHand;
+                const share = known ? count.hits / count.total * 100 : null;
+                out.push({
+                    ID: row.ID, Session: row.Session, Block: row.Block, BlockType: row.BlockType, BlockNum: row.BlockNum, Target: target,
+                    total_trials: count.total, targeted_hits: known ? count.hits : null, TargetedHand: hand, Proportion: share === null ? null : rValue(share),
+                    share, BlockOrder: row.BlockOrder
+                });
+            });
+        });
+        return out;
+    }
+
+    function logitInverse(eta) {
+        const e = eta < -30 ? DOUBLE_EPSILON : eta > 30 ? 1 / DOUBLE_EPSILON : Math.exp(eta);
+        return e / (1 + e);
+    }
+
+    function logitSlope(eta) {
+        if (eta > 30 || eta < -30) return DOUBLE_EPSILON;
+        const e = Math.exp(eta);
+        return e / ((1 + e) * (1 + e));
+    }
+
+    const yLogY = (y, mu) => (y !== 0 ? y * Math.log(y / mu) : 0);
+    const deviance = (ys, mus) => ys.reduce((sum, y, i) => sum + 2 * (yLogY(y, mus[i]) + yLogY(1 - y, 1 - mus[i])), 0);
+    const dot = (u, v) => u.reduce((sum, value, i) => sum + value * v[i], 0);
+
+    function weightedLine(xs, zs, ws) {
+        const first = ws, second = xs.map((x, i) => x * ws[i]), target = zs.map((z, i) => z * ws[i]);
+        const r11 = Math.sqrt(dot(first, first));
+        const q1 = first.map(value => value / r11);
+        const r12 = dot(q1, second);
+        const rest = second.map((value, i) => value - r12 * q1[i]);
+        const r22 = Math.sqrt(dot(rest, rest));
+        if (!(r22 > 1e-11 * Math.sqrt(dot(second, second)))) return null;
+        const q2 = rest.map(value => value / r22);
+        const slope = dot(q2, target) / r22;
+        return [(dot(q1, target) - r12 * slope) / r11, slope];
+    }
+
+    function fitLogistic(xs, ys) {
+        let eta = ys.map(y => (y + 0.5) / 2).map(mu => Math.log(mu / (1 - mu)));
+        let mu = eta.map(logitInverse);
+        let devOld = deviance(ys, mu), coef = null;
+        for (let iteration = 0; iteration < 25; iteration++) {
+            const slopes = eta.map(logitSlope);
+            const z = eta.map((value, i) => value + (ys[i] - mu[i]) / slopes[i]);
+            const w = slopes.map((slope, i) => Math.sqrt(slope * slope / (mu[i] * (1 - mu[i]))));
+            coef = weightedLine(xs, z, w);
+            if (!coef) return null;
+            eta = xs.map(x => coef[0] + coef[1] * x);
+            mu = eta.map(logitInverse);
+            const dev = deviance(ys, mu);
+            if (Math.abs(dev - devOld) / (Math.abs(dev) + 0.1) < 1e-8) break;
+            devOld = dev;
+        }
+        return coef;
+    }
+
+    function pseFor(points) {
+        const usable = points.filter(point => point.share !== null);
+        const coef = usable.length >= 2 ? fitLogistic(usable.map(point => point.Target), usable.map(point => point.share / 100)) : null;
+        const raw = coef ? -coef[0] / coef[1] : NaN;
+        if (Number.isNaN(raw)) return { raw: null, pse: null, bounded: null, coef: null };
+        if (Math.abs(raw) > 1000) return { raw, pse: null, bounded: null, coef };
+        return { raw, pse: Math.min(11, Math.max(1, raw)), bounded: raw < 1 || raw > 11, coef };
+    }
+
+    function pseRows(proportions) {
+        const blocks = new Map();
+        proportions.forEach(row => {
+            const key = `${row.ID}|${row.Session}|${row.BlockOrder}`;
+            if (!blocks.has(key)) blocks.set(key, []);
+            blocks.get(key).push(row);
+        });
+        return Array.from(blocks.values()).map(points => {
+            const first = points[0];
+            const fit = first.TargetedHand ? pseFor(points) : { raw: null, pse: null, bounded: null, coef: null };
+            return {
+                ID: first.ID, Session: first.Session, Block: first.Block, BlockType: first.BlockType, BlockNum: first.BlockNum, TargetedHand: first.TargetedHand,
+                PSE_raw: fit.raw === null ? null : rValue(fit.raw), PSE: fit.pse === null ? null : rValue(fit.pse), PSE_bounded: fit.bounded,
+                BlockOrder: first.BlockOrder, coef: fit.coef, points
+            };
+        });
+    }
+
+    function pseTables(result) {
+        const targeted = targetedHands(result);
+        const proportions = proportionRows(result.rows, targeted);
+        return { targeted, proportions, pse: pseRows(proportions) };
+    }
+
+    function pseProblems(tables, group) {
+        const hand = group === 'patients' ? 'more affected hand' : 'non-dominant hand';
+        const unknown = Array.from(new Set(tables.pse.filter(row => !row.TargetedHand).map(row => row.ID))).sort(compareText);
+        return unknown.map(id => `Participant ${id || '(no ID)'}: the ${hand} is not known, so their proportions and PSE are blank.`);
     }
 
     function readTable(text) {
@@ -526,7 +655,8 @@ const WebSpheresAnalysis = (() => {
                 if (examples.length < 5) examples.push(`${where(old)}: ${differs}.`);
             }
         });
-        return { added: keyed.filter(([key]) => !oldKeys.has(key)).length, changed, missing, examples };
+        const addedRows = keyed.filter(([key]) => !oldKeys.has(key)).map(([, row]) => row);
+        return { added: addedRows.length, addedRows, changed, missing, examples };
     }
 
     function compareKinematics(oldText, newText) {
@@ -543,8 +673,10 @@ const WebSpheresAnalysis = (() => {
         return { comparable: true, ...compareRows(oldTable.slice(1), newTable.slice(1), keyOf, keyOf, old => `${old[blockAt]}, trial ${old[trialAt]}`, differences) };
     }
 
-    function reportText(exportsRead, result, createdIso, kinematics) {
+    function reportText(exportsRead, result, createdIso, kinematics, group) {
         const list = (items) => items.length ? items.map(item => `- ${item}`) : ['- None'];
+        const tables = pseTables(result);
+        const count = (test) => tables.pse.filter(test).length;
         return [
             'WebSpheres handDB report',
             `Created: ${createdIso}`,
@@ -568,6 +700,14 @@ const WebSpheresAnalysis = (() => {
             'Files or blocks not used:', ...list(result.setAside.map(item => `${item.name}: ${item.reason}`)),
             '',
             'ZIP files read (SHA-256):', ...list(exportsRead.map(zip => `${zip.name}: ${zip.sha256 || 'not available'}`)),
+            '',
+            'Proportions and PSE',
+            `Blocks: ${tables.pse.length}`,
+            `Blocks with a PSE inside targets 1 to 11: ${count(row => row.PSE !== null && !row.PSE_bounded)}`,
+            `Blocks with a PSE outside targets 1 to 11, set to 1 or 11: ${count(row => row.PSE_bounded === true)}`,
+            `Blocks without a PSE: ${count(row => row.PSE === null)}`,
+            '',
+            'PSE problems:', ...list(pseProblems(tables, group)),
             ...(kinematics ? [
                 '',
                 'Kinematics',
@@ -589,7 +729,7 @@ const WebSpheresAnalysis = (() => {
 
     function fileNames(group, practice) {
         const prefix = practice ? 'PRACTICE_' : '';
-        return { master: `${prefix}handDB_${group}.csv`, kinematics: `${prefix}kinematicsDB_${group}.csv`, details: `${prefix}kinematics_details`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt` };
+        return { master: `${prefix}handDB_${group}.csv`, kinematics: `${prefix}kinematicsDB_${group}.csv`, details: `${prefix}kinematics_details`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt`, proportions: `${prefix}propDB_${group}.csv`, pse: `${prefix}pseDB_${group}.csv` };
     }
 
     async function addChecksums(exportsRead) {
@@ -598,11 +738,14 @@ const WebSpheresAnalysis = (() => {
 
     function outputFiles(exportsRead, result, createdIso, group, practice, kinematics) {
         const names = fileNames(group, practice);
+        const tables = pseTables(result);
         return [
             { path: names.master, parts: [toCsv(COLUMNS, result.rows)] },
             ...(kinematics ? [{ path: names.kinematics, parts: [kinematics.master] }] : []),
+            { path: names.proportions, parts: [toCsv(PROP_COLUMNS, tables.proportions)] },
+            { path: names.pse, parts: [toCsv(PSE_COLUMNS, tables.pse)] },
             { path: names.blocks, parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
-            { path: names.report, parts: [reportText(exportsRead, result, createdIso, kinematics)] },
+            { path: names.report, parts: [reportText(exportsRead, result, createdIso, kinematics, group)] },
             ...(kinematics ? kinematics.files.filter(item => item.name !== 'kinematics_all_valid_reaches_master.csv').map(item => ({ folder: names.details, path: item.name, parts: [item.text] })) : [])
         ];
     }
@@ -639,22 +782,33 @@ const WebSpheresAnalysis = (() => {
         return Array.from(stops);
     }
 
-    function compareMaster(oldText, rows) {
+    function compareTable(oldText, columns, rows, keyColumns, where) {
         const table = parseCsv(oldText);
-        if ((table[0] || []).join() !== COLUMNS.join()) return { comparable: false, examples: [] };
-        const text = (value) => (value === null || value === undefined ? 'NA' : String(value));
-        const at = (name) => COLUMNS.indexOf(name);
+        if ((table[0] || []).join() !== columns.join()) return { comparable: false, examples: [] };
+        const at = (name) => columns.indexOf(name);
         const oldRows = table.slice(1);
         const oldIds = new Set(oldRows.map(old => old[at('ID')]));
         const compared = compareRows(oldRows, rows,
-            old => [old[at('ID')], old[at('Session')], old[at('BlockOrder')], old[at('Trial')]],
-            row => [row.ID, text(row.Session), text(row.BlockOrder), text(row.Trial)],
-            old => `Participant ${old[at('ID')]}, session ${old[at('Session')]}, block ${old[at('BlockOrder')]}, trial ${old[at('Trial')]}`,
-            (row, old) => COLUMNS.filter(name => text(row[name]) !== old[at(name)]).map(name => `${name} changed from ${old[at(name)]} to ${text(row[name])}`).join('; '));
+            old => keyColumns.map(name => old[at(name)]),
+            row => keyColumns.map(name => cellText(row[name])),
+            old => where(name => old[at(name)]),
+            (row, old) => columns.filter(name => cellText(row[name]) !== old[at(name)]).map(name => `${name} changed from ${old[at(name)]} to ${cellText(row[name])}`).join('; '));
         return { comparable: true, ...compared, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size };
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics };
+    function compareMaster(oldText, rows) {
+        return compareTable(oldText, COLUMNS, rows, ['ID', 'Session', 'BlockOrder', 'Trial'], get => `Participant ${get('ID')}, session ${get('Session')}, block ${get('BlockOrder')}, trial ${get('Trial')}`);
+    }
+
+    function compareProportions(oldText, rows) {
+        return compareTable(oldText, PROP_COLUMNS, rows, ['ID', 'Session', 'Block', 'Target'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('Block')}, target ${get('Target')}`);
+    }
+
+    function comparePse(oldText, rows) {
+        return compareTable(oldText, PSE_COLUMNS, rows, ['ID', 'Session', 'Block'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('Block')}`);
+    }
+
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics, PROP_COLUMNS, PSE_COLUMNS, fitLogistic, proportionRows, pseRows, pseTables, pseProblems, compareProportions, comparePse };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;

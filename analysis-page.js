@@ -1,12 +1,12 @@
 (() => {
     const $ = (id) => document.getElementById(id);
     const A = WebSpheresAnalysis;
-    const STEPS = [1, 2, 3, 4, 5, 6, 7, 8];
+    const STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const ZIPS_AT_ONCE = 8;
     const QUIET_CHECK_MS = 30000;
     const QUIET_CHECKS_ALLOWED = 20;
     const includePractice = /[?&]practice\b/.test(location.search);
-    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null, upToDate: false };
+    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null, upToDate: false, psych: null, psychShown: [], propComparison: null, pseComparison: null, propMasterText: null, pseMasterText: null };
 
     try {
         const textSize = JSON.parse(localStorage.getItem('webspheres-observer-settings') || '{}').textSize;
@@ -118,6 +118,171 @@
         fillList('kin-reasons', 'kin-reasons-list', k.reasons.map(item => `${item.qc_reason}: ${plural(+item.trials, 'trial')}`));
     }
 
+    const CM = 72 / 2.54;
+    const FIGURE = { width: 7, height: 6.5, dpi: 300 };
+    const handWord = () => (state.group === 'patients' ? 'more affected hand' : 'non-dominant hand');
+    const capitalise = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+    const blockLabel = (row) => `${row.ID || '(no ID)'}, session ${row.Session}, ${row.Block}`;
+    const escapeXml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const round = (value) => Math.round(value * 100) / 100;
+
+    function pseFigureSvg(row) {
+        const width = FIGURE.width * CM, height = FIGURE.height * CM;
+        const left = 1.6 * CM, right = 0.35 * CM, top = 0.75 * CM, bottom = 1.25 * CM;
+        const xMin = 0.65, xMax = 11.35, yMin = -5, yMax = 104;
+        const sx = (x) => round(left + (x - xMin) / (xMax - xMin) * (width - left - right));
+        const sy = (y) => round(top + (yMax - y) / (yMax - yMin) * (height - top - bottom));
+        const line = (x1, y1, x2, y2, extra) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="0.5"${extra || ''}/>`;
+        const text = (x, y, size, content, extra) => `<text x="${round(x)}" y="${round(y)}" font-size="${size}"${extra || ''}>${escapeXml(content)}</text>`;
+        const axisY = sy(yMin), axisX = sx(xMin);
+        const parts = [`<rect width="${round(width)}" height="${round(height)}" fill="white"/>`, text(0.15 * CM, 0.45 * CM, 8, blockLabel(row))];
+        if (row.PSE !== null && !row.PSE_bounded) {
+            const dash = ' stroke="#404040" stroke-width="0.7" stroke-dasharray="1.5 1.5"';
+            parts.push(`<line x1="${axisX}" y1="${sy(50)}" x2="${sx(row.PSE)}" y2="${sy(50)}"${dash}/>`, `<line x1="${sx(row.PSE)}" y1="${sy(50)}" x2="${sx(row.PSE)}" y2="${axisY}"${dash}/>`);
+        }
+        if (row.coef) {
+            const points = Array.from({ length: 100 }, (_, i) => 1 + i * 10 / 99).map(x => `${sx(x)},${sy(100 / (1 + Math.exp(-(row.coef[0] + row.coef[1] * x))))}`);
+            parts.push(`<polyline points="${points.join(' ')}" fill="none" stroke="black" stroke-width="1.2"/>`);
+        }
+        row.points.filter(point => point.Proportion !== null).forEach(point => parts.push(`<circle cx="${sx(point.Target)}" cy="${sy(point.Proportion)}" r="3" fill="black"/>`));
+        parts.push(line(axisX, axisY, sx(11), axisY), line(axisX, axisY, axisX, sy(100)));
+        for (let target = 1; target <= 11; target++) parts.push(line(sx(target), axisY, sx(target), axisY + 3.5), text(sx(target), axisY + 13, 8, target, ' text-anchor="middle"'));
+        [0, 25, 50, 75, 100].forEach(value => parts.push(line(axisX - 3.5, sy(value), axisX, sy(value)), text(axisX - 5.5, sy(value) + 2.8, 8, value, ' text-anchor="end"')));
+        parts.push(text(sx(6), height - 0.2 * CM, 9, 'Target', ' text-anchor="middle"'));
+        const middle = (sy(100) + axisY) / 2;
+        parts.push(text(0.42 * CM, middle, 9, `${capitalise(handWord())} use (%)`, ` text-anchor="middle" transform="rotate(-90 ${round(0.42 * CM)} ${round(middle)})"`));
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${FIGURE.width}cm" height="${FIGURE.height}cm" viewBox="0 0 ${round(width)} ${round(height)}" font-family="Arial, Helvetica, sans-serif">${parts.join('')}</svg>`;
+    }
+
+    function startDownload(name, blob) {
+        const url = URL.createObjectURL(blob);
+        const link = element('a');
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setMsg('g6-msg', `The download of ${name} started.`, 'ok');
+    }
+
+    function pngFrom(svg) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+            const image = new Image();
+            image.onload = () => {
+                const canvas = element('canvas');
+                canvas.width = Math.round(FIGURE.width / 2.54 * FIGURE.dpi);
+                canvas.height = Math.round(FIGURE.height / 2.54 * FIGURE.dpi);
+                const context = canvas.getContext('2d');
+                context.fillStyle = 'white';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('png'))), 'image/png');
+            };
+            image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('svg')); };
+            image.src = url;
+        });
+    }
+
+    function figureName(row, extension) {
+        return `${includePractice ? 'PRACTICE_' : ''}PSE_${state.group}_${row.ID || 'no-ID'}_session${row.Session}_${row.Block}.${extension}`;
+    }
+
+    function figureCard(row) {
+        const svg = pseFigureSvg(row);
+        const card = element('figure', 'pse-figure');
+        card.appendChild(element('figcaption', '', blockLabel(row)));
+        const holder = element('div', 'pse-svg');
+        holder.innerHTML = svg;
+        card.appendChild(holder);
+        const actions = element('div', 'pse-actions');
+        const saveSvg = element('button', '', 'Save SVG');
+        saveSvg.addEventListener('click', () => startDownload(figureName(row, 'svg'), new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${svg}`], { type: 'image/svg+xml' })));
+        const savePng = element('button', '', 'Save PNG');
+        savePng.addEventListener('click', () => pngFrom(svg).then(blob => startDownload(figureName(row, 'png'), blob), () => setMsg('g6-msg', 'The PNG could not be made. Save the SVG instead.', 'bad')));
+        actions.append(saveSvg, savePng);
+        card.appendChild(actions);
+        return card;
+    }
+
+    function pseNote(row) {
+        if (!row.TargetedHand) return `The ${handWord()} is not known.`;
+        if (row.PSE_bounded) return `Outside targets 1 to 11 (${round(row.PSE_raw)}), so set to ${row.PSE}.`;
+        if (row.PSE === null && row.PSE_raw !== null) return 'The curve is too flat to fit, so there is no PSE.';
+        if (row.PSE === null) return 'Too few targets to fit a curve, so there is no PSE.';
+        return '';
+    }
+
+    function tableOf(headings, rows) {
+        const table = element('table', 'data');
+        const head = element('tr');
+        headings.forEach(heading => head.appendChild(element('th', '', heading)));
+        table.appendChild(element('thead')).appendChild(head);
+        const body = element('tbody');
+        rows.forEach(cells => {
+            const tr = element('tr');
+            cells.forEach(cell => {
+                const td = element('td', '', cell.text === undefined ? cell : cell.text);
+                if (cell.title) td.title = cell.title;
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        });
+        table.appendChild(body);
+        return table;
+    }
+
+    function proportionCell(row, target) {
+        const point = row.points.find(item => item.Target === target);
+        if (!point) return { text: '', title: 'No reaches to this target' };
+        if (point.Proportion === null) return { text: '–', title: `${reaches(point.total_trials)}, with a skipped trial or an unknown hand, so this target is left out of the fit` };
+        return { text: String(Math.round(point.Proportion)), title: `${point.targeted_hits} of ${reaches(point.total_trials)}` };
+    }
+
+    function renderPsych() {
+        const tables = state.psych;
+        $('psych').hidden = !tables;
+        if (!tables) {
+            ['psych-problems', 'psych-changes'].forEach(id => { $(id).hidden = true; });
+            return;
+        }
+        const shown = state.psychShown;
+        const c = state.pseComparison;
+        const confirm = needsConfirm(state.propComparison) || needsConfirm(c);
+        $('psych-comparison').classList.toggle('bad', confirm);
+        if (!c) $('psych-comparison').textContent = 'These will be the first proportions and PSE masters for this group.';
+        else if (!c.comparable || !state.propComparison || !state.propComparison.comparable) $('psych-comparison').textContent = 'A current proportions or PSE master has different columns, so it could not be compared with these sessions.';
+        else $('psych-comparison').textContent = `${plural(c.added, 'new block')}, and ${plural(c.changed + c.missing + state.propComparison.changed + state.propComparison.missing, 'existing row')} changed.`;
+        $('psych-hand').textContent = `Percentage of reaches made with the ${handWord()} at each target. A dash means the target had a skipped trial, so it is left out of the fit, as in the R script.`;
+        $('psych-shown').hidden = !shown.length;
+        $('prop-table').replaceChildren(tableOf(['Participant', 'Session', 'Block', ...Array.from({ length: 11 }, (_, i) => String(i + 1))], shown.map(row => [row.ID, String(row.Session), row.Block, ...Array.from({ length: 11 }, (_, i) => proportionCell(row, i + 1))])));
+        $('pse-table').replaceChildren(tableOf(['Participant', 'Session', 'Block', 'PSE', 'Note'], shown.map(row => [row.ID, String(row.Session), row.Block, row.PSE === null ? '' : row.PSE.toFixed(2), pseNote(row)])));
+        $('pse-figures').replaceChildren(...shown.map(figureCard));
+        fillList('psych-problems', 'psych-problems-list', A.pseProblems(tables, state.group));
+        fillList('psych-changes', 'psych-changes-list', changeList(state.propComparison).concat(changeList(c)));
+    }
+
+    async function preparePsych() {
+        const tables = A.pseTables(state.result);
+        const names = outputNames();
+        const groupDir = await state.root.getDirectoryHandle(state.group);
+        const oldProportions = await readText(groupDir, names.proportions);
+        const oldPse = await readText(groupDir, names.pse);
+        state.psych = tables;
+        state.propMasterText = oldProportions;
+        state.pseMasterText = oldPse;
+        state.propComparison = oldProportions === null ? null : A.compareProportions(oldProportions, tables.proportions);
+        state.pseComparison = oldPse === null ? null : A.comparePse(oldPse, tables.pse);
+        state.psychShown = state.pseComparison && state.pseComparison.comparable ? state.pseComparison.addedRows : tables.pse;
+        $('g6-problems').hidden = !A.pseProblems(tables, state.group).length;
+        $('g6-changes').hidden = !(needsConfirm(state.propComparison) || needsConfirm(state.pseComparison));
+        const people = new Set(state.psychShown.map(row => row.ID)).size;
+        setMsg('g6-msg', state.psychShown.length ? `Showing ${plural(state.psychShown.length, 'block')} from ${plural(people, 'participant')} added in this run.` : 'No blocks were added in this run. Every participant is in the proportions and PSE masters.');
+        renderPsych();
+    }
+
     function renderResults() {
         const result = state.result;
         $('results').hidden = !result;
@@ -145,9 +310,10 @@
         if (n === 3) return !!state.group;
         if (n === 4) return allTicked(4) && state.zipCount > 0;
         if (n === 5) return !!state.result && state.result.rows.length > 0 && state.result.stops.length === 0 && allTicked(5);
-        if (n === 6) return (!!state.kin || state.kinFailed) && allTicked(6);
-        if (n === 7) return state.saved;
-        return allTicked(8) && !state.finished;
+        if (n === 6) return !!state.psych && allTicked(6);
+        if (n === 7) return (!!state.kin || state.kinFailed) && allTicked(7);
+        if (n === 8) return state.saved;
+        return allTicked(9) && !state.finished;
     }
 
     function render() {
@@ -169,17 +335,19 @@
         if (state.group && state.root) {
             const names = outputNames();
             $('g4-path').textContent = zipsPath();
-            $('g7-path').textContent = `${state.root.name}/${state.group}/${names.master}`;
-            $('g7-path-kin').textContent = `${state.root.name}/${state.group}/${names.kinematics}`;
-            $('g7-save').textContent = state.kinFailed ? 'Save the handDB master' : 'Save the master files';
+            $('g8-path').textContent = `${state.root.name}/${state.group}/${names.master}`;
+            $('g8-path-kin').textContent = `${state.root.name}/${state.group}/${names.kinematics}`;
+            $('g8-path-prop').textContent = `${state.root.name}/${state.group}/${names.proportions}`;
+            $('g8-path-pse').textContent = `${state.root.name}/${state.group}/${names.pse}`;
+            $('g8-save').textContent = state.kinFailed ? 'Save the handDB master' : 'Save the master files';
         }
-        $('g7-say').textContent = state.upToDate ? 'The master files are already up to date.' : state.kinFailed ? 'Save the handDB master here. The kinematics master will not be updated.' : 'Save the master files here.';
-        $('g7-path-kin').hidden = state.kinFailed;
-        $('g7-save').hidden = state.upToDate;
-        $('g6-run').disabled = state.busy || !!state.kin;
-        $('g7-save').disabled = state.busy || state.saved;
+        $('g8-say').textContent = state.upToDate ? 'The master files are already up to date.' : state.kinFailed ? 'Save the handDB master here. The kinematics master will not be updated.' : 'Save the master files here.';
+        $('g8-path-kin').hidden = state.kinFailed;
+        $('g8-save').hidden = state.upToDate;
+        $('g7-run').disabled = state.busy || !!state.kin;
+        $('g8-save').disabled = state.busy || state.saved;
         document.querySelectorAll('[data-group]').forEach(button => button.classList.toggle('on', button.dataset.group === state.group));
-        $('g8-again').hidden = !state.finished;
+        $('g9-again').hidden = !state.finished;
     }
 
     function resetAfter(n) {
@@ -202,18 +370,30 @@
             renderResults();
         }
         if (n < 6) {
+            state.psych = null;
+            state.psychShown = [];
+            state.propComparison = null;
+            state.pseComparison = null;
+            state.propMasterText = null;
+            state.pseMasterText = null;
+            $('g6-problems').hidden = true;
+            $('g6-changes').hidden = true;
+            setMsg('g6-msg', '');
+            renderPsych();
+        }
+        if (n < 7) {
             state.kin = null;
             state.kinFailed = false;
             state.kinComparison = null;
             state.kinMasterText = null;
-            $('g6-failed').hidden = true;
-            $('g6-problems').hidden = true;
-            $('g6-changes').hidden = true;
-            setMsg('g6-msg', '');
+            $('g7-failed').hidden = true;
+            $('g7-problems').hidden = true;
+            $('g7-changes').hidden = true;
+            setMsg('g7-msg', '');
             renderKinematics();
         }
-        if (n < 7) { state.saved = false; state.upToDate = false; setMsg('g7-msg', ''); }
-        setMsg('g8-msg', '');
+        if (n < 8) { state.saved = false; state.upToDate = false; setMsg('g8-msg', ''); }
+        setMsg('g9-msg', '');
     }
 
     async function listFolder(dir) {
@@ -452,8 +632,8 @@
             worker.onmessage = ({ data }) => {
                 quietChecks = 0;
                 if (data.type === 'status' && data.stage === 'calculating') calculating = true;
-                if (data.type === 'status') setMsg('g6-msg', data.stage === 'loading' ? 'Loading the kinematics program…' : 'Starting the calculation…', 'busy');
-                if (data.type === 'progress') setMsg('g6-msg', `Calculating block ${data.completed.toLocaleString('en-GB')} of ${data.total.toLocaleString('en-GB')}…`, 'busy');
+                if (data.type === 'status') setMsg('g7-msg', data.stage === 'loading' ? 'Loading the kinematics program…' : 'Starting the calculation…', 'busy');
+                if (data.type === 'progress') setMsg('g7-msg', `Calculating block ${data.completed.toLocaleString('en-GB')} of ${data.total.toLocaleString('en-GB')}…`, 'busy');
                 if (data.type === 'done') finish(resolve, data);
                 if (data.type === 'failed') finish(reject, new Error(data.message));
             };
@@ -462,17 +642,17 @@
     }
 
     async function calculateKinematics() {
-        resetAfter(6);
+        resetAfter(7);
         state.kinFailed = false;
-        $('g6-failed').hidden = true;
-        $('g6-failed').querySelector('input').checked = false;
+        $('g7-failed').hidden = true;
+        $('g7-failed').querySelector('input').checked = false;
         state.busy = true;
-        setMsg('g6-msg', 'Preparing the blocks…', 'busy');
+        setMsg('g7-msg', 'Preparing the blocks…', 'busy');
         render();
         try {
             const changed = await changedZip();
             if (changed) {
-                setMsg('g6-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
+                setMsg('g7-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
                 return;
             }
             const plan = A.kinematicsPlan(state.result);
@@ -484,19 +664,19 @@
             state.kin = kinematics;
             state.kinMasterText = old;
             state.kinComparison = comparison;
-            $('g6-problems').hidden = !A.kinematicsProblems(kinematics).length;
-            $('g6-changes').hidden = !needsConfirm(comparison);
-            setMsg('g6-msg', `Calculated ${plural(kinematics.summary.processed_blocks, 'block')}.`, 'ok');
+            $('g7-problems').hidden = !A.kinematicsProblems(kinematics).length;
+            $('g7-changes').hidden = !needsConfirm(comparison);
+            setMsg('g7-msg', `Calculated ${plural(kinematics.summary.processed_blocks, 'block')}.`, 'ok');
             renderKinematics();
         } catch (e) {
             const changed = await changedZip();
             if (changed) {
-                setMsg('g6-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
+                setMsg('g7-msg', zipChanged(changed, 'nothing was calculated'), 'bad');
                 return;
             }
             state.kinFailed = true;
-            $('g6-failed').hidden = false;
-            setMsg('g6-msg', `The kinematics could not be calculated, and nothing was saved. Calculate them again, or tick the box below to save only the handDB master. Details: ${e.message}`, 'bad');
+            $('g7-failed').hidden = false;
+            setMsg('g7-msg', `The kinematics could not be calculated, and nothing was saved. Calculate them again, or tick the box below to save only the handDB master. Details: ${e.message}`, 'bad');
         } finally {
             state.busy = false;
             render();
@@ -571,20 +751,22 @@
 
     async function save() {
         state.busy = true;
-        setMsg('g7-msg', 'Saving…', 'busy');
+        setMsg('g8-msg', 'Saving…', 'busy');
         render();
         const touched = [];
         let history;
         try {
             const names = outputNames();
             const groupDir = await state.root.getDirectoryHandle(state.group);
-            if (await readText(groupDir, names.master) !== state.masterText || (state.kin && await readText(groupDir, names.kinematics) !== state.kinMasterText)) {
-                setMsg('g7-msg', 'A master file has changed since the sessions were read, so nothing was saved. Go back to step 4 and read the sessions again.', 'bad');
+            const read = [[names.master, state.masterText], [names.proportions, state.propMasterText], [names.pse, state.pseMasterText], ...(state.kin ? [[names.kinematics, state.kinMasterText]] : [])];
+            const unchangedSinceRead = await Promise.all(read.map(async ([name, text]) => (await readText(groupDir, name)) === text));
+            if (unchangedSinceRead.includes(false)) {
+                setMsg('g8-msg', 'A master file has changed since the sessions were read, so nothing was saved. Go back to step 4 and read the sessions again.', 'bad');
                 return;
             }
             const changed = await changedZip();
             if (changed) {
-                setMsg('g7-msg', zipChanged(changed, 'nothing was saved'), 'bad');
+                setMsg('g8-msg', zipChanged(changed, 'nothing was saved'), 'bad');
                 return;
             }
             const { created, changes } = await pendingChanges(true);
@@ -608,12 +790,14 @@
             }
             state.saved = true;
             state.masterText = await readText(groupDir, names.master);
+            state.propMasterText = await readText(groupDir, names.proportions);
+            state.pseMasterText = await readText(groupDir, names.pse);
             if (state.kin) state.kinMasterText = await readText(groupDir, names.kinematics);
-            const savedMaster = `Saved ${names.master} with ${plural(state.result.rows.length, 'trial')}`;
-            setMsg('g7-msg', state.kin ? `${savedMaster}, and ${names.kinematics} with ${reaches(state.kin.masterRows)}.` : `${savedMaster}. ${names.kinematics} was not updated.`, 'ok');
+            const savedMasters = `Saved ${names.master} with ${plural(state.result.rows.length, 'trial')}, ${names.proportions} and ${names.pse} with ${plural(state.psych.pse.length, 'block')}`;
+            setMsg('g8-msg', state.kin ? `${savedMasters}, and ${names.kinematics} with ${reaches(state.kin.masterRows)}.` : `${savedMasters}. ${names.kinematics} was not updated.`, 'ok');
         } catch (e) {
             const restored = await restoreFiles(history, touched);
-            setMsg('g7-msg', restored
+            setMsg('g8-msg', restored
                 ? 'The master files could not be saved, and any changes were undone. The ZIP files were not changed. Check your browser\'s permission to edit the folder, then try again.'
                 : 'Saving failed, and some previous files could not be restored. Backup copies are in the history folder. The ZIP files were not changed.', 'bad');
         } finally {
@@ -645,16 +829,28 @@
             resetAfter(4);
             if (!(await readSessions())) return;
         }
-        if (n === 6) {
+        if (n === 5) {
+            state.busy = true;
+            render();
+            try {
+                await preparePsych();
+            } catch (e) {
+                state.psych = null;
+                setMsg('g6-msg', 'The proportions and PSE could not be prepared. Go back to step 4 and read the sessions again.', 'bad');
+                renderPsych();
+            }
+            state.busy = false;
+        }
+        if (n === 7) {
             state.busy = true;
             render();
             state.upToDate = await nothingToSave();
             state.busy = false;
             if (state.upToDate) state.saved = true;
         }
-        if (n === 8) {
+        if (n === 9) {
             state.finished = true;
-            setMsg('g8-msg', `All steps are complete for ${groupTitle()}.`, 'ok');
+            setMsg('g9-msg', `All steps are complete for ${groupTitle()}.`, 'ok');
             render();
             return;
         }
@@ -699,9 +895,9 @@
         countZips();
     });
     window.addEventListener('beforeunload', (event) => { if (state.busy) event.preventDefault(); });
-    $('g6-run').addEventListener('click', calculateKinematics);
-    $('g7-save').addEventListener('click', save);
-    $('g8-restart').addEventListener('click', () => {
+    $('g7-run').addEventListener('click', calculateKinematics);
+    $('g8-save').addEventListener('click', save);
+    $('g9-restart').addEventListener('click', () => {
         resetAfter(0);
         state.reached = 1;
         state.open = 1;

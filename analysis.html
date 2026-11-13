@@ -3,7 +3,7 @@
 <head>
     <title>WebSpheres Analysis</title>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'none'; worker-src 'self'; form-action 'none'; base-uri 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'none'; img-src blob:; worker-src 'self'; form-action 'none'; base-uri 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="webspheres-theme.css">
     <style>
@@ -75,6 +75,21 @@
         #kinematics { margin-top: 1.2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
         #kin-totals { font-weight: 700; }
         #kin-comparison.bad { color: var(--warn); font-weight: 600; }
+        #psych { margin-top: 1.2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+        #psych h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
+        #psych-comparison.bad { color: var(--warn); font-weight: 600; }
+        #psych-problems h2, #psych-changes h2 { color: var(--warn); }
+        .table-wrap { overflow-x: auto; }
+        table.data { border-collapse: collapse; font-family: var(--mono); font-size: 0.85rem; }
+        table.data th, table.data td { padding: 0.25rem 0.55rem; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+        table.data th { color: var(--muted); font-weight: 600; }
+        table.data td:nth-child(-n+3), table.data th:nth-child(-n+3) { text-align: left; }
+        #pse-table td:last-child, #pse-table th:last-child { text-align: left; white-space: normal; font-family: var(--sans); }
+        #pse-figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .pse-figure { margin: 0; padding: 0.6rem; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-control); }
+        .pse-figure figcaption { font-weight: 700; margin-bottom: 0.4rem; }
+        .pse-svg svg { display: block; width: 100%; height: auto; background: white; }
+        .pse-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem; }
     </style>
 </head>
 <body>
@@ -139,40 +154,53 @@
                     </div>
                 </section>
                 <section class="step" data-step="6">
-                    <button class="step-head" data-open="6"><span class="step-mark">6</span><span class="step-title">Calculate the kinematics</span><span class="step-val"></span></button>
+                    <button class="step-head" data-open="6"><span class="step-mark">6</span><span class="step-title">Proportions and PSE</span><span class="step-val"></span></button>
                     <div class="step-body">
-                        <p class="say">Calculate the kinematics for these sessions.</p>
-                        <p class="g-note">This runs the kinematics scripts on this computer and may take several minutes. Keep this tab open until it finishes.</p>
-                        <div class="g-actions"><button class="g-primary" id="g6-run">Calculate kinematics</button></div>
+                        <p class="say">Check the proportions and PSE on the right.</p>
+                        <p class="g-note">They are shown for the participants added in this run. The proportions and PSE masters contain every participant. Each figure can be saved on its own.</p>
                         <p class="g-msg" id="g6-msg" role="status"></p>
-                        <label class="g-tick" id="g6-failed" hidden><input type="checkbox"><span>I understand that only the handDB master will be saved, and that the kinematics master will not be updated.</span></label>
-                        <label class="g-tick" id="g6-problems" hidden><input type="checkbox"><span>I read every kinematics problem on the right.</span></label>
-                        <label class="g-tick" id="g6-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the kinematics master.</span></label>
+                        <label class="g-tick" id="g6-problems" hidden><input type="checkbox"><span>I read every PSE problem on the right.</span></label>
+                        <label class="g-tick" id="g6-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the proportions and PSE masters.</span></label>
                         <div class="g-actions"><button class="g-primary" data-next="6">Next</button></div>
                     </div>
                 </section>
                 <section class="step" data-step="7">
-                    <button class="step-head" data-open="7"><span class="step-mark">7</span><span class="step-title">Save the master files</span><span class="step-val"></span></button>
+                    <button class="step-head" data-open="7"><span class="step-mark">7</span><span class="step-title">Calculate the kinematics</span><span class="step-val"></span></button>
                     <div class="step-body">
-                        <p class="say" id="g7-say"></p>
-                        <p class="path" id="g7-path"></p>
-                        <p class="path" id="g7-path-kin"></p>
-                        <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. Any older file in the kinematics details folder that this run did not produce is moved to the history folder. The original ZIP files are not changed.</p>
-                        <div class="g-actions"><button class="g-primary" id="g7-save"></button></div>
+                        <p class="say">Calculate the kinematics for these sessions.</p>
+                        <p class="g-note">This runs the kinematics scripts on this computer and may take several minutes. Keep this tab open until it finishes.</p>
+                        <div class="g-actions"><button class="g-primary" id="g7-run">Calculate kinematics</button></div>
                         <p class="g-msg" id="g7-msg" role="status"></p>
+                        <label class="g-tick" id="g7-failed" hidden><input type="checkbox"><span>I understand that only the handDB master will be saved, and that the kinematics master will not be updated.</span></label>
+                        <label class="g-tick" id="g7-problems" hidden><input type="checkbox"><span>I read every kinematics problem on the right.</span></label>
+                        <label class="g-tick" id="g7-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the kinematics master.</span></label>
                         <div class="g-actions"><button class="g-primary" data-next="7">Next</button></div>
                     </div>
                 </section>
                 <section class="step" data-step="8">
-                    <button class="step-head" data-open="8"><span class="step-mark">8</span><span class="step-title">Send to GitHub</span><span class="step-val"></span></button>
+                    <button class="step-head" data-open="8"><span class="step-mark">8</span><span class="step-title">Save the master files</span><span class="step-val"></span></button>
+                    <div class="step-body">
+                        <p class="say" id="g8-say"></p>
+                        <p class="path" id="g8-path"></p>
+                        <p class="path" id="g8-path-prop"></p>
+                        <p class="path" id="g8-path-pse"></p>
+                        <p class="path" id="g8-path-kin"></p>
+                        <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. Any older file in the kinematics details folder that this run did not produce is moved to the history folder. The original ZIP files are not changed.</p>
+                        <div class="g-actions"><button class="g-primary" id="g8-save"></button></div>
+                        <p class="g-msg" id="g8-msg" role="status"></p>
+                        <div class="g-actions"><button class="g-primary" data-next="8">Next</button></div>
+                    </div>
+                </section>
+                <section class="step" data-step="9">
+                    <button class="step-head" data-open="9"><span class="step-mark">9</span><span class="step-title">Send to GitHub</span><span class="step-val"></span></button>
                     <div class="step-body">
                         <p class="say">Finish in GitHub Desktop.</p>
                         <label class="g-tick"><input type="checkbox"><span>I checked the list of changed files in GitHub Desktop.</span></label>
                         <label class="g-tick"><input type="checkbox"><span>I wrote a short summary and selected Commit.</span></label>
                         <label class="g-tick"><input type="checkbox"><span>I selected Push origin.</span></label>
-                        <div class="g-actions"><button class="g-primary" data-next="8">Finish</button></div>
-                        <p class="g-msg ok" id="g8-msg" role="status"></p>
-                        <div class="g-actions" id="g8-again" hidden><button id="g8-restart">Start another analysis</button></div>
+                        <div class="g-actions"><button class="g-primary" data-next="9">Finish</button></div>
+                        <p class="g-msg ok" id="g9-msg" role="status"></p>
+                        <div class="g-actions" id="g9-again" hidden><button id="g9-restart">Start another analysis</button></div>
                     </div>
                 </section>
             </div>
@@ -186,6 +214,26 @@
                 <section id="summary">
                     <p id="totals"></p>
                     <p id="comparison"></p>
+                </section>
+                <section id="psych" hidden>
+                    <h2>Proportions and PSE</h2>
+                    <p id="psych-comparison"></p>
+                    <div id="psych-shown">
+                        <h3>Proportions</h3>
+                        <p class="g-note" id="psych-hand"></p>
+                        <div class="table-wrap" id="prop-table"></div>
+                        <h3>PSE</h3>
+                        <div class="table-wrap" id="pse-table"></div>
+                        <div id="pse-figures"></div>
+                    </div>
+                </section>
+                <section id="psych-problems" class="list-section" hidden>
+                    <h2>PSE problems</h2>
+                    <ul id="psych-problems-list"></ul>
+                </section>
+                <section id="psych-changes" class="list-section" hidden>
+                    <h2>Existing proportions and PSE rows that would change</h2>
+                    <ul id="psych-changes-list"></ul>
                 </section>
                 <section id="kinematics" hidden>
                     <h2>Kinematics</h2>
