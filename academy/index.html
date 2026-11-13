@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebSpheres Academy</title>
+<link rel="stylesheet" href="css/academy.css">
+</head>
+<body>
+<header class="top">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>WebSpheres <b>Academy</b></div>
+    <nav class="lessons" id="lesson-nav" aria-label="Lessons"></nav>
+    <div class="stars" id="star-total"></div>
+    <button class="btn ghost small" id="reset-all" title="Delete all progress and start again from lesson 1">Reset progress</button>
+</header>
+<main class="layout">
+    <section class="panel task" id="task" aria-label="Lesson"></section>
+    <section class="panel code" aria-label="Work area">
+        <div class="panel-head">
+            <h2 id="work-title">Your code</h2>
+            <button id="reset-code" class="btn ghost small">Start this step again</button>
+        </div>
+        <div class="workbench" id="workbench" hidden></div>
+        <div class="code-area" id="code-area">
+        <div class="ws-top" id="ws-top" hidden></div>
+        <div class="editor" id="editor">
+            <div class="gutter" id="gutter" aria-hidden="true"></div>
+            <div class="edit-area">
+                <pre class="hl" aria-hidden="true"><code id="hl"></code></pre>
+                <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Code editor"></textarea>
+            </div>
+            <div class="editor-lock" id="editor-lock" hidden>Make your prediction first</div>
+        </div>
+        <div class="run-status" id="run-status" role="status" aria-live="polite"></div>
+        <div class="ws-bottom" id="ws-bottom" hidden></div>
+        <div class="tests-box" id="tests-box" hidden></div>
+        <div class="console-box" id="console-box" hidden>
+            <h3>Console</h3>
+            <pre class="console-out" id="console-out" aria-live="polite"></pre>
+        </div>
+        <div class="vars" id="vars-box">
+            <h3>Your variables</h3>
+            <p class="vars-note">Each variable is a labelled box. This list shows the value in each box now.</p>
+            <div id="vars"></div>
+        </div>
+        </div>
+    </section>
+    <section class="panel view" aria-label="Preview">
+        <div class="panel-head">
+            <h2 id="view-title">Live preview</h2>
+            <span class="stale" id="stale" hidden>Showing the last code that worked</span>
+        </div>
+        <iframe id="preview" src="preview.html" title="Live 3D preview of the targets"></iframe>
+        <iframe id="project" title="Spheres Practice game" hidden></iframe>
+        <div class="view-panel" id="view-panel" hidden></div>
+        <p class="view-note" id="view-note">The preview updates as you type. The view faces the participant, with the targets between you and them.</p>
+    </section>
+</main>
+<script src="js/runner.js"></script>
+<script src="js/marking.js"></script>
+<script src="js/game.js"></script>
+<script src="js/minigit.js"></script>
+<script src="js/practice-files.js"></script>
+<script src="js/workspace.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/lessons/01-variables.js"></script>
+<script src="js/lessons/02-maths.js"></script>
+<script src="js/lessons/03-text.js"></script>
+<script src="js/lessons/04-if-else.js"></script>
+<script src="js/lessons/05-functions.js"></script>
+<script src="js/lessons/06-loops.js"></script>
+<script src="js/lessons/07-randomness.js"></script>
+<script src="js/lessons/08-lists.js"></script>
+<script src="js/lessons/09-events.js"></script>
+<script src="js/lessons/10-game.js"></script>
+<script src="js/lessons/11-real-code.js"></script>
+<script src="js/lessons/12-version-control.js"></script>
+<script src="js/academy.js"></script>
+</body>
+</html>

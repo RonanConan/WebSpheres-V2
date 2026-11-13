@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Preview</title>
+<script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+<style>
+html, body { margin: 0; height: 100%; background: #0b0e14; overflow: hidden; }
+.a-enter-vr, .a-enter-ar { display: none !important; }
+.offline { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2rem; color: #7d8799; font: 16px/1.5 system-ui, sans-serif; text-align: center; }
+body.pointing canvas { cursor: pointer; }
+</style>
+</head>
+<body>
+<a-scene vr-mode-ui="enabled: false" loading-screen="enabled: false" device-orientation-permission-ui="enabled: false" keyboard-shortcuts="enterVR: false" renderer="antialias: true; colorManagement: true" background="color: #0b0e14" cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+    <a-entity light="type: ambient; intensity: 0.9; color: #b8c4d8"></a-entity>
+    <a-entity light="type: directional; intensity: 1.8" position="1 3 2"></a-entity>
+    <a-entity light="type: point; intensity: 2; distance: 3; color: #bff6ff" position="0 1.5 -0.2"></a-entity>
+
+    <a-circle radius="2.2" rotation="-90 0 0" material="color: #10151f; shader: flat"></a-circle>
+    <a-ring radius-inner="0.995" radius-outer="1.005" rotation="-90 0 0" position="0 0.002 0" material="color: #252c3a; shader: flat"></a-ring>
+    <a-ring radius-inner="1.495" radius-outer="1.505" rotation="-90 0 0" position="0 0.002 0" material="color: #1c2230; shader: flat"></a-ring>
+
+    <a-entity id="participant">
+        <a-box position="0 0.45 0.05" width="0.42" height="0.06" depth="0.42" material="color: #2a3242"></a-box>
+        <a-box position="0 0.75 0.24" width="0.42" height="0.6" depth="0.05" material="color: #2a3242"></a-box>
+        <a-cylinder position="0 0.8 0.05" radius="0.15" height="0.6" material="color: #3a4458"></a-cylinder>
+        <a-sphere position="0 1.25 0" radius="0.1" material="color: #4b566d"></a-sphere>
+        <a-box position="0 1.27 -0.07" width="0.17" height="0.08" depth="0.08" material="color: #1b2130"></a-box>
+    </a-entity>
+
+    <a-entity id="arc"></a-entity>
+    <a-entity id="targets"></a-entity>
+    <a-entity id="slots"></a-entity>
+    <a-entity id="ghosts" visible="false"></a-entity>
+    <a-entity id="bars"></a-entity>
+    <a-entity id="radius-line" visible="false">
+        <a-cylinder id="radius-bar" radius="0.004" rotation="90 0 0" material="color: #00e5ff; opacity: 0.6; transparent: true; shader: flat"></a-cylinder>
+        <a-text id="radius-label" align="center" width="1.6" color="#00e5ff" font="exo2bold"></a-text>
+    </a-entity>
+    <a-entity id="reach" visible="false">
+        <a-cylinder id="reach-bar" radius="0.018" rotation="90 0 0" material="color: #e5534b"></a-cylinder>
+        <a-sphere id="reach-hand" radius="0.035" material="color: #e5534b"></a-sphere>
+        <a-text id="reach-label" align="center" width="1.6" color="#ff8a80" font="exo2bold"></a-text>
+    </a-entity>
+    <a-entity id="hand" visible="false">
+        <a-sphere id="hand-ball" radius="0.025" material="color: #e5534b"></a-sphere>
+        <a-text id="hand-label" align="center" width="1.2" color="#ff8a80" font="exo2bold"></a-text>
+    </a-entity>
+    <a-entity id="burst"></a-entity>
+    <a-entity id="floaters"></a-entity>
+    <a-text id="float-label" visible="false" align="center" width="2.6" color="#CCCCCC" font="exo2bold"></a-text>
+    <a-text id="tag-label" visible="false" align="center" width="1.3" color="#ffd34d" font="exo2bold"></a-text>
+    <a-text id="message" visible="false" align="center" width="2.2" color="#ffffff" font="exo2bold"></a-text>
+
+    <a-entity id="cam" camera="fov: 55" position="0.88 1.92 -1.82" rotation="-24 158 0"></a-entity>
+</a-scene>
+<script>
+(function () {
+    const TARGET_HEIGHT = 1.0;
+    const CAM_ROT = '-24 158 0';
+    const CAM_POS = '0.88 1.92 -1.82';
+    const MAX = 40;
+    const DEFAULT_ANGLES = Array.from({ length: 11 }, (_, i) => -40 + i * 8);
+    const DIM = '#2b3a44';
+    const scene = document.querySelector('a-scene');
+    const $ = id => document.getElementById(id);
+    const crystals = [];
+    const slots = [];
+    const ghosts = [];
+    const bars = [];
+    const seenLabels = new Set();
+    let labelRun = null;
+    let current = {};
+    let ready = false;
+    let pending = null;
+    let pops = 0;
+    let lastButton = 0;
+
+    if (!window.AFRAME) {
+        document.body.innerHTML = '<div class="offline">The 3D preview needs an internet connection to load A-Frame. Your code still runs and is still checked.</div>';
+        parent.postMessage({ wsa: 'ready' }, '*');
+        return;
+    }
+
+    function clamp(v, lo, hi, fallback) {
+        return typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback;
+    }
+
+    function spot(radius, angle, y) {
+        const a = angle * Math.PI / 180;
+        return { x: radius * Math.sin(a), y, z: -radius * Math.cos(a) };
+    }
+
+    function put(el, p) {
+        el.setAttribute('position', `${p.x} ${p.y} ${p.z}`);
+    }
+
+    function make(tag, parent, attrs) {
+        const el = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(k => el.setAttribute(k, attrs[k]));
+        parent.appendChild(el);
+        return el;
+    }
+
+    function build() {
+        for (let i = 0; i < MAX; i++) {
+            const c = make('a-octahedron', $('targets'), { class: 'clickable', visible: 'false' });
+            c.index = i;
+            c.inner = make('a-octahedron', c, { visible: 'false' });
+            c.addEventListener('click', () => {
+                if (c.getAttribute('visible') && current.clickable) parent.postMessage({ wsa: 'click', index: c.index, hand: lastButton === 2 ? 'RIGHT' : 'LEFT' }, '*');
+            });
+            c.addEventListener('mouseenter', () => { if (current.clickable) document.body.classList.add('pointing'); });
+            c.addEventListener('mouseleave', () => document.body.classList.remove('pointing'));
+            crystals.push(c);
+            slots.push(make('a-octahedron', $('slots'), { visible: 'false', material: 'color: #8fa3bf; wireframe: true; opacity: 0.35; transparent: true; shader: flat' }));
+            ghosts.push(make('a-octahedron', $('ghosts'), { visible: 'false', animation: 'property: rotation; from: 0 0 0; to: 0 360 0; loop: true; dur: 9000; easing: linear' }));
+            const bar = make('a-entity', $('bars'), { visible: 'false' });
+            bar.stick = make('a-cylinder', bar, { radius: '0.012', material: 'color: #ffd34d; shader: flat' });
+            bar.text = make('a-text', bar, { align: 'center', width: '0.9', color: '#ffd34d', font: 'exo2bold' });
+            bars.push(bar);
+        }
+        const ring = make('a-ring', $('arc'), { rotation: '-90 0 0', 'segments-theta': '48', material: 'color: #00e5ff; opacity: 0.3; transparent: true; shader: flat; side: double' });
+        $('arc').ring = ring;
+        $('arc').setAttribute('position', `0 ${TARGET_HEIGHT} 0`);
+    }
+
+    function apply(s) {
+        const colour = typeof s.colour === 'string' ? s.colour : '#00FFFF';
+        const size = clamp(s.size, 0.005, 0.5, 0.06);
+        const spin = clamp(s.spin, 200, 60000, 5000);
+        const radius = clamp(s.radius, 0.1, 2, 0.45);
+        const angles = (Array.isArray(s.angles) ? s.angles : DEFAULT_ANGLES).slice(0, MAX).map(a => clamp(a, -180, 180, 0));
+        const n = angles.length;
+        const ghost = s.ghost || null;
+        const sizeMode = !!ghost && typeof ghost.size === 'number';
+        const ringMode = !!ghost && (typeof ghost.radius === 'number' || Array.isArray(ghost.angles));
+        const game = s.game || null;
+        const shown = !!(game && game.shown);
+        const highlights = Array.isArray(s.highlights) ? new Set(s.highlights) : null;
+        const hand = s.hand && typeof s.hand.distance === 'number' ? s.hand : null;
+        const anchor = highlights && highlights.size ? Math.min(...highlights) : Math.floor(n / 2);
+        const anchorSpot = n ? spot(radius, angles[Math.min(anchor, n - 1)], TARGET_HEIGHT) : spot(radius, 0, TARGET_HEIGHT);
+
+        crystals.forEach((c, i) => {
+            const exists = i < n;
+            let visible = exists;
+            if (exists && sizeMode) visible = i % 5 === 0;
+            if (exists && shown) visible = !!game.visible[i];
+            c.setAttribute('visible', visible);
+            if (!exists) return;
+            put(c, spot(radius, angles[i], TARGET_HEIGHT));
+            let want = highlights && !highlights.has(i) ? DIM : colour;
+            if (hand && i === anchor) want = hand.inside ? '#3ddc84' : colour;
+            if (c.colourNow !== want) {
+                c.setAttribute('material', `color: ${want}; opacity: 0.85; transparent: true; metalness: 0.8; roughness: 0.2`);
+                c.colourNow = want;
+            }
+            if (c.sizeNow !== size) {
+                c.setAttribute('radius', size);
+                c.sizeNow = size;
+            }
+            if (c.spinNow !== spin) {
+                c.setAttribute('animation', `property: rotation; from: 0 0 0; to: 0 360 0; loop: true; dur: ${spin}; easing: linear`);
+                c.spinNow = spin;
+            }
+        });
+
+        slots.forEach((g, i) => {
+            const on = shown && i < n;
+            g.setAttribute('visible', on);
+            if (on) {
+                put(g, spot(radius, angles[i], TARGET_HEIGHT));
+                g.setAttribute('radius', size);
+            }
+        });
+
+        const ring = $('arc').ring;
+        ring.setAttribute('visible', n > 1);
+        if (n > 1) {
+            const lo = Math.min(...angles);
+            const hi = Math.max(...angles);
+            ring.setAttribute('radius-inner', radius - 0.004);
+            ring.setAttribute('radius-outer', radius + 0.004);
+            ring.setAttribute('theta-start', 90 - hi);
+            ring.setAttribute('theta-length', Math.max(0.1, hi - lo));
+        }
+
+        if (sizeMode !== current.sizeMode) {
+            $('cam').setAttribute('position', sizeMode ? '0 1.55 -1.5' : CAM_POS);
+            $('cam').setAttribute('rotation', sizeMode ? '-26 180 0' : CAM_ROT);
+        }
+        const ghostKey = JSON.stringify([ghost, radius, size, angles]);
+        if (ghostKey !== current.ghostKey) {
+            const gc = !ghost ? '#ffffff' : ghost.matched ? '#3ddc84' : ghost.close ? '#ffb347' : '#ffffff';
+            const mat = `color: ${gc}; wireframe: true; opacity: 0.95; transparent: true; shader: flat`;
+            crystals.forEach(c => {
+                c.inner.setAttribute('visible', sizeMode);
+                if (sizeMode) {
+                    c.inner.setAttribute('radius', clamp(ghost.size, 0.005, 0.5, size));
+                    c.inner.setAttribute('material', mat);
+                }
+            });
+            $('ghosts').setAttribute('visible', ringMode);
+            if (ringMode) {
+                const gr = clamp(ghost.radius, 0.1, 2, radius);
+                const ga = (Array.isArray(ghost.angles) ? ghost.angles : angles).slice(0, MAX);
+                ghosts.forEach((g, i) => {
+                    g.setAttribute('visible', i < ga.length);
+                    if (i >= ga.length) return;
+                    put(g, spot(gr, ga[i], TARGET_HEIGHT));
+                    g.setAttribute('radius', size);
+                    g.setAttribute('material', mat);
+                });
+            }
+        }
+
+        const radiusLine = $('radius-line');
+        radiusLine.setAttribute('visible', !!s.labels);
+        if (s.labels) {
+            const bar = $('radius-bar');
+            bar.setAttribute('height', radius);
+            bar.setAttribute('position', `0 ${TARGET_HEIGHT} ${-radius / 2}`);
+            const label = $('radius-label');
+            label.setAttribute('value', `ringRadius = ${+radius.toFixed(3)} m`);
+            label.setAttribute('position', `-0.12 ${TARGET_HEIGHT + 0.09} ${-radius / 2}`);
+            label.setAttribute('rotation', CAM_ROT);
+        }
+
+        const showReach = typeof s.reach === 'number';
+        $('reach').setAttribute('visible', showReach);
+        if (showReach) {
+            const reach = clamp(s.reach, 0.05, 2, 0.7);
+            const y = 0.92;
+            const x = 0.2;
+            const bar = $('reach-bar');
+            bar.setAttribute('height', reach);
+            bar.setAttribute('position', `${x} ${y} ${-reach / 2}`);
+            $('reach-hand').setAttribute('position', `${x} ${y} ${-reach}`);
+            const label = $('reach-label');
+            label.setAttribute('value', `reach = ${+reach.toFixed(3)} m`);
+            label.setAttribute('position', `${x + 0.2} ${y - 0.06} ${-reach / 2}`);
+            label.setAttribute('rotation', CAM_ROT);
+        }
+
+        $('hand').setAttribute('visible', !!hand);
+        if (hand) {
+            const d = clamp(hand.distance, 0, 1, 0.1);
+            const len = Math.hypot(anchorSpot.x, anchorSpot.z) || 1;
+            const p = { x: anchorSpot.x - anchorSpot.x / len * d, y: anchorSpot.y - 0.02, z: anchorSpot.z - anchorSpot.z / len * d };
+            put($('hand-ball'), p);
+            const label = $('hand-label');
+            label.setAttribute('value', `handDistance = ${+d.toFixed(3)} m`);
+            put(label, { x: p.x, y: p.y - 0.1, z: p.z });
+            label.setAttribute('rotation', CAM_ROT);
+        }
+
+        const floatLabel = $('float-label');
+        const text = typeof s.label === 'string' ? s.label.slice(0, 40) : null;
+        floatLabel.setAttribute('visible', text !== null && text !== '');
+        if (text !== null) {
+            put(floatLabel, { x: anchorSpot.x, y: TARGET_HEIGHT + size + 0.13, z: anchorSpot.z });
+            floatLabel.setAttribute('rotation', CAM_ROT);
+            floatLabel.setAttribute('color', typeof s.labelColour === 'string' ? s.labelColour : '#CCCCCC');
+            const scale = clamp(s.labelScale, 0.2, 4, 1);
+            if (text !== current.label || scale !== current.labelScale) {
+                floatLabel.setAttribute('value', text);
+                floatLabel.removeAttribute('animation__pop');
+                floatLabel.setAttribute('animation__pop', `property: scale; from: ${scale * 0.6} ${scale * 0.6} ${scale * 0.6}; to: ${scale} ${scale} ${scale}; dur: ${300 + (++pops % 2)}; easing: easeOutBack`);
+            }
+            current.labelScale = scale;
+        }
+
+        const tag = $('tag-label');
+        const tagText = typeof s.tag === 'string' ? s.tag.slice(0, 40) : null;
+        tag.setAttribute('visible', tagText !== null && tagText !== '');
+        if (tagText !== null) {
+            tag.setAttribute('value', tagText);
+            put(tag, { x: anchorSpot.x, y: TARGET_HEIGHT - size - 0.09, z: anchorSpot.z });
+            tag.setAttribute('rotation', CAM_ROT);
+        }
+
+        const counts = Array.isArray(s.counts) ? s.counts : null;
+        bars.forEach((bar, i) => {
+            const v = counts && i < n ? counts[i] : null;
+            const on = typeof v === 'number' && Number.isFinite(v);
+            bar.setAttribute('visible', on);
+            if (!on) return;
+            const h = Math.max(0.002, Math.min(0.5, 0.04 * v));
+            const p = spot(radius, angles[i], TARGET_HEIGHT + size + 0.02);
+            put(bar, p);
+            bar.stick.setAttribute('height', h);
+            bar.stick.setAttribute('position', `0 ${h / 2} 0`);
+            bar.text.setAttribute('value', String(v));
+            bar.text.setAttribute('position', `0 ${h + 0.04} 0`);
+            bar.text.setAttribute('rotation', CAM_ROT);
+        });
+
+        const message = $('message');
+        const msg = game && game.message ? String(game.message).slice(0, 60) : '';
+        message.setAttribute('visible', msg !== '');
+        if (msg) {
+            message.setAttribute('value', msg);
+            put(message, { x: 0, y: TARGET_HEIGHT + 0.42, z: -radius * 0.9 });
+            message.setAttribute('rotation', CAM_ROT);
+        }
+
+        if (game && Array.isArray(game.labels)) {
+            if (game.run !== labelRun) {
+                seenLabels.clear();
+                labelRun = game.run;
+            }
+            game.labels.forEach(l => {
+                if (seenLabels.has(l.id)) return;
+                seenLabels.add(l.id);
+                if (l.index < 0 || l.index >= n) return;
+                const p = spot(radius, angles[l.index], TARGET_HEIGHT + 0.1);
+                const el = make('a-text', $('floaters'), { value: String(l.text).slice(0, 30), align: 'center', width: '2.4', color: l.colour, font: 'exo2bold', rotation: CAM_ROT });
+                put(el, p);
+                el.setAttribute('animation', `property: position; to: ${p.x} ${p.y + 0.3} ${p.z}; dur: 1400; easing: easeOutQuad`);
+                el.setAttribute('animation__fade', 'property: text.opacity; from: 1; to: 0; dur: 1400; delay: 300; easing: easeInQuad');
+                setTimeout(() => el.remove(), 1800);
+            });
+        } else {
+            seenLabels.clear();
+        }
+
+        current = Object.assign(current, { colour, size, spin, radius, ghostKey, sizeMode, label: text, clickable: !!s.clickable, anchorSpot });
+    }
+
+    function celebrate(text) {
+        const p = current.anchorSpot || spot(current.radius || 0.45, 0, TARGET_HEIGHT);
+        const y = TARGET_HEIGHT + 0.12;
+        const label = make('a-text', $('burst'), { value: text, align: 'center', width: '3', color: '#FFD700', font: 'exo2bold', rotation: CAM_ROT });
+        put(label, { x: p.x, y, z: p.z });
+        label.setAttribute('animation', `property: position; to: ${p.x} ${y + 0.35} ${p.z}; dur: 1600; easing: easeOutQuad`);
+        label.setAttribute('animation__fade', 'property: text.opacity; from: 1; to: 0; dur: 1600; delay: 400; easing: easeInQuad');
+        const torus = make('a-torus', $('burst'), { radius: '0.1', 'radius-tubular': '0.006', material: 'color: #FFD700; opacity: 0.9; transparent: true; shader: flat', animation: 'property: scale; to: 4 4 4; dur: 700; easing: easeOutQuad', animation__fade: 'property: material.opacity; to: 0; dur: 700; easing: easeOutQuad' });
+        put(torus, { x: p.x, y: TARGET_HEIGHT, z: p.z });
+        pops += 1;
+        crystals.forEach((c, i) => {
+            c.removeAttribute('animation__pop');
+            c.setAttribute('animation__pop', `property: scale; from: 1 1 1; to: 1.6 1.6 1.6; dir: alternate; loop: 2; dur: ${220 + (pops % 2)}; delay: ${(i % 11) * 40}; easing: easeOutQuad`);
+        });
+        setTimeout(() => { label.remove(); torus.remove(); }, 2200);
+    }
+
+    window.addEventListener('pointerdown', e => { lastButton = e.button; });
+    window.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('keydown', e => {
+        if (!current.clickable) return;
+        if (e.code === 'Space') e.preventDefault();
+        parent.postMessage({ wsa: 'key', code: e.code, key: e.key }, '*');
+    });
+
+    window.addEventListener('message', e => {
+        const m = e.data || {};
+        if (m.wsa === 'scene') {
+            if (ready) apply(m.state);
+            else pending = m.state;
+        }
+        if (m.wsa === 'celebrate' && ready) celebrate(m.text);
+    });
+
+    function start() {
+        build();
+        ready = true;
+        apply(pending || {});
+        parent.postMessage({ wsa: 'ready' }, '*');
+    }
+
+    if (scene.hasLoaded) start();
+    else scene.addEventListener('loaded', start);
+})();
+</script>
+</body>
+</html>

@@ -91,6 +91,7 @@
         .g-head button { min-height: 2.25rem; padding: 0 0 0 0.5rem; background: transparent; border-color: transparent; color: var(--muted); font-size: 0.95rem; }
         .g-head button:hover:not(:disabled) { border-color: transparent; color: var(--text); }
         .g-head h2 { margin: 0; font-size: 1.05rem; color: var(--text); font-weight: 700; }
+        .g-head-btns { display: flex; align-items: center; gap: 0.75rem; }
         #g-alert { position: sticky; top: 0; z-index: 2; box-sizing: border-box; height: 3.9rem; padding: 0.6rem 1.25rem; background: var(--bg); color: #1a1000; font-weight: 700; line-height: 1.35; overflow: hidden; display: flex; align-items: center; }
         #g-alert-text { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         #g-alert.on { background: var(--fill-warn); }
@@ -321,7 +322,7 @@
 <div id="app">
     <aside id="left-slot">
         <div id="guide">
-            <div class="g-head"><h2>Session guide</h2><button tabindex="-1" id="g-hide">Hide guide</button></div>
+            <div class="g-head"><h2>Session guide</h2><span class="g-head-btns"><button tabindex="-1" id="btn-academy" title="Opens WebSpheres Academy in a new tab. It's a beginner's programming course taught through WebSpheres code.">Academy</button><button tabindex="-1" id="g-hide">Hide guide</button></span></div>
             <div id="g-alert"><span id="g-alert-text"></span></div>
             <div class="g-banner" id="g-resume" hidden>
                 <div id="g-resume-text"></div>
@@ -3602,6 +3603,7 @@
         $('g-hide').addEventListener('click', () => { setLeftSlot(false); renderGuide(); });
         $('btn-guide').addEventListener('click', () => { setLeftSlot(!$('app').classList.contains('left-open')); renderGuide(); });
         $('btn-analysis').addEventListener('click', () => window.open(PRACTICE ? 'analysis.html?practice' : 'analysis.html', '_blank', 'noopener'));
+        $('btn-academy').addEventListener('click', () => window.open('academy/index.html', '_blank', 'noopener'));
         $('g1-browser').hidden = WebSpheresBrowser.supported();
     }
 
