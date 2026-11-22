@@ -45,7 +45,7 @@ const WebSpheresQuestionnaires = (() => {
                 if (values.length < 2 || !values.every(isInt) || !values.every((v, i) => i === 0 || v === values[i - 1] + 1)) problems.push(`${where} needs scale values that are consecutive whole numbers, such as 1 to 5.`);
                 if (!Array.isArray(s.labels) || s.labels.length !== values.length) problems.push(`${where} needs one scale label per scale value (use "" for no label).`);
             }
-            def.items.forEach((item, i) => {
+            Array.from(def.items).forEach((item, i) => {
                 const at = `${where}, item ${i + 1}`;
                 if (!item || !item.id || !/^[A-Za-z0-9_-]+$/.test(item.id)) { problems.push(`${at} needs an id made of letters, numbers, hyphens or underscores.`); return; }
                 if (itemIds.has(item.id)) problems.push(`${at}: the item id ${item.id} is used more than once.`);
@@ -57,9 +57,10 @@ const WebSpheresQuestionnaires = (() => {
                 }
                 if (def.type === 'scale' && item.reverse !== undefined && typeof item.reverse !== 'boolean') problems.push(`${at} (${item.id}) has a reverse setting that is not true or false.`);
             });
-            const own = new Set(def.items.map(item => item && item.id));
+            const own = new Set(Array.from(def.items).map(item => item && item.id));
             const scoreIds = new Set();
-            (def.scores || []).forEach((sc, i) => {
+            if (def.scores !== undefined && !Array.isArray(def.scores)) { problems.push(`${where} has scores that are not a list. Put them in square brackets [ ].`); return; }
+            Array.from(def.scores || []).forEach((sc, i) => {
                 const at = `${where}, score ${i + 1}`;
                 if (!sc || !sc.id) { problems.push(`${at} needs an id.`); return; }
                 if (scoreIds.has(sc.id)) problems.push(`${at}: the score id ${sc.id} is used more than once.`);
@@ -80,13 +81,17 @@ const WebSpheresQuestionnaires = (() => {
         if (missingIds.length) return { defs: [], problems: missingIds.map(id => `${id} is listed in questionnaires/study.js, but its file is not loaded. Add a script tag for it to observer.html and analysis.html.`) };
         if (!order.length) return { defs: [], problems: ['No questionnaires are listed in questionnaires/study.js.'] };
         const defs = active();
-        return { defs, problems: check(defs) };
+        const problems = check(defs);
+        return { defs: problems.length ? [] : defs, problems };
     }
 
-    const scoreItems = (def, sc) => sc.items === 'all' ? def.items.map(i => i.id) : (Array.isArray(sc.items) ? sc.items : []);
+    const itemsOf = (def) => (def && Array.isArray(def.items) ? def.items.filter(Boolean) : []);
+    const scoresOf = (def) => (def && Array.isArray(def.scores) ? def.scores.filter(Boolean) : []);
+    const scaleValues = (def) => (def && def.scale && Array.isArray(def.scale.values) ? def.scale.values : []);
+    const scoreItems = (def, sc) => sc.items === 'all' ? itemsOf(def).map(i => i.id) : (Array.isArray(sc.items) ? sc.items : []);
 
     function subscalesOf(def, itemId) {
-        return (def.scores || []).filter(sc => scoreItems(def, sc).includes(itemId)).map(sc => sc.id);
+        return scoresOf(def).filter(sc => scoreItems(def, sc).includes(itemId)).map(sc => sc.id);
     }
 
     function followPrompt(item, value) {
@@ -96,18 +101,18 @@ const WebSpheresQuestionnaires = (() => {
 
     function answered(def, item, answer) {
         if (!answer || answer.value === null || answer.value === undefined || answer.value === '') return false;
-        if (def.type === 'scale') return def.scale.values.includes(answer.value);
-        return item.options.includes(answer.value) && String(answer.text || '').trim().length > 0;
+        if (def.type === 'scale') return scaleValues(def).includes(answer.value);
+        return Array.isArray(item.options) && item.options.includes(answer.value) && String(answer.text || '').trim().length > 0;
     }
 
-    const missing = (def, answers) => def.items.filter(item => !answered(def, item, (answers || {})[item.id]));
-    const count = (defs) => defs.reduce((n, def) => n + def.items.length, 0);
-    const answeredCount = (defs, answers) => defs.reduce((n, def) => n + def.items.length - missing(def, answers).length, 0);
+    const missing = (def, answers) => itemsOf(def).filter(item => !answered(def, item, (answers || {})[item.id]));
+    const count = (defs) => defs.reduce((n, def) => n + itemsOf(def).length, 0);
+    const answeredCount = (defs, answers) => defs.reduce((n, def) => n + itemsOf(def).length - missing(def, answers).length, 0);
 
     function labelOf(def, item, value) {
         if (def.type !== 'scale') return value;
-        const i = def.scale.values.indexOf(value);
-        return i < 0 ? '' : def.scale.labels[i] || '';
+        const i = scaleValues(def).indexOf(value);
+        return i < 0 || !Array.isArray(def.scale.labels) ? '' : def.scale.labels[i] || '';
     }
 
     const FORMULA_START = /^'*[=+\-@\t\r]/;
@@ -127,7 +132,7 @@ const WebSpheresQuestionnaires = (() => {
                 rows.push(Object.assign({}, base, q));
                 return;
             }
-            def.items.forEach((item, ii) => {
+            itemsOf(def).forEach((item, ii) => {
                 const a = (answers || {})[item.id] || {};
                 const has = a.value !== null && a.value !== undefined && a.value !== '';
                 const scale = def.type === 'scale';
@@ -137,7 +142,7 @@ const WebSpheresQuestionnaires = (() => {
                     ResponseLabel: has ? labelOf(def, item, a.value) : '',
                     FollowUpPrompt: !scale && has ? followPrompt(item, a.value) : '',
                     FollowUpText: !scale ? escapeText(String(a.text || '').trim()) : '',
-                    ScaleMin: scale ? scaleMin(def) : '', ScaleMax: scale ? scaleMax(def) : '',
+                    ScaleMin: scale && scaleValues(def).length ? scaleMin(def) : '', ScaleMax: scale && scaleValues(def).length ? scaleMax(def) : '',
                     Reverse: scale ? (item.reverse ? 1 : 0) : '',
                     Subscales: subscalesOf(def, item.id).join(';'),
                     AnsweredAt: a.at || ''
@@ -197,12 +202,12 @@ const WebSpheresQuestionnaires = (() => {
     const tidy = (x) => Number(x.toFixed(4));
 
     function score(def, responses) {
-        const byId = new Map(def.items.map(item => [item.id, item]));
-        return (def.scores || []).map(sc => {
+        const byId = new Map(itemsOf(def).map(item => [item.id, item]));
+        return scoresOf(def).map(sc => {
             const ids = scoreItems(def, sc);
             const values = ids.map(id => {
                 const v = (responses || {})[id];
-                return byId.has(id) && isInt(v) && def.scale.values.includes(v) ? scoredValue(def, byId.get(id), v) : null;
+                return byId.has(id) && isInt(v) && scaleValues(def).includes(v) ? scoredValue(def, byId.get(id), v) : null;
             });
             const used = values.filter(v => v !== null);
             let value = null;

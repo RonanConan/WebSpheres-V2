@@ -7,7 +7,7 @@ const { ok, done } = counter('QUESTIONNAIRE BROWSER');
 const TS = '2026-10-22T13-00-00';
 const START = '2026-10-22T12:40:00.000Z';
 const BASE = {
-  type: 'state', version: '2.9.1', sessionId: 'sQ1', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
+  type: 'state', version: '2.9.2', sessionId: 'sQ1', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
   calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.45 }, height: { done: true, height: 1.2 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: true, cue: null, sessionMs: 125000, trialCount: 6, recentreCount: 0, pauses: 0, run: 2, plannedRuns: 2,
   plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1 }, { condition: 2 }] },
@@ -178,7 +178,7 @@ async function readZipFile(d) {
   ok(names.includes(`questionnaires/P21_questionnaire-${TS}.csv`) && names.includes(`questionnaires/P21_questionnaire-definitions-${TS}.json`) && names.length === 2, 'it holds only the questionnaire files, not the blocks again (' + names.join(', ') + ')');
   const raw = Q.readRaw(files.find(f => f.name === `P21_questionnaire-${TS}.csv`).text);
   ok(raw.header.join() === Q.COLUMNS.join() && raw.rows.length === 35, 'the answers file has one row per question');
-  ok(raw.rows.every(r => r.ID === 'P21' && r.SessionID === 'sQ1' && r.LastBlockStart === START && r.AfterBlock === '2' && r.Status === 'submitted' && r.Practice === '0' && r.AppVersion === '2.9.1' && r.SubmittedAt), 'every row carries the participant, session, last block and status');
+  ok(raw.rows.every(r => r.ID === 'P21' && r.SessionID === 'sQ1' && r.LastBlockStart === START && r.AfterBlock === '2' && r.Status === 'submitted' && r.Practice === '0' && r.AppVersion === '2.9.2' && r.SubmittedAt), 'every row carries the participant, session, last block and status');
   const row = (id) => raw.rows.find(r => r.ItemID === id);
   ok(row('GQ1').Response === 'Yes' && row('GQ1').FollowUpPrompt === 'What changes did you notice?' && row('GQ1').FollowUpText === 'The targets, I think, moved "further" left.', 'GQ1 keeps the button, the follow-up question and the text');
   ok(row('GQ2').Response === 'Right' && row('GQ3').Response === 'Unsure', 'GQ2 and GQ3 keep their buttons');

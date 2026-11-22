@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.9.1';
+const VERSION = '2.9.2';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -224,7 +224,7 @@ async function laptopSuite(b) {
   await sleep(600);
   ok(o.dl.length === before + 1 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00.zip', 'one zip, named for the session');
   ok(await shown('#g8-checks') && (await text('g8-checks')).includes('Download started: 4 files in a ZIP') && (await text('g8-checks')).includes('All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'the questionnaire step says the laptop copy is complete');
-  ok(await O(() => window.__obs.guide.recovery.some(r => r.id === 'C')) && (await stored()).length === 1, 'the browser copy is kept until the questionnaires are done');
+  ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')) && (await stored()).length === 0, 'the browser copy is cleared once the final ZIP is downloaded, before the questionnaires');
   await O(() => window.__obs.questFinish('skipped'));
   await sleep(600);
   ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')), 'saved session leaves the recovery list');

@@ -12,7 +12,7 @@ const START1 = '2026-10-22T12:30:00.000Z';
 const START = '2026-10-22T12:40:00.000Z';
 const info = (id, start, extra) => `Key,Value\nParticipantID,${id}\nSessionStartISO,${start}\nDominantHand,LEFT\n${extra || ''}`;
 const BASE = {
-  type: 'state', version: '2.9.1', sessionId: 'sA', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
+  type: 'state', version: '2.9.2', sessionId: 'sA', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
   calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.45 }, height: { done: true, height: 1.2 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: true, cue: null, sessionMs: 125000, trialCount: 6, recentreCount: 0, pauses: 0, run: 2, plannedRuns: 2,
   plan: { mode: 'standard', home: 'one-box', charts: [], runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] },
@@ -144,6 +144,134 @@ async function exportOf(d) {
     await ctx.close();
   }
 
+  const BLOCK2 = { run: 2, prefix: 'P21_block2_', info: info('P21', START), ms: 60000, recentres: 0, pauses: 0, trials: 6, kinL: 4, kinR: 5 };
+  const continueOnNewHeadsetSession = async (p) => {
+    await p.state({ phase: 'between', backup: { trials: 6, kinL: 4, kinR: 5, final: false, exportTs: '' } });
+    await wait(200);
+    await p.state({ sessionId: 'sT', phase: 'setup', run: 1, completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+    await wait(200);
+    await p.state({ sessionId: 'sT', phase: 'running', run: 3, plannedRuns: 3, filePrefix: 'P21_block3_', completedRuns: BASE.completedRuns.concat([BLOCK2]), backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: info('P21', '2026-10-22T12:50:00.000Z') });
+    await wait(300);
+  };
+
+  console.log('ADD BLOCK, HEADSET RELOAD AND CONTINUE, QUESTIONNAIRES NOT STARTED');
+  {
+    const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+    const p = await observer(ctx);
+    await p.complete();
+    await wait(300);
+    await p.click('#g-quest-add-run');
+    await wait(300);
+    await continueOnNewHeadsetSession(p);
+    await p.state({ phase: 'complete', backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T13-10-00' } });
+    await wait(400);
+    ok((await p.idb('runs')).some(r => r.sessionId === 'sA' && r.run === 2), 'the laptop copy of the continued session is kept until its final ZIP is downloaded');
+    ok(await p.E(() => window.__obs.quest.sessionId === 'sA' && window.__obs.quest.status === 'pending'), 'the questionnaires stay with the laptop session after the headset reload');
+    const fin = await p.nextDownload(() => p.rows());
+    ok(fin && fin.suggestedFilename() === 'P21_2026-10-22T13-10-00.zip', 'the final ZIP is saved when all rows arrive (' + (fin && fin.suggestedFilename()) + ')');
+    await wait(400);
+    ok(await p.openStep() === 8 && !(await p.E(() => document.getElementById('g-quest-go').disabled)), 'step 8 then offers the questionnaires');
+    ok(!(await p.idb('sessions')).length, 'the laptop copy is cleared once the final ZIP is downloaded');
+    ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+    await ctx.close();
+  }
+
+  console.log('ANSWERED, ADD BLOCK, HEADSET RELOAD AND CONTINUE');
+  {
+    const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+    const p = await observer(ctx);
+    await p.complete();
+    await wait(300);
+    await p.fillAll();
+    await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
+    await wait(400);
+    await p.click('#g-add-run');
+    await wait(300);
+    await continueOnNewHeadsetSession(p);
+    await p.state({ phase: 'complete', backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T13-10-00' } });
+    const fin = await p.nextDownload(() => p.rows());
+    await wait(400);
+    ok(await p.openStep() === 9 && await p.E(() => window.__obs.quest.status === 'submitted'), 'the participant is not asked the questionnaires again');
+    const files = fin ? await zipFiles(fin) : [];
+    ok(fin && fin.suggestedFilename() === 'P21_2026-10-22T13-10-00-final.zip' && files.some(f => f.path.startsWith('questionnaires/P21_questionnaire-')), 'the final ZIP includes the answers already given (' + (fin && fin.suggestedFilename()) + ')');
+    ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+    await ctx.close();
+  }
+
+  console.log('HAND BACK AN OLDER SESSION AFTER THIS ONE IS SAVED');
+  {
+    const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+    const p = await observer(ctx);
+    await p.complete();
+    await wait(300);
+    await p.click('#g-quest-go');
+    await wait(150);
+    await p.click('#qv-next');
+    await p.choose('GQ1', 2);
+    await p.fill('#qv-ta-GQ1', 'Older session.');
+    await wait(600);
+    await p.reload();
+    await wait(400);
+    await p.connect();
+    await p.state({ sessionId: 'sB', participantId: 'P22', sessionPrefix: 'P22_', filePrefix: 'P22_', phase: 'setup', run: 1, plannedRuns: 1, completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+    await wait(300);
+    const B_DONE = { phase: 'complete', info: info('P22', START), backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T14-00-00' } };
+    await p.nextDownload(async () => { await p.state(B_DONE); await p.rows(); });
+    await wait(300);
+    await p.fillAll();
+    await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
+    await wait(400);
+    ok(await p.openStep() === 9, 'the current session is finished');
+    const before = p.dls.length;
+    await p.E(() => [...document.querySelectorAll('#g-recovery button')].find(x => x.textContent === 'Hand back to participant').click());
+    await wait(1200);
+    await p.state();
+    await wait(500);
+    ok(p.dls.length === before && await p.E(() => window.__obs.quest.sessionId === 'sA' && window.__obs.quest.status === 'in-progress'), 'handing back the older questionnaire does not download the current session again');
+    ok(await p.openStep() === 9, 'and the guide stays on Finish');
+    await p.fillAll();
+    const older = await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
+    await wait(1000);
+    ok(older && older.suggestedFilename().startsWith('P21_') && p.dls.length === before + 1, 'only the older session\'s answers are downloaded (' + (older && older.suggestedFilename()) + ')');
+    ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+    await ctx.close();
+  }
+
+  console.log('PREVIOUS SESSION SKIPPED FROM THE BANNER WHILE THE HEADSET IS QUIET');
+  {
+    const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+    const p = await observer(ctx);
+    await p.complete();
+    await wait(300);
+    await p.click('#g-quest-go');
+    await wait(150);
+    await p.click('#qv-next');
+    await p.choose('GQ1', 1);
+    await p.fill('#qv-ta-GQ1', 'Partly done.');
+    await p.leaveView();
+    await p.state({ sessionId: 'sB', participantId: 'P22', sessionPrefix: 'P22_', filePrefix: 'P22_', phase: 'setup', run: 1, plannedRuns: 1, completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+    await wait(300);
+    const data = await p.nextDownload(async () => { await p.state({ phase: 'complete', info: info('P22', START), backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T14-00-00' } }); await p.rows(); });
+    ok(data && data.suggestedFilename() === 'P22_2026-10-22T14-00-00.zip', 'the next session\'s data are saved while the previous questionnaires are open');
+    await wait(300);
+    await p.click('#g-quest-other-skip');
+    await p.nextDownload(() => p.click('#g-quest-other-skip-yes'));
+    await wait(600);
+    ok(await p.E(() => window.__obs.quest.sessionId === 'sB' && window.__obs.quest.status === 'pending') && !(await p.E(() => document.getElementById('g-quest-go').disabled)), 'step 8 is ready for the next participant without a new message from the headset');
+    await p.click('#g-quest-go');
+    await wait(150);
+    await p.dblclick('#qv-next');
+    await wait(200);
+    ok(await p.E(() => window.__obs.quest.state.page === 1 && !document.querySelector('#qv .missing')), 'a double-click on Start opens the first page without flagging its questions');
+    await p.fillAll();
+    const answers = await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
+    ok(answers && answers.suggestedFilename() === 'P22_2026-10-22T14-00-00-questionnaires.zip', 'the answers ZIP has the same time as the session\'s data ZIP (' + (answers && answers.suggestedFilename()) + ')');
+    await wait(400);
+    ok(!(await p.idb('sessions')).some(r => r.id === 'sB'), 'and the session\'s stored copy is cleared');
+    ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+    await ctx.close();
+  }
+
   console.log('PREVIOUS SESSION NOT STARTED');
   {
     const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
@@ -205,7 +333,7 @@ async function exportOf(d) {
     await wait(300);
     await p.state();
     await wait(300);
-    ok((await p.idb('runs')).map(r => r.run).join() === '1,2', 'the laptop copy holds both blocks');
+    ok(!(await p.idb('runs')).length && !(await p.idb('sessions')).length, 'the blocks are cleared from the laptop copy once the final ZIP is downloaded');
     await p.click('#g-quest-go');
     await wait(150);
     await p.click('#qv-next');
@@ -218,7 +346,7 @@ async function exportOf(d) {
     await p.state({ sessionId: 'sNEW', participantId: '', phase: 'setup', run: 1, completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
     await wait(500);
     const banner = await p.text('#g-recovery');
-    ok(banner.includes('Unsaved session: P21') && banner.includes('questionnaires not finished') && banner.includes('Hand back to participant'), 'the stored session offers to hand the questionnaire back');
+    ok(banner.includes('Unsaved session: P21, questionnaires not finished stored on this laptop') && banner.includes('Hand back to participant'), 'the stored questionnaire offers to be handed back (' + banner + ')');
     await p.E(() => { const s = indexedDB.open('webspheres-laptop-copy', 1); s.onsuccess = () => { const t = s.result.transaction('sessions', 'readwrite').objectStore('sessions'); const g = t.get('sA'); g.onsuccess = () => { const r = g.result; r.questionnaire.state.answers.GQ2 = { value: 'Left', text: 'Added after the page loaded.' }; t.put(r); }; }; });
     await wait(300);
     const recovered = await p.nextDownload(() => p.E(() => [...document.querySelectorAll('#g-recovery button')].find(x => x.textContent === 'Download ZIP').click()));
@@ -233,7 +361,7 @@ async function exportOf(d) {
     await p.click('#qv-tabs .qv-tab:nth-child(4)');
     const fin = await p.nextDownload(() => p.click('#qv-next'));
     const finFiles = fin ? await zipFiles(fin) : [];
-    ok(fin && /-final\.zip$/.test(fin.suggestedFilename()) && finFiles.some(f => f.path.startsWith('block2/P21_block2_vr-session-data')) && finFiles.some(f => f.path.startsWith('questionnaires/P21_questionnaire-')), 'submitting saves a final ZIP with the stored blocks and the answers (' + (fin && fin.suggestedFilename()) + ')');
+    ok(fin && /-questionnaires\.zip$/.test(fin.suggestedFilename()) && !finFiles.some(f => f.path.startsWith('block')) && finFiles.some(f => f.path.startsWith('questionnaires/P21_questionnaire-')), 'submitting saves the answers in their own ZIP, as the blocks were already downloaded (' + (fin && fin.suggestedFilename()) + ')');
     await wait(400);
     ok(!(await p.idb('sessions')).some(r => r.id === 'sA'), 'the stored copy is then cleared');
     ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');

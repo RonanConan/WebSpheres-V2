@@ -11,7 +11,7 @@ function questionnaireFiles(id, lastStart, prefix) {
   const defs = Q.study().defs;
   const answers = { GQ1: { value: 'Yes', text: 'Faster, I think.' }, GQ2: { value: 'Right', text: 'Easier.' }, GQ3: { value: 'Unsure', text: 'Hard to say.' } };
   defs.filter(d => d.type === 'scale').forEach(d => d.items.forEach(item => { answers[item.id] = { value: d.scale.values[2] }; }));
-  const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: false, appVersion: '2.9.1', afterBlock: 1, status: 'submitted', submittedAt: '2026-11-12T11:00:00.000Z' };
+  const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: false, appVersion: '2.9.2', afterBlock: 1, status: 'submitted', submittedAt: '2026-11-12T11:00:00.000Z' };
   return [
     { path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Q.toCsv(Q.COLUMNS, Q.rawRows(defs, answers, meta))] },
     { path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Q.snapshot(defs))] }

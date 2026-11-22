@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.10.1';
+    const VERSION = '1.10.2';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const PROP_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Target', 'total_trials', 'targeted_hits', 'TargetedHand', 'Proportion'];
     const PSE_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'TargetedHand', 'PSE_raw', 'PSE', 'PSE_bounded'];
@@ -513,7 +513,10 @@ const WebSpheresAnalysis = (() => {
         result.questScores = [];
         result.questSessions = [];
         result.questMissing = [];
-        if (!Q) return;
+        if (!Q) {
+            result.stops.push('The questionnaire files did not load, so the questionnaire answers cannot be read. Reload this page.');
+            return;
+        }
         const used = new Set(), leftOut = new Map();
         const leaveOut = (zip, reason) => { if (!leftOut.has(zip)) leftOut.set(zip, reason); };
         const warned = new Set();
@@ -541,17 +544,21 @@ const WebSpheresAnalysis = (() => {
         const placeOf = (copy) => {
             const exact = result.sessions.find(s => s.id === copy.id && s.practice === copy.practice && s.items.some(item => item.block && item.block.start === copy.start));
             if (exact) return { session: exact, info: exact.items.find(item => item.block && item.block.start === copy.start).block.info };
-            const followed = copy.zip.blocks.find(b => b.problem && b.info && b.info.SessionStartISO === copy.start && String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID) === copy.id);
-            if (!followed) return null;
-            const starts = copy.zip.blocks.filter(b => !b.problem && b.info && String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID) === copy.id).map(b => b.info.SessionStartISO);
+            const idOf = (b) => String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID);
+            const home = [copy.zip].concat(exportsRead.filter(z => z !== copy.zip)).find(z => z.blocks.some(b => b.problem && b.info && b.info.SessionStartISO === copy.start && idOf(b) === copy.id));
+            if (!home) return null;
+            const followed = home.blocks.find(b => b.problem && b.info && b.info.SessionStartISO === copy.start && idOf(b) === copy.id);
+            const starts = home.blocks.filter(b => !b.problem && b.info && String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID) === copy.id).map(b => b.info.SessionStartISO);
             const session = result.sessions.find(s => s.id === copy.id && s.practice === copy.practice && s.items.some(item => item.block && starts.includes(item.block.start)));
             return session ? { session, info: followed.info } : null;
         };
         const bySession = new Map();
         found.forEach(copies => {
             const finished = copies.filter(finishedStatus);
-            const best = finished[0] || null;
-            const other = best && finished.find(c => c.signature !== best.signature);
+            const submittedCopies = finished.filter(c => c.status === 'submitted');
+            const pool = submittedCopies.length ? submittedCopies : finished;
+            const best = pool[0] || null;
+            const other = best && pool.find(c => c.signature !== best.signature);
             if (other) {
                 result.stops.push(`${best.label} and ${other.label} contain different questionnaire answers for the same session. Remove the incorrect ZIP file, then try again.`);
                 copies.forEach(c => leaveOut(c.zip, 'It contains questionnaire answers that disagree with another ZIP file.'));
@@ -594,15 +601,16 @@ const WebSpheresAnalysis = (() => {
                 if (g.best && g.best.status === 'skipped' && best.status === 'submitted') result.notes.push(`${where}: the questionnaires were skipped after block ${g.best.after === null ? '?' : g.best.after}, then answered after block ${best.after === null ? '?' : best.after}. The answers were used.`);
                 g.copies.forEach(c => leaveOut(c.zip, `Its questionnaire answers were replaced by ${best.zip.name}.`));
             });
-            chosen.copies.filter(c => c.signature !== best.signature).forEach(c => leaveOut(c.zip, `Its questionnaire answers were not finished, so the finished copy in ${best.zip.name} was used.`));
+            const earlierSkip = chosen.copies.find(c => c.status === 'skipped' && best.status === 'submitted');
+            if (earlierSkip) result.notes.push(`${where}: the questionnaires were skipped after block ${earlierSkip.after === null ? '?' : earlierSkip.after}, then answered after block ${best.after === null ? '?' : best.after}. The answers were used.`);
+            chosen.copies.filter(c => c.signature !== best.signature).forEach(c => leaveOut(c.zip, finishedStatus(c) ? `Its questionnaire answers were replaced by ${best.zip.name}.` : `Its questionnaire answers were not finished, so the finished copy in ${best.zip.name} was used.`));
             result.questSessions.push({ id: session.id, number: session.number, status: best.status, label: best.label });
-            if (best.status === 'skipped') return;
             const info = chosen.place.info;
             const recorded = hands.get(session.id);
             const knownHand = recorded && recorded.size === 1 ? Array.from(recorded)[0] : '';
             const base = { ID: session.id, Session: session.number, Group: groupLabel, ...handColumns(info, groupLabel) };
             const byQuestionnaire = new Map();
-            best.file.rows.forEach(r => {
+            best.file.rows.filter(r => best.status !== 'skipped' || best.file.rows.some(o => o.QuestionnaireID === r.QuestionnaireID && o.QuestionnaireVersion === r.QuestionnaireVersion && o.Response !== '')).forEach(r => {
                 const key = `${r.QuestionnaireID}|${r.QuestionnaireVersion}`;
                 if (!byQuestionnaire.has(key)) byQuestionnaire.set(key, []);
                 byQuestionnaire.get(key).push(r);
@@ -610,10 +618,13 @@ const WebSpheresAnalysis = (() => {
             byQuestionnaire.forEach((rows, key) => {
                 const qid = rows[0].QuestionnaireID, version = toInteger(rows[0].QuestionnaireVersion);
                 const saved = (best.file.defs || []).find(d => d && d.id === qid && d.version === version);
-                const local = Q.get(qid) && Q.get(qid).version === version ? Q.get(qid) : null;
-                const def = saved || local;
-                if (saved && local && !Q.same(saved, local)) warnOnce(`differs|${key}`, `${qid} version ${version} in ${best.label} differs from the copy in questionnaires/ on this computer. The ZIP file's own copy was used. Increase the version number whenever a questionnaire changes.`);
-                if (!def) warnOnce(`missing|${key}|${best.label}`, `${best.label}: no definition was found for ${qid} version ${version}, so its answers are listed but not scored.`);
+                const usable = (d) => !!d && !Q.check([d]).length;
+                const local = usable(Q.get(qid)) && Q.get(qid).version === version ? Q.get(qid) : null;
+                const savedOk = usable(saved);
+                const def = savedOk ? saved : local;
+                if (saved && !savedOk) warnOnce(`broken|${key}|${best.label}`, `${best.label}: the saved definition of ${qid} version ${version} has mistakes, so ${local ? 'the copy in questionnaires/ on this computer was used' : 'its answers are listed but not scored'}.`);
+                if (savedOk && local && !Q.same(saved, local)) warnOnce(`differs|${key}`, `${qid} version ${version} in ${best.label} differs from the copy in questionnaires/ on this computer. The ZIP file's own copy was used. Increase the version number whenever a questionnaire changes.`);
+                if (!def && !saved) warnOnce(`missing|${key}|${best.label}`, `${best.label}: no definition was found for ${qid} version ${version}, so its answers are listed but not scored.`);
                 const items = new Map(def && Array.isArray(def.items) ? def.items.map(item => [item.id, item]) : []);
                 const scale = !!def && def.type === 'scale';
                 const after = { AfterBlock: toInteger(rows[0].AfterBlock || ''), SubmittedAt: rows[0].SubmittedAt || '', SourceZip: best.zip.name };

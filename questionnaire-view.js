@@ -45,7 +45,7 @@ const WebSpheresQuestionnaireView = typeof WebSpheresQuestionnaires === 'undefin
             </div>`;
         document.body.appendChild(root);
         $('#qv-back').addEventListener('click', () => { if (st().page > 0) go(st().page - 1); });
-        $('#qv-next').addEventListener('click', next);
+        $('#qv-next').addEventListener('click', (e) => { if (e.detail < 2) next(); });
         $('#qv-menu-stay').addEventListener('click', closeMenu);
         $('#qv-menu-leave').addEventListener('click', () => { closeMenu(); const exit = opts.onExit; close(); if (exit) exit(); });
         root.addEventListener('keydown', (e) => {

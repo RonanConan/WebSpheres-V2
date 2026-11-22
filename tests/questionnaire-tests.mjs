@@ -34,6 +34,12 @@ ok(bad({ id: 'X', version: 1, title: 'x', type: 'scale', scale: { values: [1, 2]
 ok(bad({ id: 'X', version: 1, title: 'x', type: 'choice-followup', items: [{ id: 'X1', text: 't', options: ['A', 'B'], followUp: { A: 'why?' } }] }).some(p => /follow-up/.test(p)), 'an option without a follow-up question');
 ok(bad({ id: 'X', version: 0, title: 'x', type: 'scale', scale: { values: [1, 2], labels: ['a', 'b'] }, items: [{ id: 'X1', text: 't' }] }).some(p => /version/.test(p)), 'a version below 1');
 ok(Q.check([SUS, SUS]).some(p => /listed twice/.test(p)), 'a questionnaire listed twice');
+const base = { id: 'X', version: 1, title: 'x', type: 'scale', scale: { values: [1, 2], labels: ['a', 'b'] } };
+let thrown = null;
+try { thrown = bad(Object.assign({}, base, { items: [{ id: 'X1', text: 't' }], scores: { id: 'S', method: 'mean', items: 'all' } })); } catch (e) { thrown = e; }
+ok(Array.isArray(thrown) && thrown.some(p => /not a list/.test(p)), 'scores written without square brackets are reported, not thrown');
+ok(bad(Object.assign({}, base, { items: [{ id: 'X1', text: 't' }, , { id: 'X3', text: 'u' }] })).some(p => /item 2 needs an id/.test(p)), 'a gap in the items list is reported');
+ok(Q.count([{ id: 'X' }]) === 0 && Q.answeredCount([{ id: 'X', type: 'scale' }], {}) === 0 && Q.rawRows([{ id: 'X', type: 'scale', items: [{ id: 'X1' }] }], { X1: { value: 1 } }, {}).length === 1, 'counting and saving do not fail on a definition without items or scale');
 
 console.log('Answers');
 const gq1 = GAME.items[0];
@@ -72,7 +78,7 @@ const answers = {
     SUS01: { value: 4, at: '2026-11-22T10:51:00' },
     TEQ02: { value: 2, at: '2026-11-22T10:52:00' }
 };
-const meta = { id: 'P012', sessionId: 's-1', lastBlockStart: '2026-11-22T10:14:03.000Z', practice: false, appVersion: '2.9.1', afterBlock: 2, status: 'submitted', submittedAt: '2026-11-22T10:53:00' };
+const meta = { id: 'P012', sessionId: 's-1', lastBlockStart: '2026-11-22T10:14:03.000Z', practice: false, appVersion: '2.9.2', afterBlock: 2, status: 'submitted', submittedAt: '2026-11-22T10:53:00' };
 const rows = Q.rawRows(st.defs, answers, meta);
 ok(rows.length === 35, 'one row per item');
 const csv = Q.toCsv(Q.COLUMNS, rows);

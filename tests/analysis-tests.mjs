@@ -462,7 +462,7 @@ console.log('QUESTIONNAIRES');
     const questFiles = (id, lastStart, status, a, opts) => {
         const o = opts || {};
         const prefix = `${o.practice ? 'PRACTICE_' : ''}${id}_`;
-        const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: !!o.practice, appVersion: '2.9.1', afterBlock: o.afterBlock || 2, status, submittedAt: o.submittedAt || '2026-11-12T11:00:00.000Z' };
+        const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: !!o.practice, appVersion: '2.9.2', afterBlock: o.afterBlock || 2, status, submittedAt: o.submittedAt || '2026-11-12T11:00:00.000Z' };
         return [{ path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Qc.toCsv(Qc.COLUMNS, Qc.rawRows(defs, a || {}, meta))] }]
             .concat(o.noDefs ? [] : [{ path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Qc.snapshot(o.defs || defs))] }]);
     };
@@ -528,7 +528,7 @@ console.log('QUESTIONNAIRES');
 
     const zeroBlocks = blocks('211', '17');
     const zeroStart = zeroBlocks[1].start;
-    const zeroInfo = info({ ParticipantID: '211', AppVersion: '2.9.1', SessionStartISO: zeroStart, SessionEndISO: zeroStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
+    const zeroInfo = info({ ParticipantID: '211', AppVersion: '2.9.2', SessionStartISO: zeroStart, SessionEndISO: zeroStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
     const zeroZip = await zipOf('211-final.zip', zeroBlocks.slice(0, 1), [
         { path: `block2/211_block2_session-info-${STAMP}.csv`, parts: [zeroInfo] },
         { path: `block2/211_block2_kinematics-LEFT-${STAMP}.csv`, parts: [KIN] },
@@ -563,6 +563,28 @@ console.log('QUESTIONNAIRES');
     ok(later.questSessions.length === 1 && later.questSessions[0].status === 'submitted' && later.questRows.length === 35 && later.questRows[0].AfterBlock === 3 && !later.stops.length, 'answers given after an added block replace an earlier skip');
     ok(later.notes.some(t => t.includes('skipped after block 2, then answered after block 3')), 'the replaced skip is noted');
     ok(later.setAside.every(x => x.name !== '216-a.zip'), 'the ZIP file with the earlier skip still counts as used for its blocks');
+
+    const sameStart = await zipOf('219.zip', blocks('219', '23'));
+    const skipZip = await zipOf('219-skip-questionnaires.zip', [], questFiles('219', last('219', '23'), 'skipped', {}));
+    const answerZip = await zipOf('219-questionnaires.zip', [], questFiles('219', last('219', '23'), 'submitted', answers(), { submittedAt: '2026-11-12T12:00:00.000Z' }));
+    const sameKey = A.build([sameStart, skipZip, answerZip]);
+    ok(!sameKey.stops.length && sameKey.questSessions[0].status === 'submitted' && sameKey.questRows.length === 35 && sameKey.notes.some(t => t.includes('skipped after block 2, then answered')), 'a skip and then answers after the same block use the answers without stopping');
+
+    const partSkip = A.build([await zipOf('220-final.zip', blocks('220', '24'), questFiles('220', last('220', '24'), 'skipped', answers(x => { Object.keys(x).filter(k => !k.startsWith('SUS')).forEach(k => { delete x[k]; }); delete x.SUS10; x.SUS10 = { value: 2 }; })))]);
+    ok(partSkip.questSessions[0].status === 'skipped' && partSkip.questRows.length === 10 && partSkip.questRows.every(x => x.QuestionnaireID === 'SUS') && scoreOf(partSkip, '220', 'SUS_Total') === 80, 'answers given before a skip are kept and scored');
+
+    const zeroSplitBlocks = blocks('221', '25');
+    const zeroSplitStart = zeroSplitBlocks[1].start;
+    const zeroSplitInfo = info({ ParticipantID: '221', AppVersion: '2.9.2', SessionStartISO: zeroSplitStart, SessionEndISO: zeroSplitStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
+    const zeroData = await zipOf('221.zip', zeroSplitBlocks.slice(0, 1), [{ path: `block2/221_block2_session-info-${STAMP}.csv`, parts: [zeroSplitInfo] }]);
+    const zeroAnswers = await zipOf('221-questionnaires.zip', [], questFiles('221', zeroSplitStart, 'submitted', answers()));
+    const zeroSplit = A.build([zeroData, zeroAnswers]);
+    ok(zeroSplit.questRows.length === 35 && !zeroSplit.questMissing.length, 'answers saved apart after a block with no trials are matched through the data ZIP');
+
+    const holeDefs = JSON.parse(JSON.stringify(defs));
+    holeDefs[1].items[3] = null;
+    const holed = A.build([await zipOf('222.zip', blocks('222', '26'), questFiles('222', last('222', '26'), 'submitted', answers(), { defs: holeDefs }))]);
+    ok(scoreOf(holed, '222', 'SUS_Total') === 80 && holed.warnings.some(t => t.includes('the saved definition of SUS version 1 has mistakes')), 'a saved definition with a gap in its items does not stop the run');
 
     const copyB = await zipOf('217-b.zip', blocks('217', '21'), questFiles('217', last('217', '21'), 'submitted', answers()));
     const copyA = await zipOf('217-a.zip', blocks('217', '21'), questFiles('217', last('217', '21'), 'submitted', answers()));
