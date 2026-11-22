@@ -1386,7 +1386,7 @@
     const QS = typeof WebSpheresQuestionnaires !== 'undefined' ? WebSpheresQuestionnaires : null;
     const questStudy = QS ? QS.study() : { defs: [], problems: ['The questionnaire files did not load. Reload this page.'] };
     const questDefsBroken = () => quest.defs === questStudy.defs && questStudy.problems.length > 0;
-    const quest = { sessionId: null, storeId: null, status: 'none', state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedFinal: false, storeTimer: 0, storeFailed: false };
+    const quest = { sessionId: null, storeId: null, status: 'none', state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedApart: false, savedFinal: false, storeTimer: 0, storeFailed: false };
     const questDone = () => quest.status === 'submitted' || quest.status === 'skipped';
     const questFor = (s) => !!s && !!s.sessionId && quest.sessionId === s.sessionId;
     const questUnsaved = () => !!quest.sessionId && quest.status !== 'none' && !(questDone() && quest.savedFinal);
@@ -1437,7 +1437,7 @@
 
     function questReset(sessionId, status, storeId) {
         clearTimeout(quest.storeTimer);
-        Object.assign(quest, { sessionId, storeId: storeId || sessionId, status, state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedFinal: false, storeFailed: false });
+        Object.assign(quest, { sessionId, storeId: storeId || sessionId, status, state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedApart: false, savedFinal: false, storeFailed: false });
         $('g-quest-skip-confirm').hidden = true;
         $('g-quest-other-skip-confirm').hidden = true;
     }
@@ -1542,18 +1542,22 @@
     function questSaveAlone() {
         const m = quest.meta || {};
         const ts = quest.dataTs || fileStamp();
-        const hadData = !!(quest.dataFiles && quest.dataFiles.length);
-        const files = (quest.dataFiles || []).concat(questFiles(questRecord(), ts));
-        const name = `${m.prefix || ''}${ts}-${hadData ? 'final' : 'questionnaire'}.zip`;
+        const dataInZip = quest.dataSavedZip;
+        const data = !dataInZip && quest.dataFiles ? quest.dataFiles : [];
+        const files = data.concat(questFiles(questRecord(), ts));
+        const name = `${m.prefix || ''}${ts}-${data.length ? 'final' : 'questionnaires'}.zip`;
         const id = quest.sessionId, storeId = quest.storeId, dataStoreId = quest.dataStoreId;
+        const s = receiver.headsetState;
+        if (questFor(s) && s.backup && backup.autoSavedTs === s.backup.exportTs) backup.autoSavedQuest = true;
         backup.zipping++;
         saveZipOrLoose(name, files).then((how) => {
             backup.zipping--;
-            if (hadData && how === 'in a ZIP' && storeId && storeId === dataStoreId) {
+            if ((dataInZip || data.length) && how === 'in a ZIP' && storeId && storeId === dataStoreId) {
                 guide.recovery = guide.recovery.filter(r => r.id !== storeId);
                 runStore.forget(storeId).catch(() => {});
             }
             if (quest.sessionId !== id) return;
+            quest.savedApart = true;
             questMarkSaved(`${name} ${how === 'in a ZIP' ? '' : '(files saved individually) '}at ${new Date().toLocaleTimeString()}`);
         });
     }
@@ -1568,7 +1572,7 @@
         questStore(true);
         const s = receiver.headsetState;
         const ready = questFor(s) && s.phase === 'complete' && s.backup && s.backup.final && s.backup.exportTs && caughtUp(s) && !(guide.noteQueue.length || guide.noteSending || guide.noteAwaitState);
-        if (ready) checkAutoSave();
+        if (ready && backup.autoSavedTs !== s.backup.exportTs) checkAutoSave();
         else questSaveAlone();
         renderGuide();
     }
@@ -2235,7 +2239,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.9.0';
+    const APP_VERSION = '2.9.1';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const MODE_PER_RUN = { standard: '352 trials per block', short: '110 trials per block', fmode: '44 trials per block (2 sets of 22)', block: '110 trials per block (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
@@ -2778,7 +2782,7 @@
             if ($('g8-val').textContent !== g8val) $('g8-val').textContent = g8val;
             $('g-quest-go').textContent = mine && quest.status === 'in-progress' ? 'Hand back to participant' : 'Hand to participant';
             $('g-quest-go').disabled = !mine || questDone() || !quest.defs.length || broken;
-            $('g-quest-skip').parentElement.hidden = !(mine && !questDone() && (s.endReason === 'ended-early' || questStudy.problems.length));
+            $('g-quest-skip').parentElement.hidden = !(mine && !questDone());
             $('g8-note').hidden = !mine || questDone() || !quest.defs.length || broken;
             $('g8-more').hidden = !mine || questDone();
             $('g-quest-add-run').hidden = !(mine && quest.status === 'pending');
@@ -2786,8 +2790,8 @@
             const skipRecorded = quest.status !== 'skipped' || questFiles(questRecord(), 'check').length > 0;
             setChecks('g9-files', [
                 laptopLine,
-                ...(withQuest ? [quest.status === 'skipped' ? (skipRecorded ? ['ok', `Questionnaires skipped. This is recorded in the ${backup.savedLoose ? 'downloaded files' : 'ZIP'}.`] : ['warn', 'Questionnaires skipped. The questionnaire files did not load, so the skip could not be recorded in the ZIP.']) : ['ok', `Questionnaires answered after block ${(quest.meta && quest.meta.afterBlock) || s.run}`]] : []),
-                ...(withQuest && !saved && quest.saved ? [['ok', `Questionnaire answers downloaded: ${quest.saved}`]] : []),
+                ...(withQuest ? [quest.status === 'skipped' ? (skipRecorded ? ['ok', 'Questionnaires skipped. The skip is recorded in the questionnaire files.'] : ['warn', 'Questionnaires skipped. The questionnaire files did not load, so the skip could not be recorded in the ZIP.']) : ['ok', `Questionnaires answered after block ${(quest.meta && quest.meta.afterBlock) || s.run}`]] : []),
+                ...(withQuest && quest.saved && (quest.savedApart || !saved) ? [['ok', `Download of the questionnaire answers started: ${quest.saved}`]] : []),
                 headsetLine,
                 ...(zipLine ? [zipLine] : []),
                 ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts are unavailable, but the recorded data are unaffected.']] : [])

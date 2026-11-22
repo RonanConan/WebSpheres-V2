@@ -11,7 +11,7 @@ function questionnaireFiles(id, lastStart, prefix) {
   const defs = Q.study().defs;
   const answers = { GQ1: { value: 'Yes', text: 'Faster, I think.' }, GQ2: { value: 'Right', text: 'Easier.' }, GQ3: { value: 'Unsure', text: 'Hard to say.' } };
   defs.filter(d => d.type === 'scale').forEach(d => d.items.forEach(item => { answers[item.id] = { value: d.scale.values[2] }; }));
-  const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: false, appVersion: '2.9.0', afterBlock: 1, status: 'submitted', submittedAt: '2026-11-12T11:00:00.000Z' };
+  const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: false, appVersion: '2.9.1', afterBlock: 1, status: 'submitted', submittedAt: '2026-11-12T11:00:00.000Z' };
   return [
     { path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Q.toCsv(Q.COLUMNS, Q.rawRows(defs, answers, meta))] },
     { path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Q.snapshot(defs))] }
@@ -175,7 +175,7 @@ const PICKER = () => {
   ok((await text('#g6-msg')) === 'Showing 2 blocks from 1 participant added in this run.' && (await text('#psych-comparison')) === 'These will be the first proportions and PSE masters for this group.', 'step 6 shows the proportions and PSE of the participants added in this run');
   ok((await p.locator('.pse-figure').count()) === 2 && (await p.locator('#prop-table tbody tr').count()) === 2 && (await text('#pse-table')).includes('The curve is too flat to fit, so there is no PSE.'), 'there is one figure and one row per block');
   ok((await text('#psych-hand')).startsWith('Percentage of reaches made with the more affected hand'), 'the patient wording names the more affected hand');
-  ok((await text('#quest-comparison')) === 'These will be the first questionnaire masters for this group.' && (await text('#quest-summary')).startsWith('0 sessions with answers, 0 sessions skipped, 1 session without answers.') && (await text('#quest-missing-list')) === 'Participant 101, session 1', 'step 6 lists the session without questionnaire answers');
+  ok((await text('#quest-comparison')) === 'These will be the first questionnaire masters for this group.' && (await text('#quest-summary')).startsWith('0 sessions with answers, 0 sessions skipped, 1 session without answers.') && (await text('#quest-missing-list')) === 'Participant 101, session 1' && (await text('#quest-missing .g-note')).startsWith('No answers found.') && (await text('#quest-missing .g-note')).includes('-questionnaires.zip'), 'step 6 lists the session without questionnaire answers and asks whether its answers ZIP was moved');
   const [figure] = await Promise.all([p.waitForEvent('download'), p.locator('.pse-figure').first().getByText('Save SVG').click()]);
   ok(figure.suggestedFilename() === 'PSE_patients_101_session1_baseline-1.svg' && (await text('#g6-msg')) === 'The download of PSE_patients_101_session1_baseline-1.svg started.', 'each figure can be saved on its own');
   const [picture] = await Promise.all([p.waitForEvent('download'), p.locator('.pse-figure').nth(1).getByText('Save PNG').click()]);

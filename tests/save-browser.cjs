@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.9.0';
+const VERSION = '2.9.1';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -228,7 +228,7 @@ async function laptopSuite(b) {
   await O(() => window.__obs.questFinish('skipped'));
   await sleep(600);
   ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')), 'saved session leaves the recovery list');
-  ok(o.dl.length === before + 2 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00-final.zip', 'the final zip follows the questionnaires');
+  ok(o.dl.length === before + 2 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00-questionnaires.zip', 'the answers ZIP follows the questionnaires');
   ok((await stored()).length === 0, 'browser storage cleared once the final zip is saved');
   await O(() => document.getElementById('g-save-again').click());
   await sleep(600);
@@ -290,7 +290,7 @@ async function laptopSuite(b) {
   const names = f.o.dl.slice(4).map(d => d.suggestedFilename());
   ok(names.length === 6 && names.every(n => n.endsWith('.csv') || n.endsWith('.json')) && names.some(n => n.startsWith('P1_questionnaire-')), 'after the questionnaires, the files are saved loose again, answers included (' + names.join() + ')');
   const finalText = await f.o.evaluate(() => document.getElementById('g9-files').textContent);
-  ok(finalText.includes('ZIP creation failed') && finalText.includes('Questionnaires skipped. This is recorded in the downloaded files.'), 'Finish says the ZIP failed and the skip is in the downloaded files');
+  ok(finalText.includes('ZIP creation failed') && finalText.includes('Questionnaires skipped. The skip is recorded in the questionnaire files.'), 'Finish says the ZIP failed and the skip is in the downloaded files');
   ok((await idbAll(f.o, 'runs')).some(x => x.key === 'F:1') && (await idbAll(f.o, 'sessions')).some(x => x.id === 'F'), 'loose files: browser storage still kept after the questionnaires');
   await f.ctx.close();
 

@@ -462,7 +462,7 @@ console.log('QUESTIONNAIRES');
     const questFiles = (id, lastStart, status, a, opts) => {
         const o = opts || {};
         const prefix = `${o.practice ? 'PRACTICE_' : ''}${id}_`;
-        const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: !!o.practice, appVersion: '2.9.0', afterBlock: o.afterBlock || 2, status, submittedAt: o.submittedAt || '2026-11-12T11:00:00.000Z' };
+        const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: !!o.practice, appVersion: '2.9.1', afterBlock: o.afterBlock || 2, status, submittedAt: o.submittedAt || '2026-11-12T11:00:00.000Z' };
         return [{ path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Qc.toCsv(Qc.COLUMNS, Qc.rawRows(defs, a || {}, meta))] }]
             .concat(o.noDefs ? [] : [{ path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Qc.snapshot(o.defs || defs))] }]);
     };
@@ -528,7 +528,7 @@ console.log('QUESTIONNAIRES');
 
     const zeroBlocks = blocks('211', '17');
     const zeroStart = zeroBlocks[1].start;
-    const zeroInfo = info({ ParticipantID: '211', AppVersion: '2.9.0', SessionStartISO: zeroStart, SessionEndISO: zeroStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
+    const zeroInfo = info({ ParticipantID: '211', AppVersion: '2.9.1', SessionStartISO: zeroStart, SessionEndISO: zeroStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
     const zeroZip = await zipOf('211-final.zip', zeroBlocks.slice(0, 1), [
         { path: `block2/211_block2_session-info-${STAMP}.csv`, parts: [zeroInfo] },
         { path: `block2/211_block2_kinematics-LEFT-${STAMP}.csv`, parts: [KIN] },

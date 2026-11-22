@@ -137,7 +137,7 @@ async function syncSuite(b) {
   await o.evaluate(() => { const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1); window.__c = c; c.open = true; c.emit('open'); });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
-  const BASE = { type: 'state', version: '2.9.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_block2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
+  const BASE = { type: 'state', version: '2.9.1', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_block2_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 1, recentreCount: 0, pauses: 0, plannedRuns: 3, plan: { runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }, { condition: 1, off: false, recal: false }] }, betweenMs: 0, betweenRecentres: 0, recalibrated: [], info: 'Key,Value\n' };
   const stateRun2 = Object.assign({}, BASE, { run: 2, backup: { trials: 1, kinL: 1, kinR: 1, final: false, exportTs: '' }, completedRuns: [{ run: 1, prefix: 'P1_block1_', trials: 2, kinL: 1, kinR: 1, info: 'Key,Value\nBlock,1\n', ms: 1000, recentres: 1, pauses: 0 }] });
   const rows = (run, file, from, lines) => emit({ type: 'rows', run, file, from, header: 'H\n', lines });
   const bk = () => O(() => { const k = window.__obs.backup; return { run: k.run, archived: k.archive.length, t: k.trials.length, l: k.kinL.length, r: k.kinR.length }; });
@@ -194,7 +194,7 @@ async function offlineSuite(b) {
   });
   const O = (fn, arg) => o.evaluate(fn, arg);
   const runs = [{ condition: 1, off: true, recal: false }, { condition: 2, off: false, recal: false }];
-  const STATE = { type: 'state', version: '2.9.0', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_block1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
+  const STATE = { type: 'state', version: '2.9.1', sessionId: 'A', phase: 'between', participantId: 'P1', filePrefix: 'P1_block1_', experimenter: 'Jo', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, setupLocked: false, calib: null, recentred: true, cue: null, sessionMs: 0, trialCount: 44, recentreCount: 0, pauses: 0, run: 1, plannedRuns: 2, plan: { mode: 'fmode', home: 'one-box', runs }, inVR: true, closing: false, betweenMs: 0, betweenRecentres: 1, recalibrated: [], completedRuns: [], backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
   const emit = (m) => O((d) => window.__c.emit('data', JSON.stringify(d)), m);
   const cmds = () => O(() => window.__c.sent.map(x => JSON.parse(x)).filter(m => m.type === 'cmd' && m.name !== 'cue'));
   const dirty = () => O(() => window.__obs.guide.planDirty);
@@ -457,7 +457,7 @@ async function guidedSuite(b) {
   await waitStep(9, 6000);
   for (let i = 0; i < 60 && odl.length < 3; i++) await sleep(100);
   const ts2 = await H(() => window.__dm.lastExportTimestamp);
-  ok(odl.length === 3 && odl[1].suggestedFilename() === `G06_${ts2}.zip` && odl[2].suggestedFilename() === `G06_${ts2}-final.zip`, 'finishing again saves the blocks, then the final zip after the questionnaires (' + odl.map(d => d.suggestedFilename()).join() + ')');
+  ok(odl.length === 3 && odl[1].suggestedFilename() === `G06_${ts2}.zip` && odl[2].suggestedFilename() === `G06_${ts2}-questionnaires.zip`, 'finishing again saves the blocks, then the answers ZIP after the questionnaires (' + odl.map(d => d.suggestedFilename()).join() + ')');
   await o.waitForFunction(() => !document.getElementById('g-add-run').disabled, null, { timeout: 4000 });
   await o.click('#g-add-run');
   await waitText('g7-head', 'Between blocks');

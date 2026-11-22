@@ -12,7 +12,7 @@ const START1 = '2026-10-22T12:30:00.000Z';
 const START = '2026-10-22T12:40:00.000Z';
 const info = (id, start, extra) => `Key,Value\nParticipantID,${id}\nSessionStartISO,${start}\nDominantHand,LEFT\n${extra || ''}`;
 const BASE = {
-  type: 'state', version: '2.9.0', sessionId: 'sA', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
+  type: 'state', version: '2.9.1', sessionId: 'sA', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
   calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.45 }, height: { done: true, height: 1.2 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: true, cue: null, sessionMs: 125000, trialCount: 6, recentreCount: 0, pauses: 0, run: 2, plannedRuns: 2,
   plan: { mode: 'standard', home: 'one-box', charts: [], runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] },
@@ -86,7 +86,7 @@ async function exportOf(d) {
     await wait(300);
     await p.fillAll();
     const first = await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
-    ok(first && first.suggestedFilename() === `P21_${TS}-final.zip`, 'the final ZIP is saved');
+    ok(first && first.suggestedFilename() === `P21_${TS}-questionnaires.zip`, 'the answers are saved in their own ZIP');
     await wait(300);
     await p.reload();
     await wait(400);
@@ -97,7 +97,7 @@ async function exportOf(d) {
     ok(!(await leaveWarns(p)), 'and leaving the page does not warn');
     ok(again && again.suggestedFilename() === `P21_${TS}-final.zip`, 'the automatic save after the reload is a complete final ZIP again');
     const built = A.build([await exportOf(first), await exportOf(again)]);
-    ok(!built.stops.length && built.questSessions.length === 1 && built.questRows.length === 35, 'the two final ZIPs hold the same answers, so the Analysis page uses them once');
+    ok(!built.stops.length && built.questSessions.length === 1 && built.questRows.length === 35, 'the answers ZIP and the final ZIP hold the same answers, so the Analysis page uses them once');
     ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
     await ctx.close();
   }
@@ -188,7 +188,7 @@ async function exportOf(d) {
       await p.state(B_DONE);
     }, 8000);
     await wait(400);
-    ok(skipZip && skipZip.suggestedFilename() === `P21_${TS}-final.zip`, 'the skip is saved with the previous session\'s blocks (' + (skipZip && skipZip.suggestedFilename()) + ')');
+    ok(skipZip && skipZip.suggestedFilename() === `P21_${TS}-questionnaires.zip`, 'the skip is saved in its own ZIP, as the previous session\'s blocks were already downloaded (' + (skipZip && skipZip.suggestedFilename()) + ')');
     const rows = Q.readRaw((await zipFiles(skipZip)).find(f => f.path === `questionnaires/P21_questionnaire-${TS}.csv`).text).rows;
     ok(rows.every(r => r.Status === 'skipped' && r.ID === 'P21') && rows.find(r => r.ItemID === 'GQ1').FollowUpText === 'Partly done.', 'the ZIP records the skip and keeps the answer already given');
     ok(await p.E(() => window.__obs.quest.sessionId === 'sB' && window.__obs.quest.status === 'pending'), 'the next session then gets its questionnaire');
@@ -288,7 +288,7 @@ async function exportOf(d) {
     const rows = Q.readRaw((await zipFiles(skipZip)).find(f => f.path === `questionnaires/P21_questionnaire-${TS}.csv`).text).rows;
     ok(rows.length === 3 && rows.map(r => r.QuestionnaireID).join() === 'GAME,SUS,IMI-TEQ' && rows.every(r => r.Status === 'skipped'), 'the skip is recorded, one row per listed questionnaire');
     await wait(300);
-    ok((await p.checks('g9-files')).includes('ok:Questionnaires skipped. This is recorded in the ZIP.'), 'Finish says the skip is in the ZIP');
+    ok((await p.checks('g9-files')).includes('ok:Questionnaires skipped. The skip is recorded in the questionnaire files.'), 'Finish says the skip is in the ZIP');
     await ctx.close();
   }
 
@@ -302,7 +302,7 @@ async function exportOf(d) {
     ok(p.dls.length === 0, 'no automatic save while the laptop copy is behind');
     await p.fillAll();
     const alone = await p.nextDownload(() => p.E(() => window.__obs.questFinish('submitted')));
-    ok(alone && /^P21_[\dT-]+-questionnaire\.zip$/.test(alone.suggestedFilename()), 'the answers are saved on their own (' + (alone && alone.suggestedFilename()) + ')');
+    ok(alone && /^P21_[\dT-]+-questionnaires\.zip$/.test(alone.suggestedFilename()), 'the answers are saved on their own (' + (alone && alone.suggestedFilename()) + ')');
     await wait(300);
     const partial = await p.nextDownload(() => p.E(() => document.getElementById('g-save-again').click()));
     ok(partial && /^P21_[\dT-]+\.zip$/.test(partial.suggestedFilename()) && !partial.suggestedFilename().includes('final'), 'Download ZIP again with an incomplete laptop copy is not named final (' + (partial && partial.suggestedFilename()) + ')');

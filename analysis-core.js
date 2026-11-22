@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.10.0';
+    const VERSION = '1.10.1';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const PROP_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Target', 'total_trials', 'targeted_hits', 'TargetedHand', 'Proportion'];
     const PSE_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'TargetedHand', 'PSE_raw', 'PSE', 'PSE_bounded'];
@@ -905,6 +905,7 @@ const WebSpheresAnalysis = (() => {
             `Sessions with answers: ${(result.questSessions || []).filter(q => q.status === 'submitted').length}`,
             `Sessions where the questionnaires were skipped: ${(result.questSessions || []).filter(q => q.status === 'skipped').length}`,
             'Sessions without questionnaire answers:', ...list(result.questMissing || []),
+            ...((result.questMissing || []).length ? ['No answers found. Check that each session\'s -questionnaires.zip file is in the zips folder.'] : []),
             ...(kinematics ? [
                 '',
                 'Kinematics',

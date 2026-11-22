@@ -4,7 +4,7 @@ const { openDownload, readZip } = require('./unzip.cjs');
 const { ok, done } = counter('CHARTS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-charts-'));
-const VERSION = '2.9.0';
+const VERSION = '2.9.1';
 const kin = (t, x, z, o) => {
   const a = Object.assign({ target: true, valid: 1, rec: 0, hx: 0, hz: -0.4, y: 1 }, o);
   return `${t},${x},${a.y},${z},${a.hx},0.9,${a.hz},${a.target ? '0.1,1.2,-0.5' : ',,'},${a.valid},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,${a.rec}\n`;
@@ -204,7 +204,7 @@ async function panelSuite(b) {
   for (let i = 0; i < 60 && dl.length < 2; i++) await sleep(100);
   await sleep(400);
   ok(await shown('#results'), 'charts ticked: Results opens when Finish is reached');
-  ok(dl.length === 2 && dl[1].suggestedFilename() === 'P1_TS-final.zip', 'the final zip follows the questionnaires');
+  ok(dl.length === 2 && dl[1].suggestedFilename() === 'P1_TS-questionnaires.zip', 'the answers ZIP follows the questionnaires');
   ok((await charts()).join() === 'quality,workspaceMap,handChoice', 'only ticked charts drawn, timeline first');
   ok(await O(() => !document.querySelector('[data-res-view]') && !document.querySelector('[data-res-frames]')), 'old hand and frame buttons gone');
   ok((await text('res-showing')) === 'Workspace shape settings — 3D: fill gaps up to 16 cm and smooth by 0.5 cm; 2D: fill gaps up to 8 cm and smooth by 0.5 cm.', 'settings stated in words');

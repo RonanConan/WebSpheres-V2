@@ -7,7 +7,7 @@ const { ok, done } = counter('QUESTIONNAIRE BROWSER');
 const TS = '2026-10-22T13-00-00';
 const START = '2026-10-22T12:40:00.000Z';
 const BASE = {
-  type: 'state', version: '2.9.0', sessionId: 'sQ1', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
+  type: 'state', version: '2.9.1', sessionId: 'sQ1', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
   calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.45 }, height: { done: true, height: 1.2 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: true, cue: null, sessionMs: 125000, trialCount: 6, recentreCount: 0, pauses: 0, run: 2, plannedRuns: 2,
   plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1 }, { condition: 2 }] },
@@ -76,7 +76,7 @@ async function readZipFile(d) {
   const g8 = await p.checks('g8-checks');
   ok(g8[0].startsWith('ok:Download started') && g8.some(l => l === 'info:35 questions in 3 sets. They take about 5 to 10 minutes.'), 'step 8 shows the data download and what the questionnaires involve');
   ok(g8.includes('ok:Headset copy saved') && g8.includes('ok:All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'step 8 also shows the headset copy and that every row is in the ZIP');
-  ok(await p.shown('#g-quest-go') && !(await p.shown('#g-quest-skip')), 'a finished session offers Hand to participant and no skip');
+  ok(await p.shown('#g-quest-go') && await p.shown('#g-quest-skip'), 'a finished session offers Hand to participant and a skip');
   ok(await p.shown('#g-quest-add-run') && await p.shown('#g-quest-results') && !(await p.E(() => document.getElementById('g-quest-add-run').disabled)), 'Add block and Results are available before the questionnaires');
   ok(await p.E(() => window.__obs.quest.status === 'pending'), 'the questionnaire waits for the participant');
 
@@ -172,13 +172,13 @@ async function readZipFile(d) {
   console.log('SUBMIT');
   const finalZip = await p.nextDownload(() => p.click('#qv-next'));
   ok((await p.text('#qv-main h2')) === 'Thank you' && !(await p.shown('#qv-foot')), 'Submit shows the thank-you page without buttons');
-  ok(finalZip && finalZip.suggestedFilename() === `P21_${TS}-final.zip`, 'the final ZIP downloads (' + (finalZip && finalZip.suggestedFilename()) + ')');
+  ok(finalZip && finalZip.suggestedFilename() === `P21_${TS}-questionnaires.zip`, 'the answers download in their own ZIP (' + (finalZip && finalZip.suggestedFilename()) + ')');
   const files = await readZipFile(finalZip);
   const names = files.map(f => f.path).sort();
-  ok(names.includes(`questionnaires/P21_questionnaire-${TS}.csv`) && names.includes(`questionnaires/P21_questionnaire-definitions-${TS}.json`) && names.some(n => n.startsWith('block2/P21_block2_vr-session-data')), 'it holds the block files and the questionnaire files (' + names.join(', ') + ')');
+  ok(names.includes(`questionnaires/P21_questionnaire-${TS}.csv`) && names.includes(`questionnaires/P21_questionnaire-definitions-${TS}.json`) && names.length === 2, 'it holds only the questionnaire files, not the blocks again (' + names.join(', ') + ')');
   const raw = Q.readRaw(files.find(f => f.name === `P21_questionnaire-${TS}.csv`).text);
   ok(raw.header.join() === Q.COLUMNS.join() && raw.rows.length === 35, 'the answers file has one row per question');
-  ok(raw.rows.every(r => r.ID === 'P21' && r.SessionID === 'sQ1' && r.LastBlockStart === START && r.AfterBlock === '2' && r.Status === 'submitted' && r.Practice === '0' && r.AppVersion === '2.9.0' && r.SubmittedAt), 'every row carries the participant, session, last block and status');
+  ok(raw.rows.every(r => r.ID === 'P21' && r.SessionID === 'sQ1' && r.LastBlockStart === START && r.AfterBlock === '2' && r.Status === 'submitted' && r.Practice === '0' && r.AppVersion === '2.9.1' && r.SubmittedAt), 'every row carries the participant, session, last block and status');
   const row = (id) => raw.rows.find(r => r.ItemID === id);
   ok(row('GQ1').Response === 'Yes' && row('GQ1').FollowUpPrompt === 'What changes did you notice?' && row('GQ1').FollowUpText === 'The targets, I think, moved "further" left.', 'GQ1 keeps the button, the follow-up question and the text');
   ok(row('GQ2').Response === 'Right' && row('GQ3').Response === 'Unsure', 'GQ2 and GQ3 keep their buttons');
@@ -224,14 +224,14 @@ async function readZipFile(d) {
   ok(!(await k.shown('#g-quest-add-run')) && await k.shown('#g-quest-results'), 'once the questionnaire has started, Add block is no longer offered');
   await k.click('#g-quest-skip');
   const skipZip = await k.nextDownload(() => k.click('#g-quest-skip-yes'));
-  ok(skipZip && skipZip.suggestedFilename() === `PRACTICE_P22_${TS}-final.zip`, 'skipping downloads the final ZIP (' + (skipZip && skipZip.suggestedFilename()) + ')');
+  ok(skipZip && skipZip.suggestedFilename() === `PRACTICE_P22_${TS}-questionnaires.zip`, 'skipping downloads the skip in its own ZIP (' + (skipZip && skipZip.suggestedFilename()) + ')');
   const skipFiles = skipZip ? await readZipFile(skipZip) : [];
   const skipRaw = skipFiles.find(f => f.path === `questionnaires/PRACTICE_P22_questionnaire-${TS}.csv`);
   const skipRows = skipRaw ? Q.readRaw(skipRaw.text).rows : [];
   ok(skipRows.length === 35 && skipRows.every(r => r.Status === 'skipped' && r.Practice === '1'), 'the ZIP records the skip, one row per question, marked as practice');
   ok(skipRows.find(r => r.ItemID === 'GQ1').Response === 'No' && skipRows.find(r => r.ItemID === 'GQ1').FollowUpText === 'Had to stop early.' && skipRows.filter(r => r.Response !== '').length === 1, 'the answer given before the skip is kept');
   await wait(300);
-  ok(await k.openStep() === 9 && (await k.checks('g9-files')).includes('ok:Questionnaires skipped. This is recorded in the ZIP.'), 'Finish says the questionnaires were skipped');
+  ok(await k.openStep() === 9 && (await k.checks('g9-files')).includes('ok:Questionnaires skipped. The skip is recorded in the questionnaire files.'), 'Finish says the questionnaires were skipped');
   ok(k.errs.length === 0, 'no page errors (' + k.errs.join(' | ') + ')');
   await k.close();
 
@@ -274,9 +274,9 @@ async function readZipFile(d) {
   await r.click('#qv-tabs .qv-tab:nth-child(1)');
   await r.click('#qv-tabs .qv-tab:nth-child(4)');
   const aloneZip = await r.nextDownload(() => r.click('#qv-next'));
-  ok(aloneZip && aloneZip.suggestedFilename() === `P21_${TS}-final.zip`, 'submitting saves the final ZIP from the copy kept at the automatic save (' + (aloneZip && aloneZip.suggestedFilename()) + ')');
+  ok(aloneZip && aloneZip.suggestedFilename() === `P21_${TS}-questionnaires.zip`, 'submitting after a reload saves the answers in their own ZIP (' + (aloneZip && aloneZip.suggestedFilename()) + ')');
   const aloneFiles = aloneZip ? await readZipFile(aloneZip) : [];
-  ok(aloneFiles.some(f => f.path.startsWith('block2/')) && aloneFiles.some(f => f.path === `questionnaires/P21_questionnaire-${TS}.csv`), 'it holds the block files and the answers');
+  ok(!aloneFiles.some(f => f.path.startsWith('block2/')) && aloneFiles.some(f => f.path === `questionnaires/P21_questionnaire-${TS}.csv`), 'it holds the answers and not the blocks, which were already downloaded');
   await r.hold(2300);
   await r.click('#qv-menu-leave');
   await wait(300);

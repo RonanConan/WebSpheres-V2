@@ -72,7 +72,7 @@ const answers = {
     SUS01: { value: 4, at: '2026-11-22T10:51:00' },
     TEQ02: { value: 2, at: '2026-11-22T10:52:00' }
 };
-const meta = { id: 'P012', sessionId: 's-1', lastBlockStart: '2026-11-22T10:14:03.000Z', practice: false, appVersion: '2.9.0', afterBlock: 2, status: 'submitted', submittedAt: '2026-11-22T10:53:00' };
+const meta = { id: 'P012', sessionId: 's-1', lastBlockStart: '2026-11-22T10:14:03.000Z', practice: false, appVersion: '2.9.1', afterBlock: 2, status: 'submitted', submittedAt: '2026-11-22T10:53:00' };
 const rows = Q.rawRows(st.defs, answers, meta);
 ok(rows.length === 35, 'one row per item');
 const csv = Q.toCsv(Q.COLUMNS, rows);
