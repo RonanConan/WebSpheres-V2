@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('NEXT ACTION BROWSER');
-const VERSION = '2.8.1';
+const VERSION = '2.9.0';
 const CALIB = (reach, height, lap) => ({ reach: { done: reach, hand: reach ? 'RIGHT' : '', distance: reach ? 0.62 : 0, radius: reach ? 0.5 : 0.45 }, height: { done: height, height: height ? 1.04 : 1.2 }, lap: { done: lap, home: { x: 0, y: 0.9, z: -0.4 } } });
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: CALIB(false, false, false), recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const PLAN = { mode: 'fmode', home: 'one-box', runs: [{ condition: 1, off: false, recal: false }, { condition: 2, off: false, recal: false }] };
@@ -214,6 +214,7 @@ const FRAME = { head: { px: 0, py: 1.2, pz: 0, qx: 0, qy: 0, qz: 0, qw: 1 }, lef
   console.log('FINISH');
   await st({ phase: 'complete', endReason: 'finished', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' } }); await frame(); await tick();
   ok(await E(() => [...document.querySelectorAll('[data-view]')].every(b => !b.disabled)), 'finish, Results closed: view buttons on');
+  await E(() => window.__obs.questFinish('skipped')); await tick();
   await p.click('#g-results'); await tick();
   ok(await viewsOff(), 'Results open: view buttons off');
   await p.click('#res-close'); await tick();

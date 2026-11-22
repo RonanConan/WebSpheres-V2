@@ -138,7 +138,7 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   await p.check('#g7-problems input');
   await p.click('[data-next="7"]'); await wait(8);
   await p.click('#g8-save');
-  await msg('g8-msg', 'Saved handDB_controls.csv with 33 trials, propDB_controls.csv and pseDB_controls.csv with 3 blocks, and kinematicsDB_controls.csv with 33 reaches.');
+  await msg('g8-msg', 'Saved handDB_controls.csv with 33 trials, propDB_controls.csv and pseDB_controls.csv with 3 blocks, questDB_controls.csv and questScoresDB_controls.csv with answers from 0 sessions, and kinematicsDB_controls.csv with 33 reaches.');
   const controlsCsv = (await read(['KIN', 'controls'], 'kinematicsDB_controls.csv')).trim().split('\n');
   const head = controlsCsv[0].split(',');
   ok(head.length === 74 && head[0] === 'block_id' && head.slice(-5).join() === 'cohort,dominant_hand,non_dominant_hand,hand_role,is_non_dominant_reach', 'the controls master has the same 74 columns as your controls script');
@@ -199,7 +199,7 @@ const sha = (name) => crypto.createHash('sha256').update(fs.readFileSync(path.jo
   await p.check('#g7-problems input');
   await p.click('[data-next="7"]'); await wait(8);
   await p.click('#g8-save');
-  await msg('g8-msg', 'Saved handDB_patients.csv with 44 trials, propDB_patients.csv and pseDB_patients.csv with 4 blocks, and kinematicsDB_patients.csv with 33 reaches.');
+  await msg('g8-msg', 'Saved handDB_patients.csv with 44 trials, propDB_patients.csv and pseDB_patients.csv with 4 blocks, questDB_patients.csv and questScoresDB_patients.csv with answers from 0 sessions, and kinematicsDB_patients.csv with 33 reaches.');
   const patientsCsv = (await read(['KIN', 'patients'], 'kinematicsDB_patients.csv')).trim().split('\n');
   const patientsHead = patientsCsv[0].split(',');
   ok(patientsHead.length === 73 && patientsHead.slice(0, 69).join() === head.slice(0, 69).join() && !patientsHead.includes('dominant_hand'), 'the patients master starts with the same 69 columns as your patient script');

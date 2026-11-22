@@ -5,7 +5,7 @@ const { openDownload } = require('./unzip.cjs');
 const { ok, done } = counter('SAVE BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-save-'));
-const VERSION = '2.8.1';
+const VERSION = '2.9.0';
 
 async function zipSuite(b) {
   console.log('ZIP WRITER');
@@ -177,8 +177,10 @@ async function laptopSuite(b) {
   await load();
   await sleep(350);
   ok(await shown('#g-recovery .g-banner') && (await text('g-recovery')).includes('Unsaved session: P1, 1 block stored on this laptop'), 'tab reopened: unsaved session offered');
+  const dlBefore = o.dl.length;
   await O(() => document.querySelector('#g-recovery button').click());
-  await sleep(600);
+  for (let i = 0; i < 50 && o.dl.length === dlBefore; i++) await sleep(100);
+  await sleep(200);
   const rec = await openDownload(o.dl.at(-1), OUT);
   ok(/^P1_recovered-[\dT-]+\.zip$/.test(o.dl.at(-1).suggestedFilename()) && rec.length === 4 && rec.some(x => x.path.startsWith('block1/P1_block1_vr-session-data-') && x.text === 'H\nr1-trials\n'), 'Download ZIP rebuilds the block from browser storage');
   ok(rec.some(x => x.path.includes('session-info') && x.text === STATE.info), 'session info recovered');
@@ -220,13 +222,17 @@ async function laptopSuite(b) {
   await O(() => { window.__obs.guide.recovery.push({ id: 'C', participantId: 'P1', runs: 1 }); });
   await emit(final);
   await sleep(600);
-  ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')), 'saved session leaves the recovery list');
   ok(o.dl.length === before + 1 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00.zip', 'one zip, named for the session');
-  ok((await text('g8-files')).includes('Download started: 4 files in a ZIP') && (await text('g8-files')).includes('All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'Finish says the laptop copy is complete');
+  ok(await shown('#g8-checks') && (await text('g8-checks')).includes('Download started: 4 files in a ZIP') && (await text('g8-checks')).includes('All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'the questionnaire step says the laptop copy is complete');
+  ok(await O(() => window.__obs.guide.recovery.some(r => r.id === 'C')) && (await stored()).length === 1, 'the browser copy is kept until the questionnaires are done');
+  await O(() => window.__obs.questFinish('skipped'));
+  await sleep(600);
+  ok(await O(() => !window.__obs.guide.recovery.some(r => r.id === 'C')), 'saved session leaves the recovery list');
+  ok(o.dl.length === before + 2 && o.dl.at(-1).suggestedFilename() === 'P1_2026-11-02T10-00-00-final.zip', 'the final zip follows the questionnaires');
   ok((await stored()).length === 0, 'browser storage cleared once the final zip is saved');
   await O(() => document.getElementById('g-save-again').click());
   await sleep(600);
-  ok((await text('g-save-again')) === 'Download ZIP again' && o.dl.length === before + 2, 'Download ZIP again');
+  ok((await text('g-save-again')) === 'Download ZIP again' && o.dl.length === before + 3, 'Download ZIP again');
   await O(() => { window.__obs.backup.zipping++; });
   await sleep(350);
   ok(await O(() => document.getElementById('g-add-run').disabled), 'Add block waits while the zip is packing');
@@ -261,7 +267,7 @@ async function laptopSuite(b) {
   await sleep(300);
   await O(() => { window.__c.open = false; });
   await sleep(350);
-  ok((await text('g8-files')).includes('Laptop copy incomplete (0 / 27 rows). Reconnect the headset or retrieve the files from it.'), 'Finish says what is missing when the laptop cannot catch up');
+  ok((await text('g8-checks')).includes('Laptop copy incomplete (0 / 27 rows). Reconnect the headset or retrieve the files from it.'), 'Finish says what is missing when the laptop cannot catch up');
   await ctx.close();
 
   console.log('LAPTOP: FALLBACK');
@@ -274,10 +280,18 @@ async function laptopSuite(b) {
   await femit(Object.assign({}, STATE, { sessionId: 'F', phase: 'complete', backup: { trials: 1, kinL: 1, kinR: 1, final: true, exportTs: 'T' } }));
   await sleep(800);
   ok(f.o.dl.length === 4 && f.o.dl.every(d => d.suggestedFilename().endsWith('.csv')), 'zip fails: 4 loose files instead');
-  const looseText = await f.o.evaluate(() => document.getElementById('g8-files').textContent);
-  ok(looseText.includes('4 files individually'), 'Finish says the files are loose');
+  const looseText = await f.o.evaluate(() => document.getElementById('g8-checks').textContent);
+  ok(looseText.includes('4 files individually'), 'the questionnaire step says the files are loose');
   ok(looseText.includes('ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.') && !looseText.includes('No need to plug in headset'), 'loose files: tells the experimenter to check them');
   ok((await idbAll(f.o, 'runs')).some(x => x.key === 'F:1'), 'loose files: browser storage kept');
+  await f.o.evaluate(() => window.__obs.questFinish('skipped'));
+  for (let i = 0; i < 40 && f.o.dl.length < 10; i++) await sleep(100);
+  await sleep(300);
+  const names = f.o.dl.slice(4).map(d => d.suggestedFilename());
+  ok(names.length === 6 && names.every(n => n.endsWith('.csv') || n.endsWith('.json')) && names.some(n => n.startsWith('P1_questionnaire-')), 'after the questionnaires, the files are saved loose again, answers included (' + names.join() + ')');
+  const finalText = await f.o.evaluate(() => document.getElementById('g9-files').textContent);
+  ok(finalText.includes('ZIP creation failed') && finalText.includes('Questionnaires skipped. This is recorded in the downloaded files.'), 'Finish says the ZIP failed and the skip is in the downloaded files');
+  ok((await idbAll(f.o, 'runs')).some(x => x.key === 'F:1') && (await idbAll(f.o, 'sessions')).some(x => x.id === 'F'), 'loose files: browser storage still kept after the questionnaires');
   await f.ctx.close();
 
   console.log('LAPTOP: HEADSET PAGE RELOADS');
@@ -326,7 +340,7 @@ async function laptopSuite(b) {
   await sleep(700);
   const z = await openDownload(ro.dl.at(-1), OUT);
   ok(ro.dl.at(-1).suggestedFilename() === 'P1_END.zip' && z.length === 8, 'final zip holds runs from before and after the reload');
-  const finishSum = await R(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const r = {}; for (let i = 0; i < s.length; i += 2) r[s[i]] = s[i + 1]; return r; });
+  const finishSum = await R(() => { const s = [...document.querySelectorAll('#g9-summary span')].map(x => x.textContent); const r = {}; for (let i = 0; i < s.length; i += 2) r[s[i]] = s[i + 1]; return r; });
   ok(finishSum.Pauses === '3' && finishSum.Recentres === '2', 'Finish summary includes runs from before the reload');
   ok(z.some(x => x.path === 'block1/P1_block1_vr-session-data-END.csv' && x.text === 'H\nr1-trials\n') && z.some(x => x.path === 'block2/P1_block2_vr-session-data-END.csv' && x.text === 'H\nr2-trials\n'), 'each block in its folder with its own data');
   ok(ro.errs.length === 0, 'no page errors (' + ro.errs.join(' | ') + ')');

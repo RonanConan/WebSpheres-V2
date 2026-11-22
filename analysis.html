@@ -154,13 +154,14 @@
                     </div>
                 </section>
                 <section class="step" data-step="6">
-                    <button class="step-head" data-open="6"><span class="step-mark">6</span><span class="step-title">Proportions and PSE</span><span class="step-val"></span></button>
+                    <button class="step-head" data-open="6"><span class="step-mark">6</span><span class="step-title">Proportions, PSE and questionnaires</span><span class="step-val"></span></button>
                     <div class="step-body">
-                        <p class="say">Check the proportions and PSE on the right.</p>
-                        <p class="g-note">They are shown for the participants added in this run. The proportions and PSE masters contain every participant. Each figure can be saved on its own.</p>
+                        <p class="say">Check the proportions, PSE and questionnaire scores on the right.</p>
+                        <p class="g-note">They are shown for the participants added in this run. The proportions, PSE and questionnaire masters contain every participant. Each figure can be saved on its own.</p>
                         <p class="g-msg" id="g6-msg" role="status"></p>
                         <label class="g-tick" id="g6-problems" hidden><input type="checkbox"><span>I read every PSE problem on the right.</span></label>
                         <label class="g-tick" id="g6-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the proportions and PSE masters.</span></label>
+                        <label class="g-tick" id="g6-quest-changes" hidden><input type="checkbox"><span>I understand that saving may change existing rows in the questionnaire masters.</span></label>
                         <div class="g-actions"><button class="g-primary" data-next="6">Next</button></div>
                     </div>
                 </section>
@@ -184,6 +185,8 @@
                         <p class="path" id="g8-path"></p>
                         <p class="path" id="g8-path-prop"></p>
                         <p class="path" id="g8-path-pse"></p>
+                        <p class="path" id="g8-path-quest"></p>
+                        <p class="path" id="g8-path-quest-scores"></p>
                         <p class="path" id="g8-path-kin"></p>
                         <p class="g-note">Any previous versions of the saved files are copied to the history folder before saving. Any older file in the kinematics details folder that this run did not produce is moved to the history folder. The original ZIP files are not changed.</p>
                         <div class="g-actions"><button class="g-primary" id="g8-save"></button></div>
@@ -235,6 +238,20 @@
                     <h2>Existing proportions and PSE rows that would change</h2>
                     <ul id="psych-changes-list"></ul>
                 </section>
+                <section id="quest" hidden>
+                    <h2>Questionnaires</h2>
+                    <p id="quest-comparison"></p>
+                    <p class="g-note" id="quest-summary"></p>
+                    <div class="table-wrap" id="quest-table"></div>
+                </section>
+                <section id="quest-missing" class="list-section" hidden>
+                    <h2>Sessions without questionnaire answers</h2>
+                    <ul id="quest-missing-list"></ul>
+                </section>
+                <section id="quest-changes" class="list-section" hidden>
+                    <h2>Existing questionnaire rows that would change</h2>
+                    <ul id="quest-changes-list"></ul>
+                </section>
                 <section id="kinematics" hidden>
                     <h2>Kinematics</h2>
                     <p id="kin-totals"></p>
@@ -283,6 +300,11 @@
     </div>
     <script src="browser-check.js"></script>
     <script src="zip-writer.js"></script>
+    <script src="questionnaire-core.js"></script>
+    <script src="questionnaires/game.js"></script>
+    <script src="questionnaires/sus.js"></script>
+    <script src="questionnaires/imi-teq.js"></script>
+    <script src="questionnaires/study.js"></script>
     <script src="analysis-core.js"></script>
     <script src="analysis-page.js"></script>
 </body>

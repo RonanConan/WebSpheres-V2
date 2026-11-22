@@ -1,5 +1,5 @@
 const WebSpheresAnalysis = (() => {
-    const VERSION = '1.9.0';
+    const VERSION = '1.10.0';
     const COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Trial', 'Target', 'Hand', 'Points', 'HitType', 'DecisionTime', 'MovementTime', 'BlockOrder', 'Phase', 'Condition', 'Mode', 'Group', 'DominantHand', 'LessAffectedHand'];
     const PROP_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'Target', 'total_trials', 'targeted_hits', 'TargetedHand', 'Proportion'];
     const PSE_COLUMNS = ['ID', 'Session', 'Block', 'BlockType', 'BlockNum', 'TargetedHand', 'PSE_raw', 'PSE', 'PSE_bounded'];
@@ -10,6 +10,10 @@ const WebSpheresAnalysis = (() => {
     const CHANGE_FIELDS = new Set(['Condition', 'ParticipantID', 'Group', 'DominantHand']);
     const RESUME_LIMIT_MS = 24 * 60 * 60 * 1000;
     const { crc32 } = typeof WebSpheresZip !== 'undefined' ? WebSpheresZip : require('./zip-writer.js');
+    const Q = typeof WebSpheresQuestionnaires !== 'undefined' ? WebSpheresQuestionnaires : (typeof require === 'function' ? require('./questionnaire-core.js') : null);
+    const QUEST_COLUMNS = ['ID', 'Session', 'Group', 'DominantHand', 'LessAffectedHand', 'QuestionnaireID', 'QuestionnaireVersion', 'ItemID', 'ItemOrder', 'Subscales', 'Reverse', 'Response', 'ResponseLabel', 'ScoredResponse', 'FollowUpPrompt', 'FollowUpText', 'HandRelative', 'AfterBlock', 'SubmittedAt', 'SourceZip'];
+    const QSCORE_COLUMNS = ['ID', 'Session', 'Group', 'DominantHand', 'LessAffectedHand', 'QuestionnaireID', 'QuestionnaireVersion', 'Score', 'Label', 'Method', 'Value', 'ItemsUsed', 'ItemsExpected', 'AfterBlock', 'SubmittedAt', 'SourceZip'];
+    const QUEST_NEEDED = ['ID', 'LastBlockStart', 'Practice', 'Status', 'QuestionnaireID', 'QuestionnaireVersion', 'ItemID', 'ItemOrder', 'Response'];
 
     async function zipEntries(file) {
         const tailSize = Math.min(file.size, 65557);
@@ -108,7 +112,7 @@ const WebSpheresAnalysis = (() => {
 
     async function readExport(file, options) {
         const infoOnly = !!(options && options.infoOnly);
-        const out = { name: file.name, size: file.size, file, sha256: '', blocks: [], problem: '' };
+        const out = { name: file.name, size: file.size, file, sha256: '', blocks: [], questionnaires: [], problem: '' };
         let entries;
         try {
             entries = await zipEntries(file);
@@ -118,10 +122,19 @@ const WebSpheresAnalysis = (() => {
             return out;
         }
         const folders = new Map();
+        const questFiles = new Map();
         entries.forEach(entry => {
             const parts = entry.path.split('/');
             const base = parts[parts.length - 1];
             if (parts.includes('__MACOSX') || base.startsWith('.')) return;
+            const answers = Q && Q.FILE.exec(base), definitions = Q && Q.DEFINITIONS_FILE.exec(base);
+            if (answers || definitions) {
+                const match = answers || definitions;
+                const key = `${parts.slice(0, -1).join('/')}|${match[1]}|${match[2]}`;
+                if (!questFiles.has(key)) questFiles.set(key, {});
+                questFiles.get(key)[answers ? 'answers' : 'definitions'] = entry;
+                return;
+            }
             const kind = FILE_KIND.exec(base);
             if (!kind) return;
             const folder = parts.slice(0, -1).join('/');
@@ -132,7 +145,12 @@ const WebSpheresAnalysis = (() => {
             const trialEntry = group['vr-session-data'], infoEntry = group['session-info'];
             const block = { folder, problem: '', hasLeft: !!group['kinematics-LEFT'], hasRight: !!group['kinematics-RIGHT'], entries: { trial: trialEntry, left: group['kinematics-LEFT'], right: group['kinematics-RIGHT'] } };
             if (duplicate) block.problem = 'This folder in the ZIP file contains more than one file of the same type and cannot be processed reliably.';
-            else if (!trialEntry) block.problem = 'This block has no trial file.';
+            else if (!trialEntry) {
+                block.problem = 'This block has no trial file.';
+                if (infoEntry) {
+                    try { block.info = parseInfo(await entryText(file, infoEntry)); } catch (e) { block.info = null; }
+                }
+            }
             else if (!infoEntry) block.problem = 'This block has no session-info file, so its participant, condition and block order cannot be determined.';
             else {
                 try {
@@ -148,6 +166,28 @@ const WebSpheresAnalysis = (() => {
                 }
             }
             out.blocks.push(block);
+        }
+        if (!infoOnly) {
+            for (const pair of questFiles.values()) {
+                if (!pair.answers) continue;
+                const item = { path: pair.answers.path, header: [], rows: [], defs: null, problem: '' };
+                try {
+                    const raw = Q.readRaw(await entryText(file, pair.answers));
+                    item.header = raw.header;
+                    item.rows = raw.rows;
+                } catch (e) {
+                    item.problem = 'The questionnaire answers could not be read. The ZIP file may be damaged.';
+                }
+                if (pair.definitions) {
+                    try {
+                        const copy = JSON.parse(await entryText(file, pair.definitions));
+                        if (copy && Array.isArray(copy.questionnaires)) item.defs = copy.questionnaires;
+                    } catch (e) {
+                        item.defs = null;
+                    }
+                }
+                out.questionnaires.push(item);
+            }
         }
         return out;
     }
@@ -208,7 +248,10 @@ const WebSpheresAnalysis = (() => {
         exportsRead.forEach((zip, zipIndex) => {
             if (zip.unreadable) { result.stops.push(`${zip.name}: ${zip.problem}`); return; }
             if (zip.problem) { result.setAside.push({ name: zip.name, reason: zip.problem }); return; }
-            if (!zip.blocks.length) { result.setAside.push({ name: zip.name, reason: 'This ZIP file contains no WebSpheres trial data.' }); return; }
+            if (!zip.blocks.length) {
+                if (!(zip.questionnaires || []).length) result.setAside.push({ name: zip.name, reason: 'This ZIP file contains no WebSpheres trial data.' });
+                return;
+            }
             zip.blocks.forEach(block => {
                 const label = block.folder ? `${zip.name}, ${block.folder}` : zip.name;
                 if (block.problem) { result.setAside.push({ name: label, reason: block.problem }); return; }
@@ -452,7 +495,156 @@ const WebSpheresAnalysis = (() => {
         });
         checkSimilarIds(result.sessions, result);
         checkDominantHands(result, groupLabel);
+        buildQuestionnaires(exportsRead, result, includePractice, groupLabel);
         return result;
+    }
+
+    function handRelative(response, info, group) {
+        const said = String(response || '').trim().toUpperCase();
+        if (said !== 'LEFT' && said !== 'RIGHT') return said.startsWith('BOTH') ? 'Both' : said === 'UNSURE' ? 'Unsure' : String(response || '');
+        const hand = dominantHand(info);
+        if (hand !== 'LEFT' && hand !== 'RIGHT') return '';
+        const same = said === hand;
+        return group === 'Patient' ? (same ? 'Less affected' : 'More affected') : (same ? 'Dominant' : 'Non-dominant');
+    }
+
+    function buildQuestionnaires(exportsRead, result, includePractice, groupLabel) {
+        result.questRows = [];
+        result.questScores = [];
+        result.questSessions = [];
+        result.questMissing = [];
+        if (!Q) return;
+        const used = new Set(), leftOut = new Map();
+        const leaveOut = (zip, reason) => { if (!leftOut.has(zip)) leftOut.set(zip, reason); };
+        const warned = new Set();
+        const warnOnce = (key, text) => { if (!warned.has(key)) { warned.add(key); result.warnings.push(text); } };
+        const found = new Map();
+        exportsRead.forEach(zip => (zip.questionnaires || []).forEach(file => {
+            const label = `${zip.name}, ${file.path}`;
+            if (file.problem) { result.warnings.push(`${label}: ${file.problem}`); leaveOut(zip, file.problem); return; }
+            const missing = QUEST_NEEDED.filter(name => !file.header.includes(name));
+            if (missing.length) { result.warnings.push(`${label}: the questionnaire file is missing these columns: ${missing.join(', ')}. It was left out.`); leaveOut(zip, 'Its questionnaire file is missing columns.'); return; }
+            if (!file.rows.length) { leaveOut(zip, 'Its questionnaire file is empty.'); return; }
+            const first = file.rows[0];
+            const practice = first.Practice === '1';
+            if (practice && !includePractice) { leaveOut(zip, 'This is a practice session, so it was left out.'); return; }
+            if (file.rows.some(r => r.ID !== first.ID || r.LastBlockStart !== first.LastBlockStart || r.Status !== first.Status)) {
+                result.warnings.push(`${label}: the questionnaire file mixes more than one session, so it was left out.`);
+                leaveOut(zip, 'Its questionnaire file mixes more than one session.');
+                return;
+            }
+            const key = `${practice}|${first.ID}|${first.LastBlockStart}`;
+            if (!found.has(key)) found.set(key, []);
+            found.get(key).push({ zip, file, label, practice, id: first.ID, start: first.LastBlockStart, status: first.Status, after: toInteger(first.AfterBlock || ''), signature: JSON.stringify(file.rows.map(r => [r.QuestionnaireID, r.QuestionnaireVersion, r.ItemID, r.Response, r.FollowUpText, r.Status, r.SubmittedAt])) });
+        }));
+        const finishedStatus = (c) => c.status === 'submitted' || c.status === 'skipped';
+        const placeOf = (copy) => {
+            const exact = result.sessions.find(s => s.id === copy.id && s.practice === copy.practice && s.items.some(item => item.block && item.block.start === copy.start));
+            if (exact) return { session: exact, info: exact.items.find(item => item.block && item.block.start === copy.start).block.info };
+            const followed = copy.zip.blocks.find(b => b.problem && b.info && b.info.SessionStartISO === copy.start && String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID) === copy.id);
+            if (!followed) return null;
+            const starts = copy.zip.blocks.filter(b => !b.problem && b.info && String(b.info.ParticipantID === undefined ? '' : b.info.ParticipantID) === copy.id).map(b => b.info.SessionStartISO);
+            const session = result.sessions.find(s => s.id === copy.id && s.practice === copy.practice && s.items.some(item => item.block && starts.includes(item.block.start)));
+            return session ? { session, info: followed.info } : null;
+        };
+        const bySession = new Map();
+        found.forEach(copies => {
+            const finished = copies.filter(finishedStatus);
+            const best = finished[0] || null;
+            const other = best && finished.find(c => c.signature !== best.signature);
+            if (other) {
+                result.stops.push(`${best.label} and ${other.label} contain different questionnaire answers for the same session. Remove the incorrect ZIP file, then try again.`);
+                copies.forEach(c => leaveOut(c.zip, 'It contains questionnaire answers that disagree with another ZIP file.'));
+                return;
+            }
+            let place = null;
+            for (const c of [best].concat(copies)) { if (c && (place = placeOf(c))) break; }
+            const shown = best || copies[0];
+            if (!place) {
+                result.warnings.push(`${shown.label}: these questionnaire answers for participant ${shown.id || '(no ID)'} do not match any session in these ZIP files, so they were left out.`);
+                copies.forEach(c => leaveOut(c.zip, 'Its questionnaire answers do not match any session in these ZIP files.'));
+                return;
+            }
+            if (!bySession.has(place.session)) bySession.set(place.session, []);
+            bySession.get(place.session).push({ copies, best, place });
+        });
+        const hands = recordedHands(result.blocks);
+        bySession.forEach((groups, session) => {
+            const where = `Participant ${session.id || '(no ID)'}, session ${session.number}`;
+            const submitted = groups.filter(g => g.best && g.best.status === 'submitted');
+            const skipped = groups.filter(g => g.best && g.best.status === 'skipped');
+            const clash = submitted.find(g => g.best.signature !== submitted[0].best.signature);
+            if (clash) {
+                result.stops.push(`${submitted[0].best.label} and ${clash.best.label} contain different questionnaire answers for the same session. Remove the incorrect ZIP file, then try again.`);
+                groups.forEach(g => g.copies.forEach(c => leaveOut(c.zip, 'It contains questionnaire answers that disagree with another ZIP file.')));
+                return;
+            }
+            const chosen = submitted[0] || skipped[0] || null;
+            if (!chosen) {
+                const first = groups[0].copies[0];
+                result.warnings.push(`${first.label}: the participant had not finished the questionnaires when this copy was saved, so the answers were left out.`);
+                groups.forEach(g => g.copies.forEach(c => leaveOut(c.zip, 'Its questionnaire answers were not finished.')));
+                return;
+            }
+            const best = chosen.best;
+            chosen.copies.filter(c => c.signature === best.signature).forEach(c => used.add(c.zip));
+            const others = chosen.copies.filter(c => c !== best && c.signature === best.signature).map(c => c.zip.name);
+            if (others.length) result.notes.push(`The questionnaire answers in ${best.label} were also found in ${others.join(' and ')}. One copy was used.`);
+            groups.filter(g => g !== chosen).forEach(g => {
+                if (g.best && g.best.status === 'skipped' && best.status === 'submitted') result.notes.push(`${where}: the questionnaires were skipped after block ${g.best.after === null ? '?' : g.best.after}, then answered after block ${best.after === null ? '?' : best.after}. The answers were used.`);
+                g.copies.forEach(c => leaveOut(c.zip, `Its questionnaire answers were replaced by ${best.zip.name}.`));
+            });
+            chosen.copies.filter(c => c.signature !== best.signature).forEach(c => leaveOut(c.zip, `Its questionnaire answers were not finished, so the finished copy in ${best.zip.name} was used.`));
+            result.questSessions.push({ id: session.id, number: session.number, status: best.status, label: best.label });
+            if (best.status === 'skipped') return;
+            const info = chosen.place.info;
+            const recorded = hands.get(session.id);
+            const knownHand = recorded && recorded.size === 1 ? Array.from(recorded)[0] : '';
+            const base = { ID: session.id, Session: session.number, Group: groupLabel, ...handColumns(info, groupLabel) };
+            const byQuestionnaire = new Map();
+            best.file.rows.forEach(r => {
+                const key = `${r.QuestionnaireID}|${r.QuestionnaireVersion}`;
+                if (!byQuestionnaire.has(key)) byQuestionnaire.set(key, []);
+                byQuestionnaire.get(key).push(r);
+            });
+            byQuestionnaire.forEach((rows, key) => {
+                const qid = rows[0].QuestionnaireID, version = toInteger(rows[0].QuestionnaireVersion);
+                const saved = (best.file.defs || []).find(d => d && d.id === qid && d.version === version);
+                const local = Q.get(qid) && Q.get(qid).version === version ? Q.get(qid) : null;
+                const def = saved || local;
+                if (saved && local && !Q.same(saved, local)) warnOnce(`differs|${key}`, `${qid} version ${version} in ${best.label} differs from the copy in questionnaires/ on this computer. The ZIP file's own copy was used. Increase the version number whenever a questionnaire changes.`);
+                if (!def) warnOnce(`missing|${key}|${best.label}`, `${best.label}: no definition was found for ${qid} version ${version}, so its answers are listed but not scored.`);
+                const items = new Map(def && Array.isArray(def.items) ? def.items.map(item => [item.id, item]) : []);
+                const scale = !!def && def.type === 'scale';
+                const after = { AfterBlock: toInteger(rows[0].AfterBlock || ''), SubmittedAt: rows[0].SubmittedAt || '', SourceZip: best.zip.name };
+                const responses = {};
+                rows.forEach(r => {
+                    const item = items.get(r.ItemID);
+                    const number = scale ? toInteger(r.Response) : null;
+                    const valid = scale && !!item && number !== null && def.scale.values.includes(number);
+                    if (valid) responses[r.ItemID] = number;
+                    result.questRows.push(Object.assign({}, base, {
+                        QuestionnaireID: qid, QuestionnaireVersion: version, ItemID: r.ItemID, ItemOrder: toInteger(r.ItemOrder),
+                        Subscales: r.Subscales || '', Reverse: r.Reverse === '' || r.Reverse === undefined ? null : r.Reverse === '1',
+                        Response: scale ? number : r.Response, ResponseLabel: r.ResponseLabel || '', ScoredResponse: valid ? Q.scoredValue(def, item, number) : null,
+                        FollowUpPrompt: r.FollowUpPrompt || '', FollowUpText: Q.escapeText(r.FollowUpText || ''),
+                        HandRelative: item && item.handItem ? handRelative(r.Response, { DominantHand: knownHand }, groupLabel) : ''
+                    }, after));
+                });
+                if (scale) Q.score(def, responses).forEach(sc => result.questScores.push(Object.assign({}, base, {
+                    QuestionnaireID: qid, QuestionnaireVersion: version, Score: sc.id, Label: sc.label, Method: sc.method, Value: sc.value, ItemsUsed: sc.itemsUsed, ItemsExpected: sc.itemsExpected
+                }, after)));
+            });
+        });
+        exportsRead.forEach(zip => {
+            if (zip.blocks.length || zip.problem || !(zip.questionnaires || []).length || used.has(zip)) return;
+            result.setAside.push({ name: zip.name, reason: leftOut.get(zip) || 'Its questionnaire answers were not used.' });
+        });
+        const order = (a, b) => compareText(a.ID, b.ID) || a.Session - b.Session;
+        result.questRows.sort(order);
+        result.questScores.sort(order);
+        const answered = new Set(result.questSessions.map(q => `${q.id}|${q.number}`));
+        result.questMissing = result.sessions.filter(s => !answered.has(`${s.id}|${s.number}`)).map(s => `Participant ${s.id || '(no ID)'}, session ${s.number}`);
     }
 
     const cellText = (value) => (value === null || value === undefined ? 'NA' : typeof value === 'boolean' ? (value ? 'TRUE' : 'FALSE') : String(value));
@@ -708,6 +900,11 @@ const WebSpheresAnalysis = (() => {
             `Blocks without a PSE: ${count(row => row.PSE === null)}`,
             '',
             'PSE problems:', ...list(pseProblems(tables, group)),
+            '',
+            'Questionnaires',
+            `Sessions with answers: ${(result.questSessions || []).filter(q => q.status === 'submitted').length}`,
+            `Sessions where the questionnaires were skipped: ${(result.questSessions || []).filter(q => q.status === 'skipped').length}`,
+            'Sessions without questionnaire answers:', ...list(result.questMissing || []),
             ...(kinematics ? [
                 '',
                 'Kinematics',
@@ -729,7 +926,7 @@ const WebSpheresAnalysis = (() => {
 
     function fileNames(group, practice) {
         const prefix = practice ? 'PRACTICE_' : '';
-        return { master: `${prefix}handDB_${group}.csv`, kinematics: `${prefix}kinematicsDB_${group}.csv`, details: `${prefix}kinematics_details`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt`, proportions: `${prefix}propDB_${group}.csv`, pse: `${prefix}pseDB_${group}.csv` };
+        return { master: `${prefix}handDB_${group}.csv`, kinematics: `${prefix}kinematicsDB_${group}.csv`, details: `${prefix}kinematics_details`, blocks: `${prefix}blocks_${group}.csv`, report: `${prefix}report_${group}.txt`, proportions: `${prefix}propDB_${group}.csv`, pse: `${prefix}pseDB_${group}.csv`, quest: `${prefix}questDB_${group}.csv`, questScores: `${prefix}questScoresDB_${group}.csv` };
     }
 
     async function addChecksums(exportsRead) {
@@ -744,6 +941,8 @@ const WebSpheresAnalysis = (() => {
             ...(kinematics ? [{ path: names.kinematics, parts: [kinematics.master] }] : []),
             { path: names.proportions, parts: [toCsv(PROP_COLUMNS, tables.proportions)] },
             { path: names.pse, parts: [toCsv(PSE_COLUMNS, tables.pse)] },
+            { path: names.quest, parts: [toCsv(QUEST_COLUMNS, result.questRows || [])] },
+            { path: names.questScores, parts: [toCsv(QSCORE_COLUMNS, result.questScores || [])] },
             { path: names.blocks, parts: [toCsv(BLOCK_COLUMNS, result.blocks)] },
             { path: names.report, parts: [reportText(exportsRead, result, createdIso, kinematics, group)] },
             ...(kinematics ? kinematics.files.filter(item => item.name !== 'kinematics_all_valid_reaches_master.csv').map(item => ({ folder: names.details, path: item.name, parts: [item.text] })) : [])
@@ -782,7 +981,7 @@ const WebSpheresAnalysis = (() => {
         return Array.from(stops);
     }
 
-    function compareTable(oldText, columns, rows, keyColumns, where) {
+    function compareTable(oldText, columns, rows, keyColumns, where, ignore) {
         const table = parseCsv(oldText);
         if ((table[0] || []).join() !== columns.join()) return { comparable: false, examples: [] };
         const at = (name) => columns.indexOf(name);
@@ -792,7 +991,7 @@ const WebSpheresAnalysis = (() => {
             old => keyColumns.map(name => old[at(name)]),
             row => keyColumns.map(name => cellText(row[name])),
             old => where(name => old[at(name)]),
-            (row, old) => columns.filter(name => cellText(row[name]) !== old[at(name)]).map(name => `${name} changed from ${old[at(name)]} to ${cellText(row[name])}`).join('; '));
+            (row, old) => columns.filter(name => !(ignore || []).includes(name) && cellText(row[name]) !== old[at(name)]).map(name => `${name} changed from ${old[at(name)]} to ${cellText(row[name])}`).join('; '));
         return { comparable: true, ...compared, addedParticipants: new Set(rows.map(row => row.ID).filter(id => !oldIds.has(id))).size };
     }
 
@@ -804,11 +1003,19 @@ const WebSpheresAnalysis = (() => {
         return compareTable(oldText, PROP_COLUMNS, rows, ['ID', 'Session', 'Block', 'Target'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('Block')}, target ${get('Target')}`);
     }
 
+    function compareQuest(oldText, rows) {
+        return compareTable(oldText, QUEST_COLUMNS, rows, ['ID', 'Session', 'QuestionnaireID', 'ItemID'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('ItemID')}`, ['SourceZip']);
+    }
+
+    function compareQuestScores(oldText, rows) {
+        return compareTable(oldText, QSCORE_COLUMNS, rows, ['ID', 'Session', 'QuestionnaireID', 'Score'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('Score')}`, ['SourceZip']);
+    }
+
     function comparePse(oldText, rows) {
         return compareTable(oldText, PSE_COLUMNS, rows, ['ID', 'Session', 'Block'], get => `Participant ${get('ID')}, session ${get('Session')}, ${get('Block')}`);
     }
 
-    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics, PROP_COLUMNS, PSE_COLUMNS, fitLogistic, proportionRows, pseRows, pseTables, pseProblems, compareProportions, comparePse };
+    return { VERSION, COLUMNS, BLOCK_COLUMNS, GROUPS, parseCsv, readExport, addChecksums, build, toCsv, reportText, fileNames, outputFiles, checkStudyFolder, crossGroupStops, compareMaster, kinematicsPlan, readKinematics, kinematicsProblems, compareKinematics, PROP_COLUMNS, PSE_COLUMNS, fitLogistic, proportionRows, pseRows, pseTables, pseProblems, compareProportions, comparePse, QUEST_COLUMNS, QSCORE_COLUMNS, compareQuest, compareQuestScores };
 })();
 
 if (typeof module !== 'undefined') module.exports = WebSpheresAnalysis;

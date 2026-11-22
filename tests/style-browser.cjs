@@ -114,7 +114,7 @@ async function openPage(b, block) {
   const railX = await q.evaluate(() => { const step = document.querySelector('.step[data-step="4"]'); const c = getComputedStyle(step, '::before'); const m = step.querySelector('.step-mark').getBoundingClientRect(); return { line: step.getBoundingClientRect().left + parseFloat(c.left), mid: m.left + m.width / 2 }; });
   ok(near(railX.line, railX.mid, 1), 'the line runs through the centre of the circles');
   const first = await q.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.step[data-step="1"]'), '::before').top));
-  const last = await q.evaluate(() => { const c = getComputedStyle(document.querySelector('.step[data-step="8"]'), '::before'); return parseFloat(c.height); });
+  const last = await q.evaluate(() => { const c = getComputedStyle(document.querySelector('.step[data-step="9"]'), '::before'); return parseFloat(c.height); });
   ok(first > 0 && near(last, 27, 1), 'the line stops at the first and last circles');
 
   await send({ phase: 'running', setupLocked: true, trialCount: 5, sessionMs: 30000 }); await q.waitForTimeout(250);

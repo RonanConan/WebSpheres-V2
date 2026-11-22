@@ -2,7 +2,7 @@ const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('GUIDE BROWSER');
 
 const BASE = {
-  type: 'state', version: '2.8.1', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.9.0', sessionId: 'g1', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P21_', sessionPrefix: 'P21_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -56,8 +56,8 @@ const KH = 'Timestamp,HandX\n';
   ok(await openStep() === 1 && (await checks('g1-checks'))[0].startsWith('info:Searching for headset'), 'before connecting: step 1 "Searching for headset…"');
   await connect();
   await setState({ version: '1.9.0' }); await frame(); await tick();
-  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.8.1, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
-  await setState({ version: '2.8.1' }); await tick();
+  ok(await openStep() === 1 && (await checks('g1-checks'))[1] === 'bad:Version mismatch: observer 2.9.0, headset 1.9.0. Force-refresh both pages.', 'version mismatch: red line in step 1, stays on step 1');
+  await setState({ version: '2.9.0' }); await tick();
   ok(await openStep() === 2 && await isDone(1), 'connected and versions match → step 1 ✓, moves on to step 2 by itself');
 
   console.log('STEP 2 — PARTICIPANT');
@@ -156,7 +156,7 @@ const KH = 'Timestamp,HandX\n';
   ok((await checks('g6-advisory'))[1] === 'warn:Both hands tracked' && (await text('g-start')) === 'Start block 1 anyway' && await E(() => document.getElementById('g-start').classList.contains('amber') && !document.getElementById('g-start').disabled), 'advisory amber → "Start anyway" still allowed');
   await setState({ version: '9.9.9' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled), 'version mismatch blocks Start');
-  await setState({ version: '2.8.1', participantId: '' }); await tick();
+  await setState({ version: '2.9.0', participantId: '' }); await tick();
   ok(await E(() => document.getElementById('g-start').disabled) && await openStep() === 2, 'required check failing (no ID) → Start disabled, guide goes back to that step');
   await setState({ participantId: 'P21' }); await frame(); await tick();
   await E(() => { window.__c.sent.length = 0; });
@@ -239,17 +239,21 @@ const KH = 'Timestamp,HandX\n';
   await tick(300);
   ok(await openStep() === 8 && (await text('g8-title')) === 'Session complete', 'opens automatically on completion: "Session complete"');
   ok(dls.length === 1 && dls[0] === 'P21_2026-10-22T13-00-00.zip', 'auto-saved one zip, named for the session (' + dls.join(', ') + ')');
-  const files = await checks('g8-files');
-  ok(files[0].startsWith('ok:Download started: 4 files in a ZIP') && files[1] === 'ok:Headset copy saved' && files[2] === 'ok:All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.', 'file status: laptop zip, headset copy, nothing missing');
-  const sum = await E(() => { const s = [...document.querySelectorAll('#g8-summary span')].map(x => x.textContent); const o = {}; for (let i = 0; i < s.length; i += 2) o[s[i]] = s[i + 1]; return o; });
+  ok((await checks('g8-checks'))[0].startsWith('ok:Download started: 4 files in a ZIP'), 'the questionnaire step shows the block data were saved');
+  await E(() => window.__obs.questFinish('skipped'));
+  await tick(300); await new Promise(r => setTimeout(r, 500)); await tick(300);
+  ok(await openStep() === 9 && dls.length === 2 && dls[1] === 'P21_2026-10-22T13-00-00-final.zip', 'after the questionnaires, Finish opens and the final ZIP is saved (' + dls.join(', ') + ')');
+  const files = await checks('g9-files');
+  ok(files[0].startsWith('ok:Download started: 6 files in a ZIP') && files[1] === 'ok:Questionnaires skipped. This is recorded in the ZIP.' && files[2] === 'ok:Headset copy saved' && files[3] === 'ok:All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.', 'file status: laptop zip, questionnaires, headset copy, nothing missing (' + files.join(' | ') + ')');
+  const sum = await E(() => { const s = [...document.querySelectorAll('#g9-summary span')].map(x => x.textContent); const o = {}; for (let i = 0; i < s.length; i += 2) o[s[i]] = s[i + 1]; return o; });
   const want = { 'Trials completed': '6 / 44', 'Left hand use': '3 (60%)', 'Right hand use': '2 (40%)', 'Left-hand critical hits': '1', 'Right-hand critical hits': '1', 'Mean decision time': '400 ms', 'Median decision time': '400 ms', 'Mean total time': '960 ms', 'Median total time': '900 ms', 'Skips': '1', 'Recentres': '2', 'Pauses': '1', 'Valid left-hand tracking': '75%', 'Valid right-hand tracking': '80%', 'Session duration': '2:05' };
   const bad = Object.entries(want).filter(([k, v]) => sum[k] !== v);
   ok(bad.length === 0, 'finish summary matches the hand-computed sample' + (bad.length ? ' — differs: ' + bad.map(([k, v]) => `${k} "${sum[k]}" ≠ "${v}"`).join('; ') : ''));
   await click('#g-save-again');
   await new Promise(r => setTimeout(r, 500));
-  ok(dls.length === 2 && (await text('g-save-again')) === 'Download ZIP again', 'Download ZIP again saves the ZIP again');
+  ok(dls.length === 3 && (await text('g-save-again')) === 'Download ZIP again', 'Download ZIP again saves the ZIP again');
   await setState({ endReason: 'ended-early' }); await tick();
-  ok((await text('g8-title')) === 'Session ended early', '"Session ended early" title');
+  ok((await text('g9-title')) === 'Session ended early', '"Session ended early" title');
   await click('#g-new'); await tick(100);
   ok(await E(() => !document.getElementById('g-new-confirm').hidden && document.getElementById('g-new-confirm').textContent.includes('Reload WebSpheres on the headset before reloading this page')), 'New session tells the researcher to reload the headset page first');
   await Promise.all([p.waitForEvent('load'), click('#g-new-reload')]);

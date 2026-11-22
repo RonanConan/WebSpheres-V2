@@ -244,7 +244,7 @@ async function openPractice(b, viewport) {
   await finishRun();
   await p.waitForFunction(() => document.getElementById('g7-b-finish') && !document.getElementById('g7-b-finish').disabled && document.getElementById('g7-head').textContent === 'Between blocks' || +(document.querySelector('#guide .step.open')?.dataset.step || 0) === 8, null, { timeout: 8000 });
   await waitStep(8);
-  await p.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Download started'), null, { timeout: 15000 });
+  await p.waitForFunction(() => document.getElementById('g8-checks').textContent.includes('Download started'), null, { timeout: 15000 });
   await sleep(1500);
 
   console.log('MARKING');
@@ -384,9 +384,9 @@ async function openPractice(b, viewport) {
     await q.click('#g-end');
     await q.click('#g-end-yes');
     await open(8);
-    await q.waitForFunction(() => document.getElementById('g8-files').textContent.includes('Download started'), null, { timeout: 20000 });
-    const finish = await q.evaluate(() => document.getElementById('g8-files').textContent);
-    ok(finish.includes('no headset copy is saved') && !finish.includes('Headset copy saved') && !finish.includes('No cable') && finish.includes('keep it apart from study data'), 'Finish wording fits practice (' + finish + ')');
+    await q.waitForFunction(() => document.getElementById('g8-checks').textContent.includes('Download started'), null, { timeout: 20000 });
+    const finish = await q.evaluate(() => document.getElementById('g8-checks').textContent);
+    ok(finish.includes('no headset copy is saved') && !finish.includes('Headset copy saved') && !finish.includes('No cable') && finish.includes('keep it apart from study data'), 'the questionnaire step wording fits practice (' + finish + ')');
     await sleep(800);
     ok(q.dl.length === 1, 'one zip after the dropped connection');
     const out = await openDownload(q.dl[0], OUT);

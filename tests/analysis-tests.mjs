@@ -205,9 +205,9 @@ console.log('OUTPUT FILES');
     ok(r.rows.every(x => x.Group === 'Patient') && r.blocks[0].Group === 'Patient', 'the group is recorded on every row');
     await A.addChecksums([zip]);
     const files = A.outputFiles([zip], r, '2026-11-10T12:00:00.000Z', 'patients');
-    ok(same(files.map(f => f.path), ['handDB_patients.csv', 'propDB_patients.csv', 'pseDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the proportions and PSE masters, the block summary and a report');
-    ok(files[3].parts[0].split('\n').length === 4 && files[3].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
-    const report = files[4].parts[0];
+    ok(same(files.map(f => f.path), ['handDB_patients.csv', 'propDB_patients.csv', 'pseDB_patients.csv', 'questDB_patients.csv', 'questScoresDB_patients.csv', 'blocks_patients.csv', 'report_patients.txt']), 'output has the master, the proportions, PSE and questionnaire masters, the block summary and a report');
+    ok(files[5].parts[0].split('\n').length === 4 && files[5].parts[0].includes('"a.zip"'), 'the block summary has one row per block with its source');
+    const report = files[6].parts[0];
     ok(report.includes('Proportions and PSE\nBlocks: 2'), 'the report counts the PSE blocks');
     ok(report.includes('Trials: 22') && /a\.zip: [0-9a-f]{64}/.test(report), 'the report has totals and a checksum for each zip');
 }
@@ -408,7 +408,7 @@ console.log('KINEMATICS INPUT AND OUTPUT');
     ok(out.filter(f => f.folder === 'kinematics_details').length === 5 && !out.some(f => f.path === 'kinematics_all_valid_reaches_master.csv'), 'the supporting files go in their own folder');
     ok(out.find(f => f.path === 'report_patients.txt').parts[0].includes('Trials that passed the quality checks: 1'), 'the report includes the kinematics');
     const alone = A.outputFiles([whole], result, '2026-11-10T00:00:00Z', 'patients', false);
-    ok(alone.length === 5 && alone[4].parts[0].includes('Kinematics: not calculated in this run'), 'the handDB files can still be made alone, and the report says so');
+    ok(alone.length === 7 && alone[6].parts[0].includes('Kinematics: not calculated in this run'), 'the handDB files can still be made alone, and the report says so');
     ok(A.fileNames('controls', true).kinematics === 'PRACTICE_kinematicsDB_controls.csv' && A.fileNames('controls', true).details === 'PRACTICE_kinematics_details', 'practice mode has separate kinematics files');
 }
 
@@ -442,6 +442,138 @@ console.log('PROPORTIONS AND PSE');
     const grown = A.pseTables(A.build([await zipOf('a.zip', planBlocks('950', ['N'], 11, '10', { info: { DominantHand: 'LEFT' } })), await zipOf('b.zip', planBlocks('951', ['N', 'B'], 11, '11'))], { group: 'controls' }));
     const added = A.comparePse(csv, grown.pse);
     ok(added.added === 2 && added.addedRows.every(row => row.ID === '951'), 'the blocks added in this run are found');
+}
+
+console.log('QUESTIONNAIRES');
+{
+    const Qc = require(path.join(root, 'questionnaire-core.js'));
+    globalThis.WebSpheresQuestionnaires = Qc;
+    ['game', 'sus', 'imi-teq', 'study'].forEach(f => require(path.join(root, 'questionnaires', f + '.js')));
+    const defs = Qc.study().defs;
+    const SUS = [4, 2, 4, 2, 4, 1, 5, 2, 4, 2];
+    const TEQ = [5, 6, 6, 4, 6, 2, 4, 6, 6, 6, 2, 4, 2, 2, 5, 4, 6, 2, 3, 6, 1, 5];
+    const answers = (edit) => {
+        const a = { GQ1: { value: 'Yes', text: 'The targets, I think, moved.' }, GQ2: { value: 'Left', text: 'It felt easier.' }, GQ3: { value: 'No', text: 'Points did not matter.' } };
+        SUS.forEach((v, i) => { a['SUS' + String(i + 1).padStart(2, '0')] = { value: v }; });
+        TEQ.forEach((v, i) => { a['TEQ' + String(i + 1).padStart(2, '0')] = { value: v }; });
+        if (edit) edit(a);
+        return a;
+    };
+    const questFiles = (id, lastStart, status, a, opts) => {
+        const o = opts || {};
+        const prefix = `${o.practice ? 'PRACTICE_' : ''}${id}_`;
+        const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: !!o.practice, appVersion: '2.9.0', afterBlock: o.afterBlock || 2, status, submittedAt: o.submittedAt || '2026-11-12T11:00:00.000Z' };
+        return [{ path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Qc.toCsv(Qc.COLUMNS, Qc.rawRows(defs, a || {}, meta))] }]
+            .concat(o.noDefs ? [] : [{ path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Qc.snapshot(o.defs || defs))] }]);
+    };
+    const blocks = (id, day, extra) => planBlocks(id, ['N', 'B'], 22, day, extra);
+    const last = (id, day) => blocks(id, day)[1].start;
+    const scoreOf = (r, id, score) => (r.questScores.find(x => x.ID === id && x.Score === score) || {}).Value;
+
+    const a = await zipOf('201-final.zip', blocks('201', '12', { info: { Group: 'Control' } }), questFiles('201', last('201', '12'), 'submitted', answers()));
+    const r = A.build([a], { group: 'controls' });
+    ok(a.questionnaires.length === 1 && r.questSessions.length === 1 && r.questSessions[0].status === 'submitted', 'a final ZIP gives one session with questionnaire answers');
+    ok(r.questRows.length === 35 && r.questRows.every(x => x.ID === '201' && x.Session === 1 && x.Group === 'Control' && x.DominantHand === 'RIGHT' && x.AfterBlock === 2 && x.SourceZip === '201-final.zip'), 'questDB has one row per question, labelled like handDB');
+    const qrow = (id) => r.questRows.find(x => x.ItemID === id);
+    ok(qrow('SUS02').Response === 2 && qrow('SUS02').Reverse === true && qrow('SUS02').ScoredResponse === 4, 'a reversed SUS item keeps the raw answer and adds the reversed score');
+    ok(qrow('TEQ02').Response === 6 && qrow('TEQ02').ScoredResponse === 2 && qrow('TEQ01').ScoredResponse === 5 && qrow('TEQ01').Reverse === false, 'TEQ items are reversed as 8 minus the answer');
+    ok(qrow('GQ1').Response === 'Yes' && qrow('GQ1').FollowUpText === 'The targets, I think, moved.' && qrow('GQ1').ScoredResponse === null, 'game answers keep their text and are not scored');
+    ok(qrow('GQ2').HandRelative === 'Non-dominant' && qrow('GQ1').HandRelative === '', 'the hand question is related to the dominant hand');
+    ok(scoreOf(r, '201', 'SUS_Total') === 80, 'questScoresDB: SUS 80 for the worked example');
+    ok(scoreOf(r, '201', 'TEQ_InterestEnjoyment') === Number((41 / 7).toFixed(4)) && scoreOf(r, '201', 'TEQ_PerceivedCompetence') === 4.2 && scoreOf(r, '201', 'TEQ_PerceivedChoice') === 5.8 && scoreOf(r, '201', 'TEQ_PressureTension') === 2, 'questScoresDB: the four TEQ subscales');
+    ok(r.questScores.length === 5 && r.questScores.every(x => x.ItemsUsed === x.ItemsExpected), 'five scores, each from all of its items');
+    ok(!r.warnings.length && !r.stops.length && !r.questMissing.length, 'no warnings for a clean questionnaire' + (r.warnings.length ? ': ' + r.warnings.join(' | ') : ''));
+    const out = A.outputFiles([a], r, '2026-11-12T12:00:00Z', 'controls', false, null);
+    const questOut = out.find(f => f.path === 'questDB_controls.csv'), scoresOut = out.find(f => f.path === 'questScoresDB_controls.csv');
+    ok(questOut && scoresOut && questOut.parts[0].startsWith(A.QUEST_COLUMNS.map(c => `"${c}"`).join(',')) && A.parseCsv(questOut.parts[0]).length === 36, 'the questionnaire masters are among the files to save');
+    ok(A.parseCsv(questOut.parts[0]).some(row => row.includes('The targets, I think, moved.')), 'free text with commas survives the master CSV');
+    const report = A.reportText([a], r, '2026-11-12T12:00:00Z', null, 'controls');
+    ok(report.includes('Questionnaires\nSessions with answers: 1\nSessions where the questionnaires were skipped: 0'), 'the report counts questionnaire sessions');
+    const same = A.compareQuest(questOut.parts[0], r.questRows), sameScores = A.compareQuestScores(scoresOut.parts[0], r.questScores);
+    ok(same.comparable && same.changed === 0 && same.added === 0 && sameScores.changed === 0, 'comparing with an identical master finds no changes');
+    const edited = A.build([await zipOf('201-final.zip', blocks('201', '12'), questFiles('201', last('201', '12'), 'submitted', answers(x => { x.SUS01 = { value: 5 }; })))], { group: 'controls' });
+    const moved = A.compareQuestScores(scoresOut.parts[0], edited.questScores);
+    ok(A.compareQuest(questOut.parts[0], edited.questRows).changed === 1 && moved.changed === 1, 'a changed answer shows as a changed row in both masters');
+
+    const patient = A.build([await zipOf('p.zip', blocks('202', '12'), questFiles('202', last('202', '12'), 'submitted', answers()))], { group: 'patients' });
+    ok(patient.questRows.find(x => x.ItemID === 'GQ2').HandRelative === 'More affected' && patient.questRows[0].LessAffectedHand === 'RIGHT', 'for patients the hand question is related to the less affected hand');
+
+    const dataOnly = await zipOf('203.zip', blocks('203', '13'));
+    const final1 = await zipOf('203-final.zip', blocks('203', '13'), questFiles('203', last('203', '13'), 'submitted', answers()));
+    const final2 = await zipOf('203-later-final.zip', blocks('203', '13'), questFiles('203', last('203', '13'), 'submitted', answers()));
+    const copies = A.build([dataOnly, final1, final2]);
+    ok(copies.questRows.length === 35 && copies.questSessions.length === 1 && !copies.stops.length && copies.notes.some(n => n.includes('were also found in 203-later-final.zip')), 'the same answers in two ZIP files are used once');
+    const clash = A.build([final1, await zipOf('203-other.zip', blocks('203', '13'), questFiles('203', last('203', '13'), 'submitted', answers(x => { x.GQ3.text = 'Different.'; })))]);
+    ok(clash.stops.some(t => t.includes('contain different questionnaire answers for the same session')), 'different answers for the same session stop the run');
+    const partial = A.build([await zipOf('204-recovered.zip', blocks('204', '13'), questFiles('204', last('204', '13'), 'in-progress', { SUS01: { value: 3 } }))]);
+    ok(!partial.questRows.length && partial.warnings.some(t => t.includes('had not finished the questionnaires')) && partial.questMissing.length === 1, 'unfinished answers are left out with a warning');
+    const both = A.build([await zipOf('204-recovered.zip', blocks('204', '13'), questFiles('204', last('204', '13'), 'in-progress', { SUS01: { value: 3 } })), await zipOf('204-final.zip', blocks('204', '13'), questFiles('204', last('204', '13'), 'submitted', answers()))]);
+    ok(both.questRows.length === 35 && !both.stops.length, 'a finished copy is used over an unfinished one');
+    const skipped = A.build([await zipOf('205-final.zip', blocks('205', '14', { end: 'ended-early' }), questFiles('205', last('205', '14'), 'skipped'))]);
+    ok(skipped.questSessions.length === 1 && skipped.questSessions[0].status === 'skipped' && !skipped.questRows.length && !skipped.questScores.length && !skipped.questMissing.length, 'a skipped questionnaire is recorded, with no rows');
+    ok(A.reportText([], skipped, 'x', null, 'controls').includes('Sessions where the questionnaires were skipped: 1'), 'the report counts skipped questionnaires');
+    const stray = A.build([await zipOf('206.zip', blocks('206', '14'), questFiles('206', '2026-01-01T00:00:00.000Z', 'submitted', answers()))]);
+    ok(!stray.questRows.length && stray.warnings.some(t => t.includes('do not match any session')), 'answers that match no session are left out with a warning');
+    const practiceFiles = questFiles('207', last('207', '14'), 'submitted', answers(), { practice: true });
+    const practiceZip = await zipOf('207.zip', blocks('207', '14', { practice: true }), practiceFiles);
+    ok(!A.build([practiceZip]).questRows.length && A.build([practiceZip], { includePractice: true }).questRows.length === 35, 'practice answers are used only in practice mode');
+    const fallback = A.build([await zipOf('208.zip', blocks('208', '15'), questFiles('208', last('208', '15'), 'submitted', answers(), { noDefs: true }))]);
+    ok(scoreOf(fallback, '208', 'SUS_Total') === 80 && !fallback.warnings.length, 'without a definitions copy, the questionnaires/ files are used');
+    const changedDefs = JSON.parse(JSON.stringify(defs));
+    changedDefs[1].items[0].text = 'Edited wording.';
+    const differs = A.build([await zipOf('209.zip', blocks('209', '15'), questFiles('209', last('209', '15'), 'submitted', answers(), { defs: changedDefs }))]);
+    ok(scoreOf(differs, '209', 'SUS_Total') === 80 && differs.warnings.some(t => t.includes('SUS version 1') && t.includes('differs from the copy in questionnaires/')), 'a changed definition with the same version is used, with a warning');
+    const old = A.build([await zipOf('old.zip', blocks('210', '16'))]);
+    ok(old.questMissing.length === 1 && old.questMissing[0] === 'Participant 210, session 1' && !old.warnings.length, 'older sessions without questionnaires are listed as without answers');
+
+    const zeroBlocks = blocks('211', '17');
+    const zeroStart = zeroBlocks[1].start;
+    const zeroInfo = info({ ParticipantID: '211', AppVersion: '2.9.0', SessionStartISO: zeroStart, SessionEndISO: zeroStart, EndReason: 'ended-early', Condition: 2, Mode: 'standard', TotalTrials: 22, TrialsCompleted: 0, Block: 2, PlannedBlocks: 2, Plan: planText(['N', 'B']) });
+    const zeroZip = await zipOf('211-final.zip', zeroBlocks.slice(0, 1), [
+        { path: `block2/211_block2_session-info-${STAMP}.csv`, parts: [zeroInfo] },
+        { path: `block2/211_block2_kinematics-LEFT-${STAMP}.csv`, parts: [KIN] },
+        { path: `block2/211_block2_kinematics-RIGHT-${STAMP}.csv`, parts: [KIN] }
+    ].concat(questFiles('211', zeroStart, 'submitted', answers())));
+    const zero = A.build([zeroZip]);
+    ok(zero.questRows.length === 35 && zero.questSessions.length === 1 && !zero.warnings.some(t => t.includes('do not match')), 'answers after a block with no trials are matched to the session through its other blocks');
+
+    const dataZip = await zipOf('212.zip', blocks('212', '18'));
+    const answersOnly = await zipOf('212-questionnaire.zip', [], questFiles('212', last('212', '18'), 'submitted', answers()));
+    const split = A.build([dataZip, answersOnly]);
+    ok(split.questRows.length === 35 && split.questRows.every(x => x.SourceZip === '212-questionnaire.zip') && !split.setAside.some(x => x.name === '212-questionnaire.zip'), 'a ZIP file with only answers is used and not listed as unused');
+    const strayOnly = await zipOf('213-questionnaire.zip', [], questFiles('213', '2026-01-01T00:00:00.000Z', 'submitted', answers()));
+    const strayBuilt = A.build([dataZip, strayOnly]);
+    ok(strayBuilt.setAside.some(x => x.name === '213-questionnaire.zip' && x.reason.includes('do not match any session')), 'a ZIP file with only unused answers is listed as unused, with the reason');
+    const practiceOnly = await zipOf('214-questionnaire.zip', [], questFiles('214', last('214', '18'), 'submitted', answers(), { practice: true }));
+    ok(A.build([dataZip, practiceOnly]).setAside.some(x => x.name === '214-questionnaire.zip' && x.reason.includes('practice')), 'a practice ZIP file with only answers is left out as practice');
+
+    const handBlocks = blocks('215', '19');
+    handBlocks[0].info = { DominantHand: 'LEFT' };
+    handBlocks[1].info = { DominantHand: 'RIGHT' };
+    const handBuilt = A.build([await zipOf('215.zip', handBlocks, questFiles('215', handBlocks[1].start, 'submitted', answers()))], { group: 'controls' });
+    const gq2 = handBuilt.questRows.find(x => x.ItemID === 'GQ2');
+    ok(gq2.DominantHand === 'RIGHT' && gq2.HandRelative === '', 'hand labels come from the block the questionnaire followed, and HandRelative is blank when the recorded hands disagree');
+    const bothRow = A.build([await zipOf('215b.zip', handBlocks, questFiles('215', handBlocks[1].start, 'submitted', answers(x => { x.GQ2 = { value: 'Both about equally', text: 'x' }; })))], { group: 'controls' }).questRows.find(x => x.ItemID === 'GQ2');
+    ok(bothRow.HandRelative === 'Both', '"Both about equally" is still recorded when the hand is unknown');
+
+    const threeBlocks = planBlocks('216', ['N', 'B', 'N'], 22, '20');
+    const skippedFirst = await zipOf('216-a.zip', threeBlocks.slice(0, 2), questFiles('216', threeBlocks[1].start, 'skipped', {}, { afterBlock: 2 }));
+    const answeredLater = await zipOf('216-b.zip', threeBlocks, questFiles('216', threeBlocks[2].start, 'submitted', answers(), { afterBlock: 3 }));
+    const later = A.build([skippedFirst, answeredLater]);
+    ok(later.questSessions.length === 1 && later.questSessions[0].status === 'submitted' && later.questRows.length === 35 && later.questRows[0].AfterBlock === 3 && !later.stops.length, 'answers given after an added block replace an earlier skip');
+    ok(later.notes.some(t => t.includes('skipped after block 2, then answered after block 3')), 'the replaced skip is noted');
+    ok(later.setAside.every(x => x.name !== '216-a.zip'), 'the ZIP file with the earlier skip still counts as used for its blocks');
+
+    const copyB = await zipOf('217-b.zip', blocks('217', '21'), questFiles('217', last('217', '21'), 'submitted', answers()));
+    const copyA = await zipOf('217-a.zip', blocks('217', '21'), questFiles('217', last('217', '21'), 'submitted', answers()));
+    const savedOnce = A.build([copyB]);
+    const masterText = A.toCsv(A.QUEST_COLUMNS, savedOnce.questRows), scoresText = A.toCsv(A.QSCORE_COLUMNS, savedOnce.questScores);
+    const twoCopies = A.build([copyA, copyB]);
+    ok(twoCopies.questRows[0].SourceZip === '217-a.zip' && A.compareQuest(masterText, twoCopies.questRows).changed === 0 && A.compareQuestScores(scoresText, twoCopies.questScores).changed === 0, 'a different source ZIP alone is not counted as a changed row');
+
+    const formula = A.build([await zipOf('218.zip', blocks('218', '22'), questFiles('218', last('218', '22'), 'submitted', answers(x => { x.GQ1.text = '=SUM(A1:A2)'; })))]);
+    const formulaRow = formula.questRows.find(x => x.ItemID === 'GQ1');
+    ok(formulaRow.FollowUpText === "'=SUM(A1:A2)" && A.toCsv(A.QUEST_COLUMNS, formula.questRows).includes(`"'=SUM(A1:A2)"`), 'questDB shows formula-like text as text');
 }
 
 console.log('BROWSER CHECK');

@@ -6,7 +6,7 @@
     const QUIET_CHECK_MS = 30000;
     const QUIET_CHECKS_ALLOWED = 20;
     const includePractice = /[?&]practice\b/.test(location.search);
-    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null, upToDate: false, psych: null, psychShown: [], propComparison: null, pseComparison: null, propMasterText: null, pseMasterText: null };
+    const state = { open: 1, reached: 1, busy: false, root: null, remembered: null, folderOk: false, group: '', zipCount: 0, exports: [], result: null, comparison: null, saved: false, finished: false, masterText: null, kin: null, kinFailed: false, kinComparison: null, kinMasterText: null, upToDate: false, psych: null, psychShown: [], propComparison: null, pseComparison: null, propMasterText: null, pseMasterText: null, questComparison: null, questScoresComparison: null, questMasterText: null, questScoresMasterText: null, questShown: [] };
 
     try {
         const textSize = JSON.parse(localStorage.getItem('webspheres-observer-settings') || '{}').textSize;
@@ -264,6 +264,41 @@
         fillList('psych-changes', 'psych-changes-list', changeList(state.propComparison).concat(changeList(c)));
     }
 
+    function renderQuest() {
+        const result = state.result;
+        const ready = !!state.psych && !!result;
+        $('quest').hidden = !ready;
+        if (!ready) {
+            ['quest-missing', 'quest-changes'].forEach(id => { $(id).hidden = true; });
+            return;
+        }
+        const c = state.questComparison, sc = state.questScoresComparison;
+        const confirm = needsConfirm(c) || needsConfirm(sc);
+        $('quest-comparison').classList.toggle('bad', confirm);
+        const answered = result.questSessions.filter(q => q.status === 'submitted').length;
+        const skipped = result.questSessions.filter(q => q.status === 'skipped').length;
+        if (!c && !sc) $('quest-comparison').textContent = 'These will be the first questionnaire masters for this group.';
+        else if (!c || !sc || !c.comparable || !sc.comparable) $('quest-comparison').textContent = 'A current questionnaire master has different columns, so it could not be compared with these sessions.';
+        else $('quest-comparison').textContent = `${plural(new Set(sc.addedRows.map(row => `${row.ID}|${row.Session}`)).size, 'session')} with new scores, and ${plural(c.changed + c.missing + sc.changed + sc.missing, 'existing row')} changed.`;
+        $('quest-summary').textContent = `${plural(answered, 'session')} with answers, ${plural(skipped, 'session')} skipped, ${plural(result.questMissing.length, 'session')} without answers. Scores are shown for the sessions added in this run.`;
+        const shown = state.questShown;
+        const scoreIds = [];
+        const labels = new Map();
+        shown.forEach(row => { if (!labels.has(row.Score)) { scoreIds.push(row.Score); labels.set(row.Score, row.Label || row.Score); } });
+        const sessions = [];
+        const byKey = new Map();
+        shown.forEach(row => {
+            const key = `${row.ID}|${row.Session}`;
+            if (!byKey.has(key)) { byKey.set(key, { ID: row.ID, Session: row.Session, values: {} }); sessions.push(byKey.get(key)); }
+            byKey.get(key).values[row.Score] = row.Value;
+        });
+        const cell = (v) => v === null || v === undefined ? '' : (Number.isInteger(v) ? String(v) : v.toFixed(2));
+        $('quest-table').replaceChildren(tableOf(['Participant', 'Session', ...scoreIds.map(id => labels.get(id))], sessions.map(s => [s.ID, String(s.Session), ...scoreIds.map(id => cell(s.values[id]))])));
+        $('quest-table').hidden = !sessions.length;
+        fillList('quest-missing', 'quest-missing-list', result.questMissing);
+        fillList('quest-changes', 'quest-changes-list', changeList(c).concat(changeList(sc)));
+    }
+
     async function preparePsych() {
         const tables = A.pseTables(state.result);
         const names = outputNames();
@@ -276,11 +311,20 @@
         state.propComparison = oldProportions === null ? null : A.compareProportions(oldProportions, tables.proportions);
         state.pseComparison = oldPse === null ? null : A.comparePse(oldPse, tables.pse);
         state.psychShown = state.pseComparison && state.pseComparison.comparable ? state.pseComparison.addedRows : tables.pse;
+        const oldQuest = await readText(groupDir, names.quest);
+        const oldScores = await readText(groupDir, names.questScores);
+        state.questMasterText = oldQuest;
+        state.questScoresMasterText = oldScores;
+        state.questComparison = oldQuest === null ? null : A.compareQuest(oldQuest, state.result.questRows);
+        state.questScoresComparison = oldScores === null ? null : A.compareQuestScores(oldScores, state.result.questScores);
+        state.questShown = state.questScoresComparison && state.questScoresComparison.comparable ? state.questScoresComparison.addedRows : state.result.questScores;
+        $('g6-quest-changes').hidden = !(needsConfirm(state.questComparison) || needsConfirm(state.questScoresComparison));
         $('g6-problems').hidden = !A.pseProblems(tables, state.group).length;
         $('g6-changes').hidden = !(needsConfirm(state.propComparison) || needsConfirm(state.pseComparison));
         const people = new Set(state.psychShown.map(row => row.ID)).size;
         setMsg('g6-msg', state.psychShown.length ? `Showing ${plural(state.psychShown.length, 'block')} from ${plural(people, 'participant')} added in this run.` : 'No blocks were added in this run. Every participant is in the proportions and PSE masters.');
         renderPsych();
+        renderQuest();
     }
 
     function renderResults() {
@@ -339,6 +383,8 @@
             $('g8-path-kin').textContent = `${state.root.name}/${state.group}/${names.kinematics}`;
             $('g8-path-prop').textContent = `${state.root.name}/${state.group}/${names.proportions}`;
             $('g8-path-pse').textContent = `${state.root.name}/${state.group}/${names.pse}`;
+            $('g8-path-quest').textContent = `${state.root.name}/${state.group}/${names.quest}`;
+            $('g8-path-quest-scores').textContent = `${state.root.name}/${state.group}/${names.questScores}`;
             $('g8-save').textContent = state.kinFailed ? 'Save the handDB master' : 'Save the master files';
         }
         $('g8-say').textContent = state.upToDate ? 'The master files are already up to date.' : state.kinFailed ? 'Save the handDB master here. The kinematics master will not be updated.' : 'Save the master files here.';
@@ -378,8 +424,15 @@
             state.pseMasterText = null;
             $('g6-problems').hidden = true;
             $('g6-changes').hidden = true;
+            $('g6-quest-changes').hidden = true;
+            state.questComparison = null;
+            state.questScoresComparison = null;
+            state.questMasterText = null;
+            state.questScoresMasterText = null;
+            state.questShown = [];
             setMsg('g6-msg', '');
             renderPsych();
+            renderQuest();
         }
         if (n < 7) {
             state.kin = null;
@@ -758,7 +811,7 @@
         try {
             const names = outputNames();
             const groupDir = await state.root.getDirectoryHandle(state.group);
-            const read = [[names.master, state.masterText], [names.proportions, state.propMasterText], [names.pse, state.pseMasterText], ...(state.kin ? [[names.kinematics, state.kinMasterText]] : [])];
+            const read = [[names.master, state.masterText], [names.proportions, state.propMasterText], [names.pse, state.pseMasterText], [names.quest, state.questMasterText], [names.questScores, state.questScoresMasterText], ...(state.kin ? [[names.kinematics, state.kinMasterText]] : [])];
             const unchangedSinceRead = await Promise.all(read.map(async ([name, text]) => (await readText(groupDir, name)) === text));
             if (unchangedSinceRead.includes(false)) {
                 setMsg('g8-msg', 'A master file has changed since the sessions were read, so nothing was saved. Go back to step 4 and read the sessions again.', 'bad');
@@ -792,8 +845,11 @@
             state.masterText = await readText(groupDir, names.master);
             state.propMasterText = await readText(groupDir, names.proportions);
             state.pseMasterText = await readText(groupDir, names.pse);
+            state.questMasterText = await readText(groupDir, names.quest);
+            state.questScoresMasterText = await readText(groupDir, names.questScores);
             if (state.kin) state.kinMasterText = await readText(groupDir, names.kinematics);
-            const savedMasters = `Saved ${names.master} with ${plural(state.result.rows.length, 'trial')}, ${names.proportions} and ${names.pse} with ${plural(state.psych.pse.length, 'block')}`;
+            const answered = state.result.questSessions.filter(q => q.status === 'submitted').length;
+            const savedMasters = `Saved ${names.master} with ${plural(state.result.rows.length, 'trial')}, ${names.proportions} and ${names.pse} with ${plural(state.psych.pse.length, 'block')}, ${names.quest} and ${names.questScores} with answers from ${plural(answered, 'session')}`;
             setMsg('g8-msg', state.kin ? `${savedMasters}, and ${names.kinematics} with ${reaches(state.kin.masterRows)}.` : `${savedMasters}. ${names.kinematics} was not updated.`, 'ok');
         } catch (e) {
             const restored = await restoreFiles(history, touched);

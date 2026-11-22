@@ -3,7 +3,7 @@ const { serve, launch } = require('./harness.cjs');
 const OUT = process.argv[2] || path.join(os.tmpdir(), 'webspheres-guide-shots');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const BASE = {
-  type: 'state', version: '2.8.1', phase: 'setup', endReason: '', participantId: '', filePrefix: 'G05_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
+  type: 'state', version: '2.9.0', sessionId: 'shots', phase: 'setup', endReason: '', participantId: '', filePrefix: 'G05_', experimenter: '', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 352, setupLocked: false,
   calib: { reach: { done: false, hand: '', distance: 0, radius: 0.45 }, height: { done: false, height: 1.2 }, lap: { done: false, home: { x: 0, y: 0.9, z: -0.4 } } },
   recentred: false, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: ''
 };
@@ -34,7 +34,7 @@ const kin = Array.from({ length: 300 }, (_, i) => `${i * 11},0.1,1,-0.3,0,0.9,-0
     const fr = (o) => p.evaluate((f) => window.__c.emit('data', JSON.stringify(f)), Object.assign({}, FRAME, o || {}));
     await st({ version: '1.9.0' }); await fr();
     await shot('1-version-mismatch');
-    await st({ version: '2.8.1' }); await fr();
+    await st({ version: '2.9.0' }); await fr();
     await p.fill('#g-exp', 'Jo Smith');
     await p.fill('#g-id', 'G05');
     await p.click('[data-g="group"][data-v="Control"]');
@@ -57,7 +57,10 @@ const kin = Array.from({ length: 300 }, (_, i) => `${i * 11},0.1,1,-0.3,0,0.9,-0
     for (let i = 0; i < 9; i++) { await fr({ leftValid: false, left: null, trialCount: 18 }); await sleep(450); }
     await shot('6-running-alert');
     await st({ phase: 'complete', endReason: 'finished', trialCount: 18, sessionMs: 80000, recentreCount: 1, pauses: 1, backup: { trials: 18, kinL: 300, kinR: 300, final: true, exportTs: '2026-10-22T13-30-00' }, info: 'Key,Value\n' });
-    await shot('7-finish');
+    await shot('7-questionnaires');
+    await p.evaluate(() => window.__obs.questFinish('skipped'));
+    await p.waitForFunction(() => document.querySelector('#guide .step.open')?.dataset.step === '9', null, { timeout: 8000 });
+    await shot('8-finish');
     await ctx.close();
   }
   await b.close();

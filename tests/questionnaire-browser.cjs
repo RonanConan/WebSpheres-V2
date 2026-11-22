@@ -1,0 +1,291 @@
+const os = require('os'), path = require('path');
+const { serve, launch, counter, ROOT } = require('./harness.cjs');
+const { openDownload } = require('./unzip.cjs');
+const Q = require(path.join(ROOT, 'questionnaire-core.js'));
+const { ok, done } = counter('QUESTIONNAIRE BROWSER');
+
+const TS = '2026-10-22T13-00-00';
+const START = '2026-10-22T12:40:00.000Z';
+const BASE = {
+  type: 'state', version: '2.9.0', sessionId: 'sQ1', phase: 'complete', endReason: 'finished', participantId: 'P21', filePrefix: 'P21_block2_', sessionPrefix: 'P21_', experimenter: 'RT', homeMode: 'one-box', dominantHand: 'LEFT', condition: 1, mode: 'standard', totalTrials: 6, setupLocked: true,
+  calib: { reach: { done: true, hand: 'LEFT', distance: 0.6, radius: 0.45 }, height: { done: true, height: 1.2 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } },
+  recentred: true, cue: null, sessionMs: 125000, trialCount: 6, recentreCount: 0, pauses: 0, run: 2, plannedRuns: 2,
+  plan: { mode: 'standard', home: 'one-box', runs: [{ condition: 1 }, { condition: 2 }] },
+  completedRuns: [{ run: 1, prefix: 'P21_block1_', info: 'Key,Value\nParticipantID,P21\n', ms: 60000, recentres: 0, pauses: 0, trials: 0, kinL: 0, kinR: 0 }], backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: TS },
+  info: `Key,Value\nParticipantID,P21\nSessionStartISO,${START}\nDominantHand,LEFT\n`
+};
+const TRIALS = ['1,1000,3,LEFT,4,normal,400,900,0,P21', '2,2000,5,RIGHT,8,critical,500,1100,0,P21', '3,3000,7,NA,0,SKIP,0,0,0,P21', '4,4000,2,LEFT,9,critical,300,700,1,P21', '5,5000,9,RIGHT,2,normal,600,1300,1,P21', '6,6000,4,LEFT,3,normal,200,800,1,P21'].map(l => l + '\n');
+const kin = (t, v) => `${t},0.1,1,-0.3,0,0.9,-0.4,,,,${v},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,0\n`;
+const KL = [1, 1, 0, 1].map((v, i) => kin(i * 11, v)), KR = [1, 1, 1, 1, 0].map((v, i) => kin(i * 11, v));
+const TH = 'Trial,Timestamp,Target,Hand,Points,HitType,DecisionTime,TotalMovementTime,RecentreCount,ParticipantID\n';
+const KH = 'Timestamp,HandX\n';
+const SUS_ANSWERS = [4, 2, 4, 2, 4, 1, 5, 2, 4, 2];
+const TEQ_ANSWERS = [5, 6, 6, 4, 6, 2, 4, 6, 6, 6, 2, 4, 2, 2, 5, 4, 6, 2, 3, 6, 1, 5];
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function observer(ctx) {
+  const p = await ctx.newPage();
+  p.errs = []; p.dls = [];
+  p.on('pageerror', e => p.errs.push(e.message));
+  p.on('dialog', d => d.accept());
+  p.on('download', d => p.dls.push(d));
+  await serve(p);
+  p.E = (fn, arg) => p.evaluate(fn, arg);
+  p.S = JSON.parse(JSON.stringify(BASE));
+  p.state = (over) => { p.S = Object.assign(JSON.parse(JSON.stringify(p.S)), over || {}); return p.E((s) => window.__c.emit('data', JSON.stringify(s)), p.S); };
+  p.rows = () => p.E(([th, t, kh, kl, kr]) => { const c = window.__c; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: th, lines: t })); c.emit('data', JSON.stringify({ type: 'rows', file: 'kinL', from: 0, header: kh, lines: kl })); c.emit('data', JSON.stringify({ type: 'rows', file: 'kinR', from: 0, header: kh, lines: kr })); }, [TH, TRIALS, KH, KL, KR]);
+  p.connect = async () => {
+    await p.waitForFunction(() => window.__peers && window.__peers.length > 0);
+    await p.E(() => {
+      const P = window.__peers.at(-1); P.serverOpen(); const c = P.conns.at(-1);
+      window.__c = c;
+      const send = c.send.bind(c);
+      c.send = (d) => { send(d); const m = JSON.parse(d); if (m.type === 'cmd') queueMicrotask(() => c.emit('data', JSON.stringify({ type: 'cmdResult', id: m.id, ok: true, reason: '' }))); };
+      c.open = true; c.emit('open');
+      clearInterval(window.__keep);
+      window.__keep = setInterval(() => c.emit('data', JSON.stringify({ type: 'keepalive' })), 1000);
+    });
+  };
+  p.openStep = () => p.E(() => +(document.querySelector('#guide .step.open')?.dataset.step || 0));
+  p.text = (sel) => p.E((s) => (document.querySelector(s) || {}).textContent || '', sel);
+  p.checks = (id) => p.E((i) => [...document.querySelectorAll('#' + i + ' li')].map(li => li.children[0].className.replace('ck ', '') + ':' + li.children[1].textContent), id);
+  p.shown = (sel) => p.E((s) => { const e = document.querySelector(s); return !!e && e.checkVisibility(); }, sel);
+  p.choose = (id, n) => p.click(`#qv-r-${id}-${n} + *`);
+  p.hold = async (ms) => { await p.hover('#qv-staff'); await p.mouse.down(); await wait(ms); await p.mouse.up(); await wait(100); };
+  p.nextDownload = async (fn) => { const before = p.dls.length; await fn(); for (let i = 0; i < 60 && p.dls.length === before; i++) await wait(100); return p.dls[before]; };
+  await p.goto('https://test.local/observer.html');
+  await wait(300);
+  await p.connect();
+  return p;
+}
+
+async function readZipFile(d) {
+  return openDownload(d, os.tmpdir());
+}
+
+(async () => {
+  const b = await launch();
+  const ctx = await b.newContext({ acceptDownloads: true, viewport: { width: 1440, height: 900 } });
+
+  console.log('AFTER THE LAST BLOCK');
+  const p = await observer(ctx);
+  const dataZip = await p.nextDownload(async () => { await p.state(); await p.rows(); });
+  await wait(300);
+  ok(await p.openStep() === 8 && (await p.text('#g8-title')) === 'Session complete', 'the session completes on step 8, Questionnaires');
+  ok(dataZip && dataZip.suggestedFilename() === `P21_${TS}.zip`, 'the block data downloads at once, as before (' + (dataZip && dataZip.suggestedFilename()) + ')');
+  const g8 = await p.checks('g8-checks');
+  ok(g8[0].startsWith('ok:Download started') && g8.some(l => l === 'info:35 questions in 3 sets. They take about 5 to 10 minutes.'), 'step 8 shows the data download and what the questionnaires involve');
+  ok(g8.includes('ok:Headset copy saved') && g8.includes('ok:All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.'), 'step 8 also shows the headset copy and that every row is in the ZIP');
+  ok(await p.shown('#g-quest-go') && !(await p.shown('#g-quest-skip')), 'a finished session offers Hand to participant and no skip');
+  ok(await p.shown('#g-quest-add-run') && await p.shown('#g-quest-results') && !(await p.E(() => document.getElementById('g-quest-add-run').disabled)), 'Add block and Results are available before the questionnaires');
+  ok(await p.E(() => window.__obs.quest.status === 'pending'), 'the questionnaire waits for the participant');
+
+  console.log('PARTICIPANT SCREEN');
+  await p.click('#g-quest-go');
+  await wait(150);
+  ok(await p.shown('#qv') && await p.E(() => document.getElementById('app').inert && document.body.classList.contains('qv-open')), 'the participant screen covers the observer, which can no longer be used');
+  ok((await p.text('#qv-main h2')) === 'A few questions about your session' && (await p.text('#qv-next')) === 'Start', 'it opens on the welcome page with a Start button');
+  ok((await p.text('#qv-main .qv-lead')).startsWith('Thank you for your time.'), 'the welcome page thanks the participant for their time');
+  ok((await p.text('#qv-who')) === 'Participant P21', 'the participant screen names the participant');
+  await p.E(() => { window.__obs.settings.keyControl = true; });
+  const keyMessages = () => p.E(() => window.__c.sent.filter(m => 'code' in JSON.parse(m)).length);
+  const keysBefore = await keyMessages();
+  await p.focus('#qv-next');
+  await p.keyboard.press('KeyW');
+  await p.keyboard.press('KeyR');
+  await wait(100);
+  ok((await keyMessages()) === keysBefore, 'keys pressed on the participant screen do not reach the headset');
+  await p.click('#qv-next');
+  ok((await p.text('#qv-main h2')) === '1. About the game', 'Start opens the game questions');
+  ok((await p.text('#qv-q-GQ1 .qv-q-title span')) === 'Did you notice any changes between the game sessions?', 'GQ1 asks about the game sessions');
+  await p.click('#qv-next');
+  ok((await p.E(() => document.querySelectorAll('.qv-q.missing').length)) === 3 && (await p.text('#qv-status')) === '3 questions still need an answer', 'Next with nothing answered highlights all three questions and stays on the page');
+  ok(!(await p.shown('#qv-q-GQ1 .qv-follow')), 'no follow-up box before a button is chosen');
+  await p.choose('GQ1', 1);
+  await wait(100);
+  ok((await p.text('#qv-q-GQ1 .qv-follow label')) === 'What changes did you notice?' && await p.E(() => document.activeElement.id === 'qv-ta-GQ1'), 'Yes on GQ1 opens "What changes did you notice?" with the cursor in the box');
+  await p.choose('GQ1', 2);
+  ok((await p.text('#qv-q-GQ1 .qv-follow label')) === 'Why have you chosen that?', 'No on GQ1 asks "Why have you chosen that?"');
+  await p.choose('GQ1', 1);
+  await p.fill('#qv-ta-GQ1', 'The targets, I think, moved "further" left.');
+  await p.choose('GQ2', 2);
+  ok((await p.text('#qv-q-GQ2 .qv-follow label')) === 'Why do you think that was?', 'GQ2 asks "Why do you think that was?"');
+  await p.click('#qv-next');
+  ok((await p.text('#qv-main h2')) === '1. About the game' && (await p.text('#qv-q-GQ2 .qv-hint')) === 'Please write a short answer in the box.', 'a chosen button with an empty box is still unanswered');
+  await p.fill('#qv-ta-GQ2', 'My right hand is quicker.');
+  await p.focus('#qv-r-GQ3-1');
+  await p.keyboard.press('ArrowRight');
+  await wait(100);
+  ok(await p.E(() => document.getElementById('qv-r-GQ3-2').checked && document.activeElement.id === 'qv-r-GQ3-2'), 'an arrow key chooses the next option and keeps the focus on the options');
+  await p.keyboard.press('ArrowRight');
+  await wait(100);
+  ok(await p.E(() => document.getElementById('qv-r-GQ3-3').checked), 'so the third option can be reached with the arrow keys');
+  await p.choose('GQ3', 3);
+  await p.fill('#qv-ta-GQ3', 'Not sure the points mattered.');
+  await p.click('#qv-next');
+  ok((await p.text('#qv-main h2')) === '2. Using the headset', 'with everything answered, Next opens the usability questions');
+  for (let i = 0; i < 5; i++) await p.choose('SUS' + String(i + 1).padStart(2, '0'), SUS_ANSWERS[i]);
+  ok((await p.text('#qv-count')) === '8 of 35 questions answered', 'the progress bar counts answers across the sets');
+  await p.click('#qv-tabs .qv-tab:nth-child(1)');
+  ok((await p.text('#qv-main h2')) === '1. About the game' && await p.E(() => document.getElementById('qv-r-GQ2-2').checked && document.getElementById('qv-ta-GQ3').value === 'Not sure the points mattered.'), 'going back to the game questions keeps the answers');
+  await p.click('#qv-tabs .qv-tab:nth-child(2)');
+  ok(await p.E(() => document.getElementById('qv-r-SUS03-4').checked), 'and returning keeps the usability answers');
+  ok(await p.E(() => document.querySelector('#qv-tabs .qv-tab:nth-child(3)').disabled), 'a set not reached yet cannot be opened from the tabs');
+  for (let i = 5; i < 10; i++) await p.choose('SUS' + String(i + 1).padStart(2, '0'), SUS_ANSWERS[i]);
+  await p.click('#qv-next');
+  ok((await p.text('#qv-main h2')) === '3. About the task' && (await p.E(() => document.querySelectorAll('.qv-grid-head .qv-hn').length)) === 7, 'the task questions show a 1 to 7 scale');
+  for (let i = 0; i < 21; i++) await p.choose('TEQ' + String(i + 1).padStart(2, '0'), TEQ_ANSWERS[i]);
+  await p.click('#qv-next');
+  ok(await p.E(() => document.querySelector('#qv-q-TEQ22').classList.contains('missing') && document.activeElement.id === 'qv-r-TEQ22-1'), 'Next moves to the one unanswered task statement');
+  await p.click('#qv-tabs .qv-tab:nth-child(4)').catch(() => {});
+  ok((await p.text('#qv-main h2')) === '3. About the task', 'the review page cannot be reached before it is opened with Next');
+  await p.choose('TEQ22', TEQ_ANSWERS[21]);
+  await p.click('#qv-next');
+  ok((await p.text('#qv-main h2')) === 'Check your answers' && (await p.text('#qv-next')) === 'Submit answers', 'Next opens the review page');
+  ok((await p.text('#qv-main')).includes('The targets, I think, moved "further" left.') && !(await p.text('#qv-main')).includes('can no longer be changed'), 'the review shows the typed answers');
+
+  console.log('EXPERIMENTER BUTTON');
+  await p.hold(300);
+  ok(!(await p.shown('#qv-menu')) && await p.shown('#qv-staff-hint'), 'a short press only shows "Experimenter only" and does not leave');
+  await p.hold(2300);
+  ok(await p.shown('#qv-menu') && (await p.text('#qv-menu-text')).includes('35 of 35'), 'a 2-second hold opens the experimenter menu');
+  ok((await p.text('#qv-menu-text')).startsWith('This questionnaire is for participant P21.'), 'the experimenter menu names the participant');
+  await p.click('#qv-menu-stay');
+  ok(!(await p.shown('#qv-menu')) && await p.shown('#qv'), '"Back to the questions" returns to the participant screen');
+  await p.focus('#qv-staff');
+  await p.keyboard.down('Enter');
+  for (let i = 0; i < 26; i++) { await wait(100); await p.keyboard.down('Enter'); }
+  await p.keyboard.up('Enter');
+  await wait(100);
+  ok(await p.shown('#qv-menu'), 'holding Enter on Experimenter opens the menu and it stays open when the key repeats and is released');
+  await p.click('#qv-menu-stay');
+  await p.hold(2300);
+  await p.click('#qv-menu-leave');
+  await wait(300);
+  ok(!(await p.shown('#qv')) && !(await p.E(() => document.getElementById('app').inert)), '"Return to the observer" closes the participant screen');
+  ok((await p.text('#g-quest-go')) === 'Hand back to participant' && (await p.checks('g8-checks')).some(l => l === 'warn:In progress: 35 of 35 answered. The answers are kept.'), 'step 8 shows the questionnaire is in progress');
+  ok(await p.E(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; }), 'leaving the page warns while the answers are not in a ZIP');
+  await p.click('#g-quest-go');
+  await wait(150);
+  ok((await p.text('#qv-main h2')) === 'Check your answers', 'handing back reopens where the participant was');
+
+  console.log('SUBMIT');
+  const finalZip = await p.nextDownload(() => p.click('#qv-next'));
+  ok((await p.text('#qv-main h2')) === 'Thank you' && !(await p.shown('#qv-foot')), 'Submit shows the thank-you page without buttons');
+  ok(finalZip && finalZip.suggestedFilename() === `P21_${TS}-final.zip`, 'the final ZIP downloads (' + (finalZip && finalZip.suggestedFilename()) + ')');
+  const files = await readZipFile(finalZip);
+  const names = files.map(f => f.path).sort();
+  ok(names.includes(`questionnaires/P21_questionnaire-${TS}.csv`) && names.includes(`questionnaires/P21_questionnaire-definitions-${TS}.json`) && names.some(n => n.startsWith('block2/P21_block2_vr-session-data')), 'it holds the block files and the questionnaire files (' + names.join(', ') + ')');
+  const raw = Q.readRaw(files.find(f => f.name === `P21_questionnaire-${TS}.csv`).text);
+  ok(raw.header.join() === Q.COLUMNS.join() && raw.rows.length === 35, 'the answers file has one row per question');
+  ok(raw.rows.every(r => r.ID === 'P21' && r.SessionID === 'sQ1' && r.LastBlockStart === START && r.AfterBlock === '2' && r.Status === 'submitted' && r.Practice === '0' && r.AppVersion === '2.9.0' && r.SubmittedAt), 'every row carries the participant, session, last block and status');
+  const row = (id) => raw.rows.find(r => r.ItemID === id);
+  ok(row('GQ1').Response === 'Yes' && row('GQ1').FollowUpPrompt === 'What changes did you notice?' && row('GQ1').FollowUpText === 'The targets, I think, moved "further" left.', 'GQ1 keeps the button, the follow-up question and the text');
+  ok(row('GQ2').Response === 'Right' && row('GQ3').Response === 'Unsure', 'GQ2 and GQ3 keep their buttons');
+  ok(SUS_ANSWERS.every((v, i) => row('SUS' + String(i + 1).padStart(2, '0')).Response === String(v)) && row('SUS02').Reverse === '1' && row('SUS01').ResponseLabel === 'Somewhat agree', 'the usability answers are raw, with reverse flags and labels');
+  ok(TEQ_ANSWERS.every((v, i) => row('TEQ' + String(i + 1).padStart(2, '0')).Response === String(v)) && row('TEQ14').Subscales === 'TEQ_InterestEnjoyment', 'the task answers are raw, with their subscales');
+  const defsFile = JSON.parse(files.find(f => f.name.startsWith('P21_questionnaire-definitions')).text);
+  ok(defsFile.questionnaires.map(d => d.id).join() === 'GAME,SUS,IMI-TEQ', 'the definitions copy names the three questionnaires');
+  await p.hold(2300);
+  ok((await p.text('#qv-menu-text')) === 'This questionnaire is for participant P21. The participant has submitted their answers.', 'after submitting, the experimenter menu says so');
+  await p.click('#qv-menu-leave');
+  await wait(300);
+  ok(await p.openStep() === 9, 'the observer moves on to step 9, Finish');
+  const g9 = await p.checks('g9-files');
+  ok(g9[0].startsWith('ok:Download started') && g9.includes('ok:Questionnaires answered after block 2'), 'Finish shows the final download and the questionnaire (' + g9.join(' | ') + ')');
+  ok(!(await p.E(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; })), 'leaving the page no longer warns');
+  const stored = await p.E(() => new Promise(res => { const q = indexedDB.open('webspheres-laptop-copy', 1); q.onsuccess = () => { const t = q.result.transaction('sessions').objectStore('sessions').getAll(); t.onsuccess = () => res(t.result.map(x => x.id)); }; }));
+  ok(!stored.includes('sQ1'), 'the laptop backup copy is cleared once the final ZIP is saved');
+  const later = await p.nextDownload(() => p.state({ backup: { trials: 6, kinL: 4, kinR: 5, final: true, exportTs: '2026-10-22T14-00-00' } }));
+  const laterFiles = later ? await readZipFile(later) : [];
+  const laterRaw = laterFiles.find(f => f.name.startsWith('P21_questionnaire-2026'));
+  ok(later && later.suggestedFilename() === 'P21_2026-10-22T14-00-00-final.zip' && laterRaw && Q.readRaw(laterRaw.text).rows.every(r => r.AfterBlock === '2'), 'a later save of the session (after another block) still holds the same answers');
+  ok(p.errs.length === 0, 'no page errors (' + p.errs.join(' | ') + ')');
+  await p.close();
+
+  console.log('ENDED EARLY: SKIP, PRACTICE');
+  const k = await observer(ctx);
+  await k.nextDownload(async () => { await k.state({ sessionId: 'sQ2', endReason: 'ended-early', participantId: 'P22', sessionPrefix: 'PRACTICE_P22_', filePrefix: 'PRACTICE_P22_block2_', info: `Key,Value\nParticipantID,P22\nSessionStartISO,${START}\nPractice,1\n` }); await k.rows(); });
+  await wait(300);
+  ok((await k.text('#g8-title')) === 'Session ended early' && await k.shown('#g-quest-skip') && await k.shown('#g-quest-go'), 'an early end offers the questionnaires and a skip');
+  ok((await k.checks('g8-checks')).includes('info:Practice session. The answers are labelled PRACTICE.'), 'step 8 says a practice session is labelled');
+  await k.click('#g-quest-skip');
+  ok(await k.shown('#g-quest-skip-confirm'), 'Skip asks for confirmation');
+  await k.click('#g-quest-go');
+  await wait(150);
+  ok(await k.shown('#qv-practice'), 'the participant screen shows a Practice badge');
+  await k.click('#qv-next');
+  await k.choose('GQ1', 2);
+  await k.fill('#qv-ta-GQ1', 'Had to stop early.');
+  await k.hold(2300);
+  await k.click('#qv-menu-leave');
+  await wait(200);
+  ok(!(await k.shown('#g-quest-skip-confirm')), 'an open skip confirmation closes when the questionnaire is handed over');
+  ok(!(await k.shown('#g-quest-add-run')) && await k.shown('#g-quest-results'), 'once the questionnaire has started, Add block is no longer offered');
+  await k.click('#g-quest-skip');
+  const skipZip = await k.nextDownload(() => k.click('#g-quest-skip-yes'));
+  ok(skipZip && skipZip.suggestedFilename() === `PRACTICE_P22_${TS}-final.zip`, 'skipping downloads the final ZIP (' + (skipZip && skipZip.suggestedFilename()) + ')');
+  const skipFiles = skipZip ? await readZipFile(skipZip) : [];
+  const skipRaw = skipFiles.find(f => f.path === `questionnaires/PRACTICE_P22_questionnaire-${TS}.csv`);
+  const skipRows = skipRaw ? Q.readRaw(skipRaw.text).rows : [];
+  ok(skipRows.length === 35 && skipRows.every(r => r.Status === 'skipped' && r.Practice === '1'), 'the ZIP records the skip, one row per question, marked as practice');
+  ok(skipRows.find(r => r.ItemID === 'GQ1').Response === 'No' && skipRows.find(r => r.ItemID === 'GQ1').FollowUpText === 'Had to stop early.' && skipRows.filter(r => r.Response !== '').length === 1, 'the answer given before the skip is kept');
+  await wait(300);
+  ok(await k.openStep() === 9 && (await k.checks('g9-files')).includes('ok:Questionnaires skipped. This is recorded in the ZIP.'), 'Finish says the questionnaires were skipped');
+  ok(k.errs.length === 0, 'no page errors (' + k.errs.join(' | ') + ')');
+  await k.close();
+
+  console.log('OBSERVER RELOAD DURING THE QUESTIONNAIRE');
+  const r = await observer(ctx);
+  await r.nextDownload(async () => { await r.state({ sessionId: 'sQ3' }); await r.rows(); });
+  await wait(300);
+  await r.click('#g-quest-go');
+  await wait(100);
+  await r.click('#qv-next');
+  await r.click('#qv-tabs .qv-tab:nth-child(1)');
+  await r.choose('GQ1', 2);
+  await r.fill('#qv-ta-GQ1', 'No change that I saw.');
+  await wait(700);
+  await r.reload();
+  await wait(500);
+  await r.connect();
+  await r.nextDownload(async () => { await r.state(); await r.rows(); });
+  await wait(600);
+  ok((await r.checks('g8-checks')).some(l => l.startsWith('warn:In progress: 1 of 35 answered')), 'after a reload, step 8 finds the answers kept on this laptop');
+  await r.click('#g-quest-go');
+  await wait(150);
+  ok((await r.text('#qv-main h2')) === '1. About the game' && await r.E(() => document.getElementById('qv-r-GQ1-2').checked && document.getElementById('qv-ta-GQ1').value === 'No change that I saw.'), 'handing back reopens the same page with the answers');
+
+  console.log('HEADSET RELOAD DURING THE QUESTIONNAIRE');
+  await r.state({ sessionId: 'sNEW', phase: 'setup', run: 1, trialCount: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' });
+  await wait(300);
+  ok(await r.shown('#qv'), 'the participant screen stays open when the headset page reloads');
+  await r.hold(2300);
+  await r.click('#qv-menu-leave');
+  await wait(300);
+  ok(await r.shown('#g-quest-other') && (await r.text('#g-quest-other-text')).startsWith('Questionnaires for P21 are not finished (1 of 35 answered).'), 'a banner keeps the unfinished questionnaire reachable');
+  await r.click('#g-quest-other-go');
+  await wait(150);
+  await r.E(() => {
+    const st = window.__obs.quest.state;
+    window.__obs.quest.defs.forEach(def => def.items.forEach(item => { if (!st.answers[item.id] || item.id !== 'GQ1') st.answers[item.id] = def.type === 'scale' ? { value: def.scale.values[0] } : { value: item.options[0], text: 'x' }; }));
+    st.page = 4; st.reached = 4;
+  });
+  await r.click('#qv-tabs .qv-tab:nth-child(1)');
+  await r.click('#qv-tabs .qv-tab:nth-child(4)');
+  const aloneZip = await r.nextDownload(() => r.click('#qv-next'));
+  ok(aloneZip && aloneZip.suggestedFilename() === `P21_${TS}-final.zip`, 'submitting saves the final ZIP from the copy kept at the automatic save (' + (aloneZip && aloneZip.suggestedFilename()) + ')');
+  const aloneFiles = aloneZip ? await readZipFile(aloneZip) : [];
+  ok(aloneFiles.some(f => f.path.startsWith('block2/')) && aloneFiles.some(f => f.path === `questionnaires/P21_questionnaire-${TS}.csv`), 'it holds the block files and the answers');
+  await r.hold(2300);
+  await r.click('#qv-menu-leave');
+  await wait(300);
+  ok((await r.text('#g-quest-other-text')).startsWith('Questionnaires for P21 answered. Download started:'), 'the banner then says the answers were saved');
+  await r.click('#g-quest-other-done');
+  await wait(300);
+  ok(!(await r.shown('#g-quest-other')), 'Dismiss removes the banner');
+  ok(r.errs.length === 0, 'no page errors (' + r.errs.join(' | ') + ')');
+
+  await b.close();
+  done();
+})().catch(e => { console.error(e); process.exit(2); });

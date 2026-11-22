@@ -4,7 +4,7 @@ const { openDownload, readZip } = require('./unzip.cjs');
 const { ok, done } = counter('CHARTS BROWSER');
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-charts-'));
-const VERSION = '2.8.1';
+const VERSION = '2.9.0';
 const kin = (t, x, z, o) => {
   const a = Object.assign({ target: true, valid: 1, rec: 0, hx: 0, hz: -0.4, y: 1 }, o);
   return `${t},${x},${a.y},${z},${a.hx},0.9,${a.hz},${a.target ? '0.1,1.2,-0.5' : ',,'},${a.valid},0,0,0,0,0,0,1,0,1.2,0,0,0,0,1,${a.rec}\n`;
@@ -198,9 +198,14 @@ async function panelSuite(b) {
   const done1 = Object.assign({}, STATE, { phase: 'complete', endReason: 'finished', plan, trialCount: 44, sessionMs: 40000, setupLocked: true, backup: { trials: 44, kinL: 650, kinR: 650, final: true, exportTs: 'TS' } });
   await emit(done1);
   await sleep(700);
-  ok(await shown('#results'), 'charts ticked: Results opens at session end');
-  ok((await charts()).join() === 'quality,workspaceMap,handChoice', 'only ticked charts drawn, timeline first');
+  ok(!(await shown('#results')) && await shown('#g-quest-results'), 'charts ticked: Results stays closed while the questionnaires are due, but can be opened from step 8');
   ok(dl.length === 1 && dl[0].suggestedFilename() === 'P1_TS.zip', 'data zip saved on its own, no figures downloaded');
+  await O(() => window.__obs.questFinish('skipped'));
+  for (let i = 0; i < 60 && dl.length < 2; i++) await sleep(100);
+  await sleep(400);
+  ok(await shown('#results'), 'charts ticked: Results opens when Finish is reached');
+  ok(dl.length === 2 && dl[1].suggestedFilename() === 'P1_TS-final.zip', 'the final zip follows the questionnaires');
+  ok((await charts()).join() === 'quality,workspaceMap,handChoice', 'only ticked charts drawn, timeline first');
   ok(await O(() => !document.querySelector('[data-res-view]') && !document.querySelector('[data-res-frames]')), 'old hand and frame buttons gone');
   ok((await text('res-showing')) === 'Workspace shape settings — 3D: fill gaps up to 16 cm and smooth by 0.5 cm; 2D: fill gaps up to 8 cm and smooth by 0.5 cm.', 'settings stated in words');
   ok((await text('res-save')) === 'Save figures (3)', 'Save figures counts what is selected');
@@ -284,11 +289,11 @@ async function panelSuite(b) {
 
   console.log('SAVING FIGURES');
   await o.click('#res-save');
-  await sleep(1000);
-  ok(dl.length === 2 && /^P1_figures-[\dT-]+\.zip$/.test(dl[1].suggestedFilename()), 'separate figures zip, only when pressed');
+  for (let i = 0; i < 200 && dl.length < 3; i++) await sleep(100);
+  ok(dl.length === 3 && /^P1_figures-[\dT-]+\.zip$/.test(dl[2].suggestedFilename()), 'separate figures zip, only when pressed');
   ok(await shown('#ws3d-canvas') && (await painted()).blue > 100, '3D view back on screen after saving');
   const f = path.join(OUT, 'figures.zip');
-  await dl[1].saveAs(f);
+  await dl[2].saveAs(f);
   const { spawnSync } = require('child_process');
   const zipBytes = fs.readFileSync(f);
   const entries = readBinaryZip(zipBytes);
@@ -390,7 +395,10 @@ async function panelSuite(b) {
   ok(await m.evaluate(() => document.querySelector('[data-plan-mode="short"]').classList.contains('on')), 'guide still updates');
   await mem(Object.assign({}, done1, { sessionId: 'M', plan: { mode: 'fmode', home: 'one-box', charts: ['times'], runs: RUNS }, backup: { trials: 0, kinL: 0, kinR: 0, final: true, exportTs: 'TS' } }));
   await sleep(600);
-  ok(await m.evaluate(() => document.getElementById('g8-files').textContent.includes('Charts are unavailable, but the recorded data are unaffected.') && !document.getElementById('g-results').checkVisibility() && !document.getElementById('results').checkVisibility()), 'Finish says charts are unavailable, no Results button');
+  ok(!(await m.evaluate(() => document.getElementById('g-quest-results').checkVisibility())), 'no Results button in step 8 without the charts');
+  await m.evaluate(() => window.__obs.questFinish('skipped'));
+  await sleep(600);
+  ok(await m.evaluate(() => +document.querySelector('#guide .step.open').dataset.step === 9 && document.getElementById('g9-files').textContent.includes('Charts are unavailable, but the recorded data are unaffected.') && !document.getElementById('g-results').checkVisibility() && !document.getElementById('results').checkVisibility()), 'Finish says charts are unavailable, no Results button');
   ok(errs3.length === 0, 'no page errors (' + errs3.join(' | ') + ')');
   await c3.close();
 
@@ -409,6 +417,8 @@ async function panelSuite(b) {
     await wem(Object.assign({}, done1, { sessionId: 'W', phase: 'running', backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' } }));
     for (const [f, lines] of [['kinL', kinL], ['kinR', kinR], ['trials', trials]]) await wem({ type: 'rows', run: 1, file: f, from: 0, header: 'H\n', lines });
     await wem(Object.assign({}, done1, { sessionId: 'W' }));
+    await sleep(600);
+    await w.evaluate(() => window.__obs.questFinish('skipped'));
     await sleep(900);
     const seen = await w.evaluate(() => document.getElementById('res-charts').textContent);
     ok(seen.includes(want), `${file} missing: says so`);
@@ -431,12 +441,13 @@ async function panelSuite(b) {
   await nem(Object.assign({}, STATE, { sessionId: 'N', phase: 'running', plan: { mode: 'fmode', home: 'one-box', charts: [], runs: RUNS } }));
   for (const [file, lines] of [['kinL', kinL], ['kinR', kinR], ['trials', trials]]) await nem({ type: 'rows', run: 1, file, from: 0, header: 'H\n', lines });
   await nem(Object.assign({}, done1, { sessionId: 'N', plan: { mode: 'fmode', home: 'one-box', charts: [], runs: RUNS } }));
-  await sleep(700);
+  for (let i = 0; i < 60 && dl2.length < 1; i++) await sleep(100);
+  await sleep(300);
   ok(!(await n.evaluate(() => document.getElementById('results').checkVisibility())), 'nothing ticked: Results stays closed');
-  ok(dl2.length === 1 && dl2[0].suggestedFilename().endsWith('.zip') && !dl2[0].suggestedFilename().includes('figures'), 'nothing ticked: no figures zip');
+  ok(dl2.length === 1 && dl2[0].suggestedFilename().endsWith('.zip') && !dl2[0].suggestedFilename().includes('figures'), 'nothing ticked: no figures zip (' + dl2.map(d => d.suggestedFilename()).join(', ') + ')');
   await nem(Object.assign({}, done1, { sessionId: 'N', plan: { mode: 'fmode', home: 'one-box', charts: [], runs: RUNS }, info: 'Key,Value\nCondition,2\nSetupChanges,5000|200|Condition|1|2\n' }));
-  await n.click('#g-results'); await sleep(350);
-  ok(await n.evaluate(() => document.getElementById('results').checkVisibility() && document.getElementById('res-save').disabled), 'can still open Results; nothing selected');
+  await n.click('#g-quest-results'); await sleep(350);
+  ok(await n.evaluate(() => document.getElementById('results').checkVisibility() && document.getElementById('res-save').disabled), 'can still open Results from step 8; nothing selected');
   await n.check('[data-res-chart="workspaceMap"]'); await sleep(350);
   ok(await n.evaluate(() => !!document.querySelector('[data-chart="workspaceMap"] canvas') && !document.getElementById('res-save').disabled), 'unticked chart available afterwards');
   ok(await n.evaluate(() => [...window.__obs.guide.results.parsed.values()].at(-1).label) === 'Block 1: No boost through trial 200, then Boost', 'run label shows a mid-run condition change');

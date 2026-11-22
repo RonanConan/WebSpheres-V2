@@ -3,6 +3,20 @@ const { ROOT, serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('ANALYSIS BROWSER');
 const Z = new Function(fs.readFileSync(path.join(ROOT, 'zip-writer.js'), 'utf8') + ';return WebSpheresZip;')();
 const STAMP = '2026-11-10T10-00-00';
+const Q = require(path.join(ROOT, 'questionnaire-core.js'));
+globalThis.WebSpheresQuestionnaires = Q;
+['game', 'sus', 'imi-teq', 'study'].forEach(f => require(path.join(ROOT, 'questionnaires', f + '.js')));
+
+function questionnaireFiles(id, lastStart, prefix) {
+  const defs = Q.study().defs;
+  const answers = { GQ1: { value: 'Yes', text: 'Faster, I think.' }, GQ2: { value: 'Right', text: 'Easier.' }, GQ3: { value: 'Unsure', text: 'Hard to say.' } };
+  defs.filter(d => d.type === 'scale').forEach(d => d.items.forEach(item => { answers[item.id] = { value: d.scale.values[2] }; }));
+  const meta = { id, sessionId: 's-' + id, lastBlockStart: lastStart, practice: false, appVersion: '2.9.0', afterBlock: 1, status: 'submitted', submittedAt: '2026-11-12T11:00:00.000Z' };
+  return [
+    { path: `questionnaires/${prefix}questionnaire-${STAMP}.csv`, parts: [Q.toCsv(Q.COLUMNS, Q.rawRows(defs, answers, meta))] },
+    { path: `questionnaires/${prefix}questionnaire-definitions-${STAMP}.json`, parts: [JSON.stringify(Q.snapshot(defs))] }
+  ];
+}
 
 async function sessionZip(id, blocks, options) {
   const o = options || {};
@@ -17,6 +31,7 @@ async function sessionZip(id, blocks, options) {
     if (!o.noKinematics) ['LEFT', 'RIGHT'].forEach(hand => files.push({ path: `block${n}/${prefix}block${n}_kinematics-${hand}-${STAMP}.csv`, parts: ['Timestamp,HandX\n1,0\n'] }));
     files.push({ path: `block${n}/${prefix}block${n}_session-info-${STAMP}.csv`, parts: [`Key,Value\nParticipantID,${id}\nDominantHand,RIGHT\nSessionStartISO,2026-11-${o.day || 10}T10:${10 + n}:00.000Z\nEndReason,finished\nCondition,${b.boost ? 2 : 1}\nMode,standard\nTotalTrials,${b.n}\nTrialsCompleted,${b.n}\nBlock,${n}\nPlan,${plan}\nGroup,${o.group === undefined ? 'Patient' : o.group}\n${o.practice ? 'Practice,1\n' : ''}`] });
   });
+  if (o.quest) files.push(...questionnaireFiles(id, `2026-11-${o.day || 10}T10:${10 + blocks.length}:00.000Z`, prefix));
   const blob = await Z.make(files);
   return Buffer.from(await blob.arrayBuffer()).toString('base64');
 }
@@ -68,7 +83,7 @@ const PICKER = () => {
   const calculate = async () => { await p.click('#g7-run'); await waitMsg('g7-msg', 'Calculated'); };
   const selectFolder = async () => p.click('#g2-choose');
   const passPse = async () => {
-    for (const id of ['#g6-problems', '#g6-changes']) if (await p.locator(id).isVisible()) await p.check(`${id} input`);
+    for (const id of ['#g6-problems', '#g6-changes', '#g6-quest-changes']) if (await p.locator(id).isVisible()) await p.check(`${id} input`);
     await next(6); await waitStep(7);
   };
 
@@ -160,6 +175,7 @@ const PICKER = () => {
   ok((await text('#g6-msg')) === 'Showing 2 blocks from 1 participant added in this run.' && (await text('#psych-comparison')) === 'These will be the first proportions and PSE masters for this group.', 'step 6 shows the proportions and PSE of the participants added in this run');
   ok((await p.locator('.pse-figure').count()) === 2 && (await p.locator('#prop-table tbody tr').count()) === 2 && (await text('#pse-table')).includes('The curve is too flat to fit, so there is no PSE.'), 'there is one figure and one row per block');
   ok((await text('#psych-hand')).startsWith('Percentage of reaches made with the more affected hand'), 'the patient wording names the more affected hand');
+  ok((await text('#quest-comparison')) === 'These will be the first questionnaire masters for this group.' && (await text('#quest-summary')).startsWith('0 sessions with answers, 0 sessions skipped, 1 session without answers.') && (await text('#quest-missing-list')) === 'Participant 101, session 1', 'step 6 lists the session without questionnaire answers');
   const [figure] = await Promise.all([p.waitForEvent('download'), p.locator('.pse-figure').first().getByText('Save SVG').click()]);
   ok(figure.suggestedFilename() === 'PSE_patients_101_session1_baseline-1.svg' && (await text('#g6-msg')) === 'The download of PSE_patients_101_session1_baseline-1.svg started.', 'each figure can be saved on its own');
   const [picture] = await Promise.all([p.waitForEvent('download'), p.locator('.pse-figure').nth(1).getByText('Save PNG').click()]);
@@ -170,7 +186,7 @@ const PICKER = () => {
   const master = await read(['NEW', 'patients'], 'handDB_patients.csv');
   ok(master.trim().split('\n').length === 705, 'the master has a header and 704 rows');
   ok(master.split('\n')[1].endsWith('"Patient","","RIGHT"'), 'rows carry the group');
-  ok((await list(['NEW', 'patients'])).join() === 'blocks_patients.csv,handDB_patients.csv,history,kinematicsDB_patients.csv,kinematics_details,propDB_patients.csv,pseDB_patients.csv,report_patients.txt,zips', 'the master, summary and report are saved');
+  ok((await list(['NEW', 'patients'])).join() === 'blocks_patients.csv,handDB_patients.csv,history,kinematicsDB_patients.csv,kinematics_details,propDB_patients.csv,pseDB_patients.csv,questDB_patients.csv,questScoresDB_patients.csv,report_patients.txt,zips', 'the master, summary and report are saved');
   ok((await list(['NEW', 'patients', 'history'])).length === 0, 'nothing goes to history on the first save');
   ok(await enabled(8), 'Next is enabled after saving');
   await next(8); await waitStep(9);
@@ -197,7 +213,7 @@ const PICKER = () => {
   ok((await text('#g2-again')) !== undefined, 'page reloads');
   await pick(['NEW']);
   await goToStep4('patients');
-  await put(['NEW', 'patients', 'zips'], '102.zip', await sessionZip('102', [{ n: 11 }], { day: 12 }));
+  await put(['NEW', 'patients', 'zips'], '102.zip', await sessionZip('102', [{ n: 11 }], { day: 12, quest: true }));
   await p.click('#g4-recheck');
   await waitMsg('g4-msg', 'There are 2 ZIP files');
   await readSessions();
@@ -205,6 +221,9 @@ const PICKER = () => {
   await tick(5, 0);
   await next(5); await waitStep(6);
   ok((await text('#g6-msg')) === 'Showing 1 block from 1 participant added in this run.' && (await p.locator('.pse-figure figcaption').allInnerTexts()).join() === '102, session 1, baseline-1' && (await text('#psych-comparison')) === '1 new block, and 0 existing rows changed.', 'only the blocks added in this run are shown');
+  ok((await text('#quest-comparison')) === '1 session with new scores, and 0 existing rows changed.' && (await text('#quest-summary')).startsWith('1 session with answers'), 'the questionnaire scores of the new session are reported');
+  const questTable = await p.locator('#quest-table tbody tr').allInnerTexts();
+  ok(questTable.length === 1 && questTable[0].startsWith('102') && questTable[0].includes('50') && questTable[0].includes('4'), 'its scores are shown in a table (' + questTable.join(' / ') + ')');
   await passPse(); await calculate(); await next(7); await waitStep(8);
   const zipBefore = await read(['NEW', 'patients', 'zips'], '101.zip');
   await put(['NEW', 'patients'], 'blocks_patients.csv', Buffer.from([0xef, 0xbb, 0xbf, 0x61, 0xff, 0x0d, 0x0a]).toString('base64'));
@@ -212,13 +231,16 @@ const PICKER = () => {
   await putText(['NEW', 'patients', 'kinematics_details'], 'notes', 'kept\n');
   await p.click('#g8-save');
   await waitMsg('g8-msg', 'Saved handDB_patients.csv with 715 trials');
+  const questDb = await read(['NEW', 'patients'], 'questDB_patients.csv');
+  const scoresDb = await read(['NEW', 'patients'], 'questScoresDB_patients.csv');
+  ok(questDb.trim().split('\n').length === 36 && questDb.includes('"Faster, I think."') && scoresDb.includes('"SUS_Total"') && (await text('#g8-msg')).includes('questDB_patients.csv and questScoresDB_patients.csv with answers from 1 session'), 'the questionnaire masters are saved with the new session');
   const hist = await list(['NEW', 'patients', 'history']);
   ok(!hist.some(n => n.startsWith('kinematics_details-processing_errors-')) && !hist.some(n => n.startsWith('kinematics_details-incomplete_file_triplets-')), 'files that did not change are not copied to history');
   const blocksCopy = hist.find(n => n.startsWith('blocks_patients-'));
   ok((await p.evaluate(async ([parts, name]) => Array.from(new Uint8Array(await (await (await (await window.__dir(parts)).getFileHandle(name)).getFile()).arrayBuffer())).join(), [['NEW', 'patients', 'history'], blocksCopy])) === '239,187,191,97,255,13,10', 'a history copy keeps the exact bytes of the earlier file');
   ok(!(await list(['NEW', 'patients', 'kinematics_details'])).includes('left_over.csv') && (await read(['NEW', 'patients', 'history'], hist.find(n => n.startsWith('kinematics_details-left_over-')))) === 'old\n', 'a detail file this run did not produce is moved to history');
   ok((await read(['NEW', 'patients', 'history'], hist.find(n => /^kinematics_details-notes-\d{4}-\d{2}-\d{2}T[\d-]+$/.test(n)) || 'none')) === 'kept\n', 'a history copy of a file without an extension keeps its name');
-  ok(hist.length === 11 && hist.some(n => n.startsWith('pseDB_patients-')) && hist.some(n => n.startsWith('propDB_patients-')) && hist.some(n => /^handDB_patients-\d{4}.*\.csv$/.test(n)) && hist.some(n => n.startsWith('kinematicsDB_patients-')) && hist.some(n => n.startsWith('kinematics_details-batch_summary-')), 'earlier files are copied to history');
+  ok(hist.length === 13 && hist.some(n => n.startsWith('questDB_patients-')) && hist.some(n => n.startsWith('questScoresDB_patients-')) && hist.some(n => n.startsWith('pseDB_patients-')) && hist.some(n => n.startsWith('propDB_patients-')) && hist.some(n => /^handDB_patients-\d{4}.*\.csv$/.test(n)) && hist.some(n => n.startsWith('kinematicsDB_patients-')) && hist.some(n => n.startsWith('kinematics_details-batch_summary-')), 'earlier files are copied to history');
   const kept = hist.find(n => n.startsWith('handDB_patients'));
   ok((await read(['NEW', 'patients', 'history'], kept)) === master, 'the history copy is the previous master');
   ok((await read(['NEW', 'patients', 'zips'], '101.zip')) === zipBefore, 'the zips are untouched');

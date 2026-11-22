@@ -7,6 +7,12 @@
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>if (/[?&]practice\b/.test(location.search) && window.parent === window) document.write('<script src="practice-link.js"><\/script>');</script>
     <script src="zip-writer.js"></script>
+    <script src="questionnaire-core.js"></script>
+    <script src="questionnaires/game.js"></script>
+    <script src="questionnaires/sus.js"></script>
+    <script src="questionnaires/imi-teq.js"></script>
+    <script src="questionnaires/study.js"></script>
+    <script src="questionnaire-view.js"></script>
     <script src="browser-check.js"></script>
     <script src="workspace-shape.js"></script>
     <script src="results-charts.js"></script>
@@ -20,6 +26,7 @@
     }
     </script>
     <link rel="stylesheet" href="webspheres-theme.css">
+    <link rel="stylesheet" href="questionnaire-view.css">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
@@ -330,6 +337,14 @@
                 <p class="g-msg" id="g-resume-msg"></p>
             </div>
             <div id="g-recovery"></div>
+            <div class="g-banner" id="g-quest-other" hidden>
+                <div id="g-quest-other-text"></div>
+                <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-quest-other-go">Hand back to participant</button><button tabindex="-1" id="g-quest-other-skip">Skip questionnaires</button><button tabindex="-1" id="g-quest-other-done">Dismiss</button></div>
+                <div class="g-confirm" id="g-quest-other-skip-confirm" hidden>
+                    <p>Skip the rest of these questionnaires? Any answers already given are kept in the ZIP, and the questionnaires are recorded as skipped.</p>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-quest-other-skip-yes">Skip</button><button tabindex="-1" id="g-quest-other-skip-no">Cancel</button></div>
+                </div>
+            </div>
             <section class="step" data-step="1">
                 <button tabindex="-1" class="step-head" data-open="1"><span class="step-mark">1</span><span>Connect</span></button>
                 <div class="step-body">
@@ -502,14 +517,30 @@
                 </div>
             </section>
             <section class="step" data-step="8">
-                <button tabindex="-1" class="step-head" data-open="8"><span class="step-mark">8</span><span>Finish</span></button>
+                <button tabindex="-1" class="step-head" data-open="8"><span class="step-mark">8</span><span>Questionnaires</span><span class="step-val" id="g8-val"></span></button>
                 <div class="step-body">
                     <div class="g-big-line" id="g8-title">–</div>
-                    <ul class="checks" id="g8-files"></ul>
-                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Download ZIP again</button><button tabindex="-1" id="g-results">Results</button></div>
-                    <div class="sum" id="g8-summary"></div>
-                    <div class="g-actions"><button tabindex="-1" id="g-add-run">Add block</button><button tabindex="-1" id="g-new">New session</button></div>
+                    <ul class="checks" id="g8-checks"></ul>
+                    <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-quest-go">Hand to participant</button></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-quest-skip">Skip questionnaires</button></div>
+                    <div class="g-actions" id="g8-more"><button tabindex="-1" id="g-quest-results">Results</button><button tabindex="-1" id="g-quest-add-run">Add block</button></div>
+                    <p class="g-note" id="g8-note">The screen switches to the participant’s questions. To come back, press and hold Experimenter in its top-right corner for 2 seconds.</p>
+                    <div class="g-confirm" id="g-quest-skip-confirm" hidden>
+                        <p>Skip the questionnaires for this session? Any answers already given are kept in the ZIP, and the questionnaires are recorded as skipped.</p>
+                        <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-quest-skip-yes">Skip</button><button tabindex="-1" id="g-quest-skip-no">Cancel</button></div>
+                    </div>
                     <p class="g-msg" id="g8-msg"></p>
+                </div>
+            </section>
+            <section class="step" data-step="9">
+                <button tabindex="-1" class="step-head" data-open="9"><span class="step-mark">9</span><span>Finish</span></button>
+                <div class="step-body">
+                    <div class="g-big-line" id="g9-title">–</div>
+                    <ul class="checks" id="g9-files"></ul>
+                    <div class="g-actions"><button tabindex="-1" id="g-save-again">Download ZIP again</button><button tabindex="-1" id="g-results">Results</button></div>
+                    <div class="sum" id="g9-summary"></div>
+                    <div class="g-actions"><button tabindex="-1" id="g-add-run">Add block</button><button tabindex="-1" id="g-new">New session</button></div>
+                    <p class="g-msg" id="g9-msg"></p>
                     <div class="g-confirm" id="g-new-confirm" hidden>
                         <p>Reload WebSpheres on the headset before reloading this page.</p>
                         <div class="g-actions"><button tabindex="-1" class="g-primary" id="g-new-reload">Reload this page</button><button tabindex="-1" id="g-new-no">Cancel</button></div>
@@ -1030,7 +1061,7 @@
     let lastFrameAt = 0;
     let lastFrame = null;
     const BACKUP_FILES = ['trials', 'kinL', 'kinR'];
-    const backup = { run: 1, archive: [], sessionId: null, storeId: null, stored: new Set(), storing: new Set(), storeFailures: new Set(), storedNotes: '', storeRetryAt: 0, storeFailed: false, zipping: 0, trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, saved: '', savedLoose: false };
+    const backup = { run: 1, archive: [], sessionId: null, storeId: null, stored: new Set(), storing: new Set(), storeFailures: new Set(), storedNotes: '', storeRetryAt: 0, storeFailed: false, zipping: 0, trials: [], kinL: [], kinR: [], headers: {}, autoSavedTs: null, autoSavedQuest: false, saved: '', savedLoose: false };
 
     const quality = { runs: {} };
 
@@ -1207,17 +1238,32 @@
                 t.onerror = t.onabort = () => reject(t.error);
             });
         },
+        putSession: function (store, session) {
+            if (session.questionnaire !== undefined) { store.put(session); return; }
+            const got = store.get(session.id);
+            got.onsuccess = () => store.put(got.result && got.result.questionnaire ? Object.assign({}, session, { questionnaire: got.result.questionnaire }) : session);
+        },
         saveSession: function (session) {
-            return this.run('readwrite', (t) => { t.objectStore('sessions').put(session); });
+            return this.run('readwrite', (t) => { this.putSession(t.objectStore('sessions'), session); });
         },
         saveRun: function (session, record) {
             return this.run('readwrite', (t) => {
-                t.objectStore('sessions').put(session);
+                this.putSession(t.objectStore('sessions'), session);
                 t.objectStore('runs').put(record);
+            });
+        },
+        saveQuestionnaire: function (id, base, questionnaire) {
+            return this.run('readwrite', (t) => {
+                const store = t.objectStore('sessions');
+                const got = store.get(id);
+                got.onsuccess = () => store.put(Object.assign({}, got.result || base, { questionnaire, updatedAt: Date.now() }));
             });
         },
         sessions: function () {
             return this.run('readonly', (t) => t.objectStore('sessions').getAll());
+        },
+        session: function (id) {
+            return this.run('readonly', (t) => t.objectStore('sessions').get(id));
         },
         keysOf: function (id) {
             return IDBKeyRange.bound(`${id}:`, `${id}:\uffff`);
@@ -1240,7 +1286,9 @@
     }
 
     function sessionRecord(s, runs) {
-        return { id: backup.storeId, participantId: s.participantId, sessionPrefix: s.sessionPrefix, runs, notes: sessionNotes(s), updatedAt: Date.now() };
+        const record = { id: backup.storeId, participantId: s.participantId, sessionPrefix: s.sessionPrefix, runs, notes: sessionNotes(s), updatedAt: Date.now() };
+        if (questFor(s) && quest.status !== 'pending' && quest.storeId === backup.storeId) record.questionnaire = questRecord();
+        return record;
     }
 
     function storeRun(s, r, run, prefix, info) {
@@ -1298,14 +1346,29 @@
             backup.saved = 'Nothing to save';
             return 0;
         }
-        if (final) backup.autoSavedTs = s.backup.exportTs;
+        const withQuest = questFor(s) && questDone();
+        if (final && questFor(s)) {
+            quest.dataFiles = files.slice();
+            quest.dataTs = ts;
+            quest.dataStoreId = backup.storeId;
+        }
+        if (withQuest) files.push(...questFiles(questRecord(), ts));
+        if (final) {
+            backup.autoSavedTs = s.backup.exportTs;
+            backup.autoSavedQuest = withQuest;
+        }
         const storeId = backup.storeId;
+        const questId = quest.sessionId;
+        const dataForQuest = final && questFor(s);
+        const zipName = `${s.sessionPrefix || ''}${ts}${final && withQuest ? '-final' : ''}.zip`;
         backup.zipping++;
-        saveZipOrLoose(`${s.sessionPrefix || ''}${ts}.zip`, files).then((how) => {
+        saveZipOrLoose(zipName, files).then((how) => {
             backup.zipping--;
             backup.saved = `${files.length} files ${how} at ${new Date().toLocaleTimeString()}${final ? ' (final)' : ' (partial)'}`;
             backup.savedLoose = how === 'individually';
-            if (final && storeId && !backup.savedLoose) {
+            if (dataForQuest && quest.sessionId === questId && quest.dataTs === ts) quest.dataSavedZip = !backup.savedLoose;
+            if (withQuest && quest.sessionId === questId) questMarkSaved(`${zipName} ${how === 'in a ZIP' ? '' : '(files saved individually) '}at ${new Date().toLocaleTimeString()}`);
+            if (final && withQuest && storeId && !backup.savedLoose) {
                 guide.recovery = guide.recovery.filter(r => r.id !== storeId);
                 runStore.forget(storeId).catch(() => {});
             }
@@ -1316,10 +1379,281 @@
     function checkAutoSave() {
         const s = receiver.headsetState;
         if (!s || s.phase !== 'complete' || !s.backup || !s.backup.final || !s.backup.exportTs) return;
-        if (backup.autoSavedTs === s.backup.exportTs || !caughtUp(s)) return;
+        if ((backup.autoSavedTs === s.backup.exportTs && backup.autoSavedQuest === (questFor(s) && questDone())) || !caughtUp(s)) return;
         if (guide.noteQueue.length || guide.noteSending || guide.noteAwaitState) return;
         saveBackup();
     }
+    const QS = typeof WebSpheresQuestionnaires !== 'undefined' ? WebSpheresQuestionnaires : null;
+    const questStudy = QS ? QS.study() : { defs: [], problems: ['The questionnaire files did not load. Reload this page.'] };
+    const questDefsBroken = () => quest.defs === questStudy.defs && questStudy.problems.length > 0;
+    const quest = { sessionId: null, storeId: null, status: 'none', state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedFinal: false, storeTimer: 0, storeFailed: false };
+    const questDone = () => quest.status === 'submitted' || quest.status === 'skipped';
+    const questFor = (s) => !!s && !!s.sessionId && quest.sessionId === s.sessionId;
+    const questUnsaved = () => !!quest.sessionId && quest.status !== 'none' && !(questDone() && quest.savedFinal);
+    const isoNow = () => new Date().toISOString();
+    const fileStamp = () => isoNow().slice(0, 19).replace(/:/g, '-');
+    const infoValue = (info, key) => { const m = new RegExp('^' + key + ',(.*)$', 'm').exec(info || ''); return m ? m[1].trim() : ''; };
+    const copyOf = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+
+    const questDoneStore = {
+        KEY: PRACTICE ? 'webspheres-practice-questionnaires-done' : 'webspheres-questionnaires-done',
+        read: function () {
+            try {
+                const all = JSON.parse(localStorage.getItem(this.KEY) || '{}');
+                return all && typeof all === 'object' ? all : {};
+            } catch (e) {
+                return {};
+            }
+        },
+        get: function (sessionId) {
+            const entry = this.read()[sessionId];
+            return entry && entry.questionnaire ? entry.questionnaire : null;
+        },
+        put: function (sessionId, record) {
+            try {
+                const all = this.read();
+                all[sessionId] = { savedAt: Date.now(), questionnaire: record };
+                Object.keys(all).sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0)).slice(20).forEach(k => { delete all[k]; });
+                localStorage.setItem(this.KEY, JSON.stringify(all));
+            } catch (e) {}
+        },
+        drop: function (sessionId) {
+            try {
+                const all = this.read();
+                if (!all[sessionId]) return;
+                delete all[sessionId];
+                localStorage.setItem(this.KEY, JSON.stringify(all));
+            } catch (e) {}
+        }
+    };
+
+    function questMeta(s) {
+        return {
+            id: s.participantId || '', sessionId: s.sessionId, lastBlockStart: infoValue(s.info, 'SessionStartISO'),
+            practice: PRACTICE || infoValue(s.info, 'Practice') === '1' || /^PRACTICE_/.test(s.sessionPrefix || ''),
+            appVersion: APP_VERSION, afterBlock: s.run || 1, prefix: s.sessionPrefix || '', endedEarly: s.endReason === 'ended-early'
+        };
+    }
+
+    function questReset(sessionId, status, storeId) {
+        clearTimeout(quest.storeTimer);
+        Object.assign(quest, { sessionId, storeId: storeId || sessionId, status, state: { answers: {}, page: 0, reached: 0 }, meta: null, defs: questStudy.defs, startedAt: '', submittedAt: '', dataFiles: null, dataTs: '', dataStoreId: null, dataSavedZip: false, saved: '', savedFinal: false, storeFailed: false });
+        $('g-quest-skip-confirm').hidden = true;
+        $('g-quest-other-skip-confirm').hidden = true;
+    }
+
+    function questRecord() {
+        return { status: quest.status, state: quest.state, meta: quest.meta, defs: quest.defs, startedAt: quest.startedAt, submittedAt: quest.submittedAt, storeId: quest.storeId };
+    }
+
+    function questLoad(q, sessionId, storeId) {
+        questReset(sessionId, q.status, storeId);
+        Object.assign(quest, {
+            state: copyOf(q.state) || { answers: {}, page: 0, reached: 0 }, meta: copyOf(q.meta), defs: Array.isArray(q.defs) && q.defs.length ? q.defs : questStudy.defs,
+            startedAt: q.startedAt || '', submittedAt: q.submittedAt || ''
+        });
+    }
+
+    function questRestore(s) {
+        const done = questDoneStore.get(s.sessionId);
+        if (done && (done.status === 'submitted' || done.status === 'skipped')) {
+            const keep = quest.sessionId === s.sessionId ? { dataFiles: quest.dataFiles, dataTs: quest.dataTs, dataStoreId: quest.dataStoreId } : {};
+            questLoad(done, s.sessionId, done.storeId || backup.storeId || s.sessionId);
+            Object.assign(quest, keep, { saved: 'before this page was reloaded', savedFinal: true });
+            if (!quest.meta) quest.meta = questMeta(s);
+            return true;
+        }
+        const rec = guide.recovery.find(r => r.questionnaire && r.questionnaire.status && r.questionnaire.status !== 'pending' && (r.id === s.sessionId || (r.questionnaire.meta && r.questionnaire.meta.sessionId === s.sessionId)));
+        if (!rec) return false;
+        const keep = quest.sessionId === s.sessionId ? { dataFiles: quest.dataFiles, dataTs: quest.dataTs, dataStoreId: quest.dataStoreId } : {};
+        questLoad(rec.questionnaire, s.sessionId, rec.id);
+        Object.assign(quest, keep);
+        if (!quest.meta) quest.meta = questMeta(s);
+        return true;
+    }
+
+    function questOnState(s) {
+        if (!s || !s.sessionId || s.phase !== 'complete') return;
+        if (questFor(s)) {
+            if (quest.status === 'pending' && !questRestore(s)) quest.meta = questMeta(s);
+            return;
+        }
+        if (quest.sessionId && quest.status !== 'none' && quest.status !== 'pending' && !questDone()) return;
+        if (quest.sessionId && quest.status === 'pending' && quest.dataSavedZip && quest.storeId) {
+            const old = quest.storeId;
+            guide.recovery = guide.recovery.filter(r => r.id !== old);
+            runStore.forget(old).catch(() => {});
+        }
+        if (questRestore(s)) return;
+        questReset(s.sessionId, 'pending', backup.storeId || s.sessionId);
+        quest.meta = questMeta(s);
+    }
+
+    function questStore(now) {
+        clearTimeout(quest.storeTimer);
+        const id = quest.storeId;
+        if (!id || quest.status === 'pending' || quest.status === 'none') return;
+        if (typeof indexedDB === 'undefined') { quest.storeFailed = true; return; }
+        const save = () => {
+            if (runStore.forgotten.has(id) || quest.storeId !== id) return;
+            const m = quest.meta || {};
+            const rec = copyOf(questRecord());
+            runStore.saveQuestionnaire(id, { id, participantId: m.id, sessionPrefix: m.prefix, runs: 0, notes: '', updatedAt: Date.now() }, rec).then(() => {
+                if (quest.storeId === id) quest.storeFailed = false;
+                const cached = guide.recovery.find(r => r.id === id);
+                if (cached) cached.questionnaire = rec;
+            }).catch(() => { if (quest.storeId === id) quest.storeFailed = true; });
+        };
+        if (now) save(); else quest.storeTimer = setTimeout(save, 400);
+    }
+
+    function questFiles(rec, ts) {
+        if (!QS || !rec || !rec.meta || rec.status === 'pending' || rec.status === 'none') return [];
+        let defs = Array.isArray(rec.defs) ? rec.defs : [];
+        if (!defs.length && rec.status === 'skipped') defs = QS.studyIds().map(id => ({ id }));
+        if (!defs.length) return [];
+        const m = rec.meta;
+        const rows = QS.rawRows(defs, (rec.state || {}).answers, Object.assign({}, m, { status: rec.status, submittedAt: rec.submittedAt }));
+        const base = `questionnaires/${m.prefix || ''}`;
+        return [
+            { path: `${base}questionnaire-${ts}.csv`, parts: [QS.toCsv(QS.COLUMNS, rows)] },
+            { path: `${base}questionnaire-definitions-${ts}.json`, parts: [JSON.stringify(QS.snapshot(defs), null, 2) + '\n'] }
+        ];
+    }
+
+    function questMarkSaved(text) {
+        quest.saved = text;
+        quest.savedFinal = true;
+        if (questDone() && quest.sessionId) questDoneStore.put(quest.sessionId, copyOf(questRecord()));
+    }
+
+    function storedRunFiles(runs, ts) {
+        const files = [];
+        runs.forEach(r => {
+            const add = (name, text) => { if (text) files.push({ path: `block${r.run}/${r.prefix}${name}-${ts}.csv`, parts: [text] }); };
+            add('vr-session-data', r.trials);
+            add('kinematics-LEFT', r.kinL);
+            add('kinematics-RIGHT', r.kinR);
+            add('session-info', r.info);
+        });
+        return files;
+    }
+
+    function questSaveAlone() {
+        const m = quest.meta || {};
+        const ts = quest.dataTs || fileStamp();
+        const hadData = !!(quest.dataFiles && quest.dataFiles.length);
+        const files = (quest.dataFiles || []).concat(questFiles(questRecord(), ts));
+        const name = `${m.prefix || ''}${ts}-${hadData ? 'final' : 'questionnaire'}.zip`;
+        const id = quest.sessionId, storeId = quest.storeId, dataStoreId = quest.dataStoreId;
+        backup.zipping++;
+        saveZipOrLoose(name, files).then((how) => {
+            backup.zipping--;
+            if (hadData && how === 'in a ZIP' && storeId && storeId === dataStoreId) {
+                guide.recovery = guide.recovery.filter(r => r.id !== storeId);
+                runStore.forget(storeId).catch(() => {});
+            }
+            if (quest.sessionId !== id) return;
+            questMarkSaved(`${name} ${how === 'in a ZIP' ? '' : '(files saved individually) '}at ${new Date().toLocaleTimeString()}`);
+        });
+    }
+
+    function questFinish(status) {
+        if (!quest.sessionId || questDone()) return;
+        quest.status = status;
+        quest.submittedAt = isoNow();
+        if (!quest.meta) quest.meta = questMeta(receiver.headsetState || {});
+        $('g-quest-skip-confirm').hidden = true;
+        $('g-quest-other-skip-confirm').hidden = true;
+        questStore(true);
+        const s = receiver.headsetState;
+        const ready = questFor(s) && s.phase === 'complete' && s.backup && s.backup.final && s.backup.exportTs && caughtUp(s) && !(guide.noteQueue.length || guide.noteSending || guide.noteAwaitState);
+        if (ready) checkAutoSave();
+        else questSaveAlone();
+        renderGuide();
+    }
+
+    function questOpen() {
+        if (!quest.sessionId || !quest.defs.length || questDone() || questDefsBroken() || typeof WebSpheresQuestionnaireView === 'undefined') return;
+        if (quest.status === 'pending') {
+            quest.status = 'in-progress';
+            quest.startedAt = isoNow();
+        }
+        closePanels();
+        $('g-quest-skip-confirm').hidden = true;
+        $('g-quest-other-skip-confirm').hidden = true;
+        $('app').inert = true;
+        WebSpheresQuestionnaireView.open({
+            defs: quest.defs, state: quest.state, practice: !!(quest.meta && quest.meta.practice), participantId: (quest.meta && quest.meta.id) || '',
+            isStored: () => !quest.storeFailed,
+            onChange: () => questStore(false),
+            onSubmit: () => questFinish('submitted'),
+            onExit: () => { $('app').inert = false; renderGuide(); }
+        });
+        questStore(true);
+        renderGuide();
+    }
+
+    function questAfterReopen() {
+        const s = receiver.headsetState;
+        if (!questFor(s) || quest.status !== 'skipped') return;
+        const storeId = quest.storeId;
+        questDoneStore.drop(quest.sessionId);
+        questReset(quest.sessionId, 'pending', storeId);
+        quest.meta = questMeta(s);
+        if (typeof indexedDB !== 'undefined') runStore.saveQuestionnaire(storeId, { id: storeId, participantId: s.participantId, sessionPrefix: s.sessionPrefix, runs: 0, notes: '', updatedAt: Date.now() }, null).catch(() => {});
+    }
+
+    async function questResumeStored(r, msg) {
+        if (questUnsaved()) return;
+        let stored = r;
+        try { stored = (await runStore.session(r.id)) || r; } catch (e) {}
+        const q = stored.questionnaire;
+        if (!q || q.status !== 'in-progress' || !q.meta) {
+            msg.className = 'g-msg bad';
+            msg.textContent = 'There is no unfinished questionnaire stored for this session.';
+            return;
+        }
+        let runs = [];
+        try { runs = await runStore.runsOf(r.id); } catch (e) {}
+        const ts = fileStamp();
+        const files = storedRunFiles(runs, ts);
+        if (files.length && stored.notes) files.push({ path: `${stored.sessionPrefix || ''}notes-${ts}.csv`, parts: [stored.notes] });
+        questLoad(q, q.meta.sessionId || r.id, r.id);
+        Object.assign(quest, { dataFiles: files.length ? files : null, dataTs: ts, dataStoreId: r.id });
+        questOpen();
+    }
+
+    function questLine(rec) {
+        if (!rec || rec.status === 'pending' || rec.status === 'none') return '';
+        if (rec.status === 'submitted') return 'questionnaires answered';
+        if (rec.status === 'skipped') return 'questionnaires skipped';
+        return 'questionnaires not finished';
+    }
+
+    function renderQuestOther(s) {
+        const box = $('g-quest-other');
+        const show = !!quest.sessionId && quest.status !== 'none' && !questFor(s);
+        box.hidden = !show;
+        if (!show) {
+            $('g-quest-other-skip-confirm').hidden = true;
+            return;
+        }
+        const who = (quest.meta && quest.meta.id) || 'the previous participant';
+        const n = QS ? QS.answeredCount(quest.defs, quest.state.answers) : 0, total = QS ? QS.count(quest.defs) : 0;
+        const kept = quest.storeFailed ? 'Browser storage is not working, so the answers are held in memory only. Do not reload or close this page.' : 'The answers are kept on this laptop.';
+        const text = questDone()
+            ? `Questionnaires for ${who} ${quest.status === 'skipped' ? 'skipped' : 'answered'}. ${quest.saved ? `Download started: ${quest.saved}` : 'Saving…'}`
+            : `Questionnaires for ${who} are not finished (${n} of ${total} answered). This session is no longer on the headset. ${kept}`;
+        if ($('g-quest-other-text').textContent !== text) $('g-quest-other-text').textContent = text;
+        $('g-quest-other-go').hidden = questDone();
+        $('g-quest-other-go').disabled = !quest.defs.length || questDefsBroken();
+        $('g-quest-other-skip').hidden = questDone();
+        $('g-quest-other-done').hidden = !questDone();
+        $('g-quest-other-done').disabled = !quest.savedFinal;
+        if (questDone()) $('g-quest-other-skip-confirm').hidden = true;
+    }
+
     const stats = { arrivals: [], connectedSince: 0, opens: 0, staleDropped: 0, lastError: '', lastRecentre: '', fps: 0, fpsFrames: 0, fpsT0: 0 };
     const time = () => new Date().toLocaleTimeString();
     const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1641,6 +1975,7 @@
 
         setupKeyboard: function () {
             document.addEventListener('keydown', (e) => {
+                if (document.body.classList.contains('qv-open')) return;
                 if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
                 if (e.repeat) return;
                 if (e.code === 'Escape') {
@@ -1900,7 +2235,7 @@
         setReadout('bk-saved', backup.saved || '–');
     }
 
-    const APP_VERSION = '2.8.1';
+    const APP_VERSION = '2.9.0';
     const MODE_LABEL = { standard: '352', short: '110', fmode: '44 (2 sets of 22)', block: '110 (5 sets of 22)' };
     const MODE_PER_RUN = { standard: '352 trials per block', short: '110 trials per block', fmode: '44 trials per block (2 sets of 22)', block: '110 trials per block (5 sets of 22)' };
     const COND_LABEL = { 1: 'No boost', 2: 'Boost' };
@@ -2024,12 +2359,14 @@
                 $('g-end-confirm').hidden = true;
                 $('g-unlock-confirm').hidden = true;
             }
+            $('g-quest-skip-confirm').hidden = true;
         }
         if (s.trialCount !== guide.lastTrial) {
             guide.lastTrial = s.trialCount;
             guide.trialChangedAt = now;
         }
         noteSync();
+        questOnState(s);
     }
 
     function guideOnFrame(d) {
@@ -2110,11 +2447,12 @@
             4: !!(s && s.recentred),
             5: !!(calib && calib.reach.done && !reachStale(s) && calib.height.done && calib.lap.done),
             6: !!(s && s.phase !== 'setup'),
-            7: !!(s && s.phase === 'complete')
+            7: !!(s && s.phase === 'complete'),
+            8: !!(s && s.phase === 'complete' && questFor(s) && questDone())
         };
         let current;
         if (!s) current = 1;
-        else if (s.phase === 'complete') current = 8;
+        else if (s.phase === 'complete') current = done[8] ? 9 : 8;
         else if (s.phase !== 'setup') current = 7;
         else if (!done[1]) current = 1;
         else current = [2, 3, 4, 5, 6].find(n => !done[n]) || 6;
@@ -2152,6 +2490,7 @@
     }
 
     function sessionAtRisk(s) {
+        if (questUnsaved()) return true;
         if (!s) return false;
         if (s.phase === 'setup') return backup.archive.length > 0;
         if (s.phase === 'complete') return !(backup.autoSavedTs && s.backup && backup.autoSavedTs === s.backup.exportTs);
@@ -2403,21 +2742,57 @@
         stageAlert.hidden = !alerts.length || $('app').classList.contains('left-open');
         if (stageAlert.textContent !== alerts.join('. ')) stageAlert.textContent = alerts.join('. ');
 
+        renderQuestOther(s);
         if (s && s.phase === 'complete') {
-            $('g8-title').textContent = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
-            const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs) && !backup.zipping;
+            const endTitle = s.endReason === 'ended-early' ? 'Session ended early' : 'Session complete';
+            $('g8-title').textContent = endTitle;
+            $('g9-title').textContent = endTitle;
+            const mine = questFor(s);
+            const withQuest = mine && questDone();
+            const saved = backup.autoSavedTs && backup.autoSavedTs === (s.backup && s.backup.exportTs) && backup.autoSavedQuest === withQuest && !backup.zipping;
             const complete = caughtUp(s);
             const laptopLine = saved ? [backup.savedLoose ? 'warn' : 'ok', `Download started: ${backup.saved}`]
                 : complete ? ['warn', 'Creating the laptop ZIP…']
                 : st.live ? ['warn', `Receiving laptop data (${backupRows()} / ${headsetRows(s)} rows). Download will begin when all rows arrive.`]
                 : ['bad', `Laptop copy incomplete (${backupRows()} / ${headsetRows(s)} rows). Reconnect the headset or retrieve the files from it.`];
-            setChecks('g8-files', [
+            const qTotal = QS ? QS.count(quest.defs) : 0;
+            const qDone = mine && QS ? QS.answeredCount(quest.defs, quest.state.answers) : 0;
+            const open = typeof WebSpheresQuestionnaireView !== 'undefined' && !!WebSpheresQuestionnaireView && WebSpheresQuestionnaireView.isOpen();
+            const blocked = !mine && quest.sessionId && quest.status !== 'pending' && !questDone();
+            const broken = questDefsBroken();
+            const headsetLine = PRACTICE ? ['info', 'This is a practice session, so no headset copy is saved.'] : s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'];
+            const zipLine = saved && complete ? (backup.savedLoose ? ['warn', 'ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.'] : ['ok', PRACTICE ? 'All rows are in the laptop ZIP. Its file names start with PRACTICE, so keep it apart from study data.' : 'All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.']) : null;
+            const storageLine = mine && !questDone() && quest.status !== 'pending' && quest.storeFailed ? [['bad', 'Browser storage is not working, so the answers are held in memory only. Do not reload or close this page.']] : [];
+            setChecks('g8-checks', [
                 laptopLine,
-                PRACTICE ? ['info', 'This is a practice session, so no headset copy is saved.'] : s.backup.final && !s.saving ? ['ok', 'Headset copy saved'] : ['warn', 'Headset saving…'],
-                ...(saved && complete ? [backup.savedLoose ? ['warn', 'ZIP creation failed. Check that every file was downloaded individually, and keep the headset copy.'] : ['ok', PRACTICE ? 'All rows are in the laptop ZIP. Its file names start with PRACTICE, so keep it apart from study data.' : 'All rows are in the laptop ZIP. No cable connection to the headset is needed once the ZIP is in Downloads.']] : []),
+                headsetLine,
+                ...(zipLine ? [zipLine] : []),
+                ...questStudy.problems.map(p => ['bad', p]),
+                ...(blocked ? [['bad', `The questionnaires for ${(quest.meta && quest.meta.id) || 'the previous participant'} are not finished. Finish or skip them using the banner at the top.`]] : []),
+                ...(mine && quest.status === 'pending' && !broken ? [['info', `${qTotal} questions in ${quest.defs.length} ${quest.defs.length === 1 ? 'set' : 'sets'}. They take about 5 to 10 minutes.`]] : []),
+                ...(mine && quest.status === 'in-progress' ? [['warn', open ? `The participant is answering: ${qDone} of ${qTotal} so far` : `In progress: ${qDone} of ${qTotal} answered.${quest.storeFailed ? '' : ' The answers are kept.'}`]] : []),
+                ...storageLine,
+                ...(mine && quest.meta && quest.meta.practice ? [['info', 'Practice session. The answers are labelled PRACTICE.']] : [])
+            ]);
+            const g8val = mine && quest.status === 'in-progress' ? `${qDone} of ${qTotal}` : '';
+            if ($('g8-val').textContent !== g8val) $('g8-val').textContent = g8val;
+            $('g-quest-go').textContent = mine && quest.status === 'in-progress' ? 'Hand back to participant' : 'Hand to participant';
+            $('g-quest-go').disabled = !mine || questDone() || !quest.defs.length || broken;
+            $('g-quest-skip').parentElement.hidden = !(mine && !questDone() && (s.endReason === 'ended-early' || questStudy.problems.length));
+            $('g8-note').hidden = !mine || questDone() || !quest.defs.length || broken;
+            $('g8-more').hidden = !mine || questDone();
+            $('g-quest-add-run').hidden = !(mine && quest.status === 'pending');
+            $('g-quest-add-run').disabled = !st.live || guide.busy || !s.backup.final || backup.zipping > 0;
+            const skipRecorded = quest.status !== 'skipped' || questFiles(questRecord(), 'check').length > 0;
+            setChecks('g9-files', [
+                laptopLine,
+                ...(withQuest ? [quest.status === 'skipped' ? (skipRecorded ? ['ok', `Questionnaires skipped. This is recorded in the ${backup.savedLoose ? 'downloaded files' : 'ZIP'}.`] : ['warn', 'Questionnaires skipped. The questionnaire files did not load, so the skip could not be recorded in the ZIP.']) : ['ok', `Questionnaires answered after block ${(quest.meta && quest.meta.afterBlock) || s.run}`]] : []),
+                ...(withQuest && !saved && quest.saved ? [['ok', `Questionnaire answers downloaded: ${quest.saved}`]] : []),
+                headsetLine,
+                ...(zipLine ? [zipLine] : []),
                 ...(typeof ResultsCharts === 'undefined' ? [['warn', 'Charts are unavailable, but the recorded data are unaffected.']] : [])
             ]);
-            const sumEl = $('g8-summary');
+            const sumEl = $('g9-summary');
             const rows = computeSummary(s);
             const key = JSON.stringify(rows);
             if (sumEl.dataset.key !== key) {
@@ -2610,9 +2985,10 @@
     }
 
     function renderRecovery(s) {
-        const live = [backup.storeId, s && s.sessionId];
+        const live = [backup.storeId, s && s.sessionId, questUnsaved() ? quest.storeId : null].filter(Boolean);
         const rows = guide.recovery.filter(r => !live.includes(r.id));
-        const key = JSON.stringify(rows.map(r => r.id));
+        const busy = questUnsaved();
+        const key = JSON.stringify([busy, rows.map(r => [r.id, r.runs, questLine(r.questionnaire)])]);
         if (key === guide.recoveryKey) return;
         guide.recoveryKey = key;
         const box = $('g-recovery');
@@ -2621,7 +2997,8 @@
             const row = document.createElement('div');
             row.className = 'g-banner';
             const line = document.createElement('div');
-            line.textContent = `Unsaved session: ${r.participantId || 'no participant ID'}, ${r.runs} ${r.runs === 1 ? 'block' : 'blocks'} stored on this laptop`;
+            const q = questLine(r.questionnaire);
+            line.textContent = `Unsaved session: ${r.participantId || 'no participant ID'}, ${r.runs} ${r.runs === 1 ? 'block' : 'blocks'}${q ? `, ${q}` : ''} stored on this laptop`;
             const actions = document.createElement('div');
             actions.className = 'g-actions';
             const save = document.createElement('button');
@@ -2636,7 +3013,20 @@
             drop.textContent = 'Discard';
             drop.addEventListener('click', () => discardSession(r));
             actions.append(save, drop);
-            row.append(line, actions, msg);
+            const extra = [];
+            if (r.questionnaire && r.questionnaire.status === 'in-progress') {
+                const more = document.createElement('div');
+                more.className = 'g-actions';
+                const resume = document.createElement('button');
+                resume.tabIndex = -1;
+                resume.textContent = 'Hand back to participant';
+                resume.disabled = busy;
+                resume.title = busy ? 'Finish or skip the current questionnaires first.' : '';
+                resume.addEventListener('click', () => questResumeStored(r, msg));
+                more.append(resume);
+                extra.push(more);
+            }
+            row.append(line, actions, ...extra, msg);
             box.appendChild(row);
         });
     }
@@ -2647,28 +3037,24 @@
             msg.textContent = text;
         };
         const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        let runs;
+        let runs, stored = session;
         say('busy', 'Reading…');
         try {
             runs = await runStore.runsOf(session.id);
+            stored = (await runStore.session(session.id)) || session;
         } catch (e) {
             say('bad', 'Could not read stored session. Try again.');
             return;
         }
-        const files = [];
-        runs.forEach(r => {
-            const add = (name, text) => { if (text) files.push({ path: `block${r.run}/${r.prefix}${name}-${ts}.csv`, parts: [text] }); };
-            add('vr-session-data', r.trials);
-            add('kinematics-LEFT', r.kinL);
-            add('kinematics-RIGHT', r.kinR);
-            add('session-info', r.info);
-        });
-        if (!files.length) {
+        const files = storedRunFiles(runs, ts);
+        const questionnaire = stored.questionnaire;
+        if (!files.length && !(questionnaire && questionnaire.status && questionnaire.status !== 'pending')) {
             say('bad', 'Nothing stored for this session.');
             return;
         }
-        if (session.notes) files.push({ path: `${session.sessionPrefix || ''}notes-${ts}.csv`, parts: [session.notes] });
-        const how = await saveZipOrLoose(`${session.sessionPrefix || ''}recovered-${ts}.zip`, files);
+        if (stored.notes) files.push({ path: `${stored.sessionPrefix || ''}notes-${ts}.csv`, parts: [stored.notes] });
+        files.push(...questFiles(questionnaire, ts));
+        const how = await saveZipOrLoose(`${stored.sessionPrefix || ''}recovered-${ts}.zip`, files);
         say('ok', `Download started: ${files.length} ${files.length === 1 ? 'file' : 'files'} ${how}`);
     }
 
@@ -2999,6 +3385,7 @@
         if (typeof ResultsCharts === 'undefined') {
             $('results').hidden = true;
             $('g-results').hidden = true;
+            $('g-quest-results').hidden = true;
             return;
         }
         const s = st.s;
@@ -3011,13 +3398,14 @@
             res.drawToken++;
         } else {
             initResultsCharts(s);
-            if (!res.autoOpened && res.charts.size) {
+            if (!res.autoOpened && res.charts.size && st.current === 9) {
                 res.autoOpened = true;
                 res.open = true;
             }
         }
         $('results').hidden = !res.open;
         $('g-results').classList.toggle('on', res.open);
+        $('g-quest-results').classList.toggle('on', res.open);
         if (!complete || !res.open) {
             $('chart-tip').hidden = true;
             return;
@@ -3164,6 +3552,7 @@
         const res = guide.results;
         const panel = $('results');
         $('g-results').addEventListener('click', () => { res.open = !res.open; renderGuide(); });
+        $('g-quest-results').addEventListener('click', () => { res.open = !res.open; renderGuide(); });
         $('res-close').addEventListener('click', () => { res.open = false; renderGuide(); });
         $('res-save').addEventListener('click', saveFigures);
         panel.addEventListener('click', (e) => {
@@ -3365,21 +3754,25 @@
         renderGuide();
     }
 
-    async function addRunAfterFinish() {
+    async function addRunAfterFinish(step) {
         const runs = guide.plan.runs.concat([newRun()]);
         guide.busy = true;
-        setMsg(8, 'Sending…', 'busy');
+        setMsg(step, 'Sending…', 'busy');
         const r = await sendCmd('setPlan', Object.assign(planPayload(), { runs }));
         guide.busy = false;
         if (!r.ok) {
-            setMsg(8, failureText(r), 'bad');
+            setMsg(step, failureText(r), 'bad');
             renderGuide();
             return;
         }
         guide.plan.runs = runs;
         runStore.forgotten.delete(backup.storeId);
         resetStored();
-        await runGuideCmd(8, 'reopenSession', undefined, 'Block added');
+        const reopened = await runGuideCmd(step, 'reopenSession', undefined, 'Block added');
+        if (reopened.ok) {
+            questAfterReopen();
+            renderGuide();
+        }
     }
 
     function calibrateCmd(step, k) {
@@ -3479,7 +3872,8 @@
         $('g7-b-start').addEventListener('click', startNextRun);
         $('g7-b-add').addEventListener('click', () => editPlan(p => { p.runs.push(newRun()); }));
         $('g7-b-finish').addEventListener('click', () => runGuideCmd(7, 'finishSession', undefined, 'Session finished'));
-        $('g-add-run').addEventListener('click', addRunAfterFinish);
+        $('g-add-run').addEventListener('click', () => addRunAfterFinish(9));
+        $('g-quest-add-run').addEventListener('click', () => addRunAfterFinish(8));
     }
 
     async function runGuideCmd(step, name, value, okText) {
@@ -3574,6 +3968,15 @@
         });
         $('g-relock').addEventListener('click', () => runGuideCmd(7, 'relockSetup', undefined, 'Setup relocked'));
         $('g-save-again').addEventListener('click', () => { saveBackup(); renderGuide(); });
+        $('g-quest-go').addEventListener('click', questOpen);
+        $('g-quest-other-go').addEventListener('click', questOpen);
+        $('g-quest-other-done').addEventListener('click', () => { if (questDone() && quest.savedFinal) questReset(null, 'none'); renderGuide(); });
+        $('g-quest-other-skip').addEventListener('click', () => { $('g-quest-other-skip-confirm').hidden = false; });
+        $('g-quest-other-skip-no').addEventListener('click', () => { $('g-quest-other-skip-confirm').hidden = true; });
+        $('g-quest-other-skip-yes').addEventListener('click', () => { $('g-quest-other-skip-confirm').hidden = true; questFinish('skipped'); });
+        $('g-quest-skip').addEventListener('click', () => { $('g-quest-skip-confirm').hidden = false; });
+        $('g-quest-skip-no').addEventListener('click', () => { $('g-quest-skip-confirm').hidden = true; });
+        $('g-quest-skip-yes').addEventListener('click', () => { $('g-quest-skip-confirm').hidden = true; questFinish('skipped'); });
         $('g-new').addEventListener('click', () => { $('g-new-confirm').hidden = false; });
         $('g-new-no').addEventListener('click', () => { $('g-new-confirm').hidden = true; });
         $('g-new-reload').addEventListener('click', () => { guide.leaving = true; location.reload(); });
@@ -3608,13 +4011,14 @@
     }
 
     window.__obs = {
-        frames: 0, head, gaze, targets, homeBox, homeBoxL, homeBoxR, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide, quality,
+        frames: 0, head, gaze, targets, homeBox, homeBoxL, homeBoxR, controls, hands, settings, setLeftSlot, stats, receiver, backup, guide, quality, quest, questOpen, questFinish,
         get camera() { return camera; },
         get view() { return viewName; }
     };
 
     function loop() {
         requestAnimationFrame(loop);
+        if (document.body.classList.contains('qv-open')) return;
         const now = Date.now();
         head.visible = headSeen && viewName !== 'pov' && (settings.head || settings.gaze);
         Object.values(hands).forEach(h => {

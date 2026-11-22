@@ -1,6 +1,6 @@
 const { serve, launch, counter } = require('./harness.cjs');
 const { ok, done } = counter('PROTECT BROWSER');
-const VERSION = '2.8.1';
+const VERSION = '2.9.0';
 const BASE = { type: 'state', version: VERSION, sessionId: 'A', phase: 'setup', endReason: '', participantId: '', filePrefix: 'P9_', sessionPrefix: 'P9_', experimenter: '', homeMode: 'one-box', dominantHand: 'RIGHT', condition: 1, mode: 'fmode', totalTrials: 44, plannedRuns: 1, run: 1, setupLocked: false, calib: { reach: { done: true, hand: 'RIGHT', distance: 0.6, radius: 0.48 }, height: { done: true, height: 1 }, lap: { done: true, home: { x: 0, y: 0.9, z: -0.4 } } }, recentred: true, cue: null, sessionMs: 0, trialCount: 0, recentreCount: 0, pauses: 0, backup: { trials: 0, kinL: 0, kinR: 0, final: false, exportTs: '' }, info: '' };
 const FAKE_WAKE = `
   window.__wake = { requests: 0, released: 0, fail: false, locks: [] };
@@ -106,12 +106,17 @@ async function open(b, init) {
     await p.evaluate(() => { const c = window.__c; c.emit('data', JSON.stringify({ type: 'rows', file: 'trials', from: 0, header: 'Trial,Timestamp\n', lines: ['1,100\n'] })); ['kinL', 'kinR'].forEach(f => c.emit('data', JSON.stringify({ type: 'rows', file: f, from: 0, header: 'Timestamp\n', lines: ['5\n'] }))); });
     await st({ phase: 'complete', endReason: 'finished', backup: { trials: 1, kinL: 1, kinR: 1, final: true, exportTs: 'T1' } });
     let saved = '';
-    for (let i = 0; i < 40 && !saved.includes('Download started'); i++) { await tick(300); await new Promise(r => setTimeout(r, 50)); saved = await p.evaluate(() => document.getElementById('g8-files').textContent); }
+    for (let i = 0; i < 40 && !saved.includes('Download started'); i++) { await tick(300); await new Promise(r => setTimeout(r, 50)); saved = await p.evaluate(() => document.getElementById('g8-checks').textContent); }
     await tick(600);
     ok(saved.includes('Download started'), 'session saved on the laptop');
-    ok(await p.evaluate(() => window.__wake.released) === 1, 'session saved: lock released');
-    const warned = await p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
-    ok(warned === false, 'session saved: no leave warning');
+    const leaveWarns = () => p.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+    ok(await p.evaluate(() => window.__wake.released) === 0 && await leaveWarns(), 'questionnaires still to come: lock kept and leaving warns');
+    await p.evaluate(() => window.__obs.questFinish('skipped'));
+    let final = '';
+    for (let i = 0; i < 40 && !final.includes('Questionnaires skipped'); i++) { await tick(300); await new Promise(r => setTimeout(r, 50)); final = await p.evaluate(() => document.getElementById('g9-files').textContent); }
+    await tick(600);
+    ok(await p.evaluate(() => window.__wake.released) === 1, 'session and questionnaires saved: lock released');
+    ok(await leaveWarns() === false, 'session and questionnaires saved: no leave warning');
     await ctx.close();
   }
 

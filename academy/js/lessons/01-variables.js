@@ -147,7 +147,7 @@
                 type: 'quiz',
                 title: 'Boxes that can\'t change',
                 goal: 'Work out what the computer does with this code.',
-                explain: `<p>You can also make a box with <code>const</code>, which is short for constant. A <code>const</code> box gets a value once, and that value can't be changed afterwards.</p><p>WebSpheres uses <code>const</code> for values that must not change while it runs. For example, the first line of <code>spectator-manager.js</code> is <code>const APP_VERSION = '2.8.1';</code></p>`,
+                explain: `<p>You can also make a box with <code>const</code>, which is short for constant. A <code>const</code> box gets a value once, and that value can't be changed afterwards.</p><p>WebSpheres uses <code>const</code> for values that must not change while it runs. For example, the first line of <code>spectator-manager.js</code> makes a <code>const</code> box called <code>APP_VERSION</code>, which holds the version number, such as <code>'2.9.0'</code>.</p>`,
                 question: '<pre class="snippet">const crystalCount = 11;\ncrystalCount = 12;</pre>What happens when the computer runs these two lines?',
                 options: [
                     { text: '<code>crystalCount</code> holds 12', correct: false, why: 'That would happen if the box was made with <code>let</code>. A <code>const</code> box can\'t be given a new value.' },
